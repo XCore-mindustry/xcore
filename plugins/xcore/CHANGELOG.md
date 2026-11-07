@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.0] - 2026-11-08
+
 ### Added
 - Materialized player statistics, off by default (`[statistics] enabled`, `read_enabled`, `history_owner`). Each match is saved together with every participant's result in one transaction, and profiles read the stored totals instead of summing all games on every open. A reconnect no longer counts as another game, and a player who left before the end (`LEFT`) or joined for the last part of the match no longer gets the win. Policy and rollout: `docs/player-statistics.md`.
 - Console commands `stats-rebuild <uuid>|all` and the read-only `stats-audit`; metrics `xcore_stats_writes_total`, `xcore_stats_rebuilds_total`, `xcore_stats_rebuild_duration_seconds`, `xcore_stats_dirty_players` and `xcore_stats_oldest_dirty_seconds`.
