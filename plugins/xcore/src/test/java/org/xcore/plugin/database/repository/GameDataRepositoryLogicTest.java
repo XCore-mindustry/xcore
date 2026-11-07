@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.xcore.plugin.config.TomlSecretsConfig;
 import org.xcore.plugin.model.GameData;
 
+import java.util.concurrent.CompletableFuture;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -153,6 +155,50 @@ class GameDataRepositoryLogicTest {
             assertThat(write).isCompletedWithValue(true);
             verify(totals, org.mockito.Mockito.times(2)).write(any());
         } finally {
+            storage.shutdown();
+        }
+    }
+
+    @Test
+    void shutdownAlsoWaitsForAWriteAcceptedWhileItWaits() throws Exception {
+        MongoDatabase database = mock(MongoDatabase.class);
+        when(database.getCollection("games_v2", GameData.class)).thenReturn(collection);
+        when(collection.getCodecRegistry()).thenReturn(org.bson.codecs.configuration.CodecRegistries.fromRegistries(
+                com.mongodb.MongoClientSettings.getDefaultCodecRegistry(),
+                org.bson.codecs.configuration.CodecRegistries.fromProviders(
+                        org.bson.codecs.pojo.PojoCodecProvider.builder().automatic(true).build())));
+        var totals = mock(org.xcore.plugin.service.stats.PlayerTotalsStore.class);
+        when(totals.enabled()).thenReturn(true);
+        var started = new java.util.concurrent.CountDownLatch(1);
+        var releaseFirst = new java.util.concurrent.CountDownLatch(1);
+        var releaseSecond = new java.util.concurrent.CountDownLatch(1);
+        when(totals.write(any())).thenAnswer(invocation -> {
+            if ("match-1".equals(invocation.<Document>getArgument(0).getString("match_id"))) {
+                started.countDown();
+                releaseFirst.await();
+            } else {
+                releaseSecond.await();
+            }
+            return true;
+        });
+        var storage = new org.xcore.plugin.concurrent.StorageExecutor(2);
+        var repository = new GameDataRepository(database, null, new TomlSecretsConfig(), totals, storage, null);
+        try {
+            repository.saveOnceAsync(GameData.builder().matchId("match-1").build());
+            assertThat(started.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            var drained = CompletableFuture.runAsync(repository::drain);
+            Thread.sleep(100);
+            var late = repository.saveOnceAsync(GameData.builder().matchId("match-2").build()).toCompletableFuture();
+            releaseFirst.countDown();
+
+            Thread.sleep(200);
+            assertThat(drained).isNotDone();
+            releaseSecond.countDown();
+            drained.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(late).isCompletedWithValue(true);
+        } finally {
+            releaseFirst.countDown();
+            releaseSecond.countDown();
             storage.shutdown();
         }
     }
