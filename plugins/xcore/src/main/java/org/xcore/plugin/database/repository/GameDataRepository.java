@@ -166,9 +166,14 @@ public class GameDataRepository extends DataRepository<GameData> {
             } catch (RuntimeException error) {
                 return CompletableFuture.failedFuture(error);
             }
-            var write = store(snapshot, 0);
+            // Registered before the write starts, so a drain running meanwhile cannot miss it.
+            var write = new CompletableFuture<Boolean>();
             pending.add(write);
             write.whenComplete((stored, error) -> pending.remove(write));
+            store(snapshot, 0).whenComplete((stored, error) -> {
+                if (error != null) write.completeExceptionally(error);
+                else write.complete(stored);
+            });
             return write;
         }
         if (reactiveCollection == null) {
@@ -217,17 +222,24 @@ public class GameDataRepository extends DataRepository<GameData> {
     @PreDestroy(priority = ShutdownOrder.DRAIN_WRITES)
     public void drain() {
         draining.complete(null);
-        var writes = pending.toArray(CompletableFuture[]::new);
-        if (writes.length == 0) return;
-        Log.info("[Stats] Waiting for @ match write(s) before closing storage", writes.length);
-        try {
-            CompletableFuture.allOf(writes).get(drainTimeoutMs, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            Log.err("[Stats] @ match write(s) did not finish before shutdown", pending.size());
-        } catch (ExecutionException e) {
-            // Each failed write has already logged its match ID.
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (pending.isEmpty()) return;
+        Log.info("[Stats] Waiting for @ match write(s) before closing storage", pending.size());
+        long deadline = System.currentTimeMillis() + drainTimeoutMs;
+        // Loops so a write accepted while the first batch finished is waited for too.
+        while (!pending.isEmpty()) {
+            long left = deadline - System.currentTimeMillis();
+            try {
+                if (left <= 0) throw new TimeoutException();
+                CompletableFuture.allOf(pending.toArray(CompletableFuture[]::new)).get(left, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException e) {
+                Log.err("[Stats] @ match write(s) did not finish before shutdown", pending.size());
+                return;
+            } catch (ExecutionException e) {
+                // Each failed write has already logged its match ID; wait for the rest.
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
         }
     }
 
