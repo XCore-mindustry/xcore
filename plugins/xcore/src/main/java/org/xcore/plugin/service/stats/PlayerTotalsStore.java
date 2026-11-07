@@ -143,8 +143,14 @@ public class PlayerTotalsStore {
             storage.supply(() -> {
                 try {
                     backfillOnce();
-                    for (int i = 0; i < REBUILDS_PER_TICK && rebuildOne(); i++) {
-                        // A bounded batch per tick leaves room for other storage work.
+                    // A bounded batch per tick leaves room for other storage work.
+                    for (int i = 0; i < REBUILDS_PER_TICK; i++) {
+                        try {
+                            if (!rebuildOne()) break;
+                        } catch (RuntimeException error) {
+                            // rebuildOne already put this player behind retry_at, so the next call takes another.
+                            Log.err("[Stats] Player rebuild failed; continuing with the next player", error);
+                        }
                     }
                     sampleBacklog();
                 } finally {
