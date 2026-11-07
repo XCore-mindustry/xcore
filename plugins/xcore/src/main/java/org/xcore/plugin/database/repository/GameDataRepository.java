@@ -160,16 +160,17 @@ public class GameDataRepository extends DataRepository<GameData> {
             return CompletableFuture.completedFuture(false);
         }
         if (storage != null) {
+            // Registered before anything else, so a drain running meanwhile cannot miss it.
+            var write = new CompletableFuture<Boolean>();
+            pending.add(write);
+            write.whenComplete((stored, error) -> pending.remove(write));
             Document snapshot;
             try {
                 snapshot = snapshot(game);
             } catch (RuntimeException error) {
-                return CompletableFuture.failedFuture(error);
+                write.completeExceptionally(error);
+                return write;
             }
-            // Registered before the write starts, so a drain running meanwhile cannot miss it.
-            var write = new CompletableFuture<Boolean>();
-            pending.add(write);
-            write.whenComplete((stored, error) -> pending.remove(write));
             store(snapshot, 0).whenComplete((stored, error) -> {
                 if (error != null) write.completeExceptionally(error);
                 else write.complete(stored);
