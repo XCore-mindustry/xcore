@@ -144,13 +144,7 @@ public class PlayerTotalsStore {
                 try {
                     backfillOnce();
                     // A bounded batch per tick leaves room for other storage work.
-                    for (int i = 0; i < REBUILDS_PER_TICK; i++) {
-                        try {
-                            if (!rebuildOne()) break;
-                        } catch (RuntimeException error) {
-                            // rebuildOne already put this player behind retry_at, so the next call takes another.
-                            Log.err("[Stats] Player rebuild failed; continuing with the next player", error);
-                        }
+                    for (int i = 0; i < REBUILDS_PER_TICK && rebuildOne(); i++) {
                     }
                     sampleBacklog();
                 } finally {
@@ -357,7 +351,10 @@ public class PlayerTotalsStore {
         return new Document("rows", rows).append("pairs", pairs).append("outcomes", counts);
     }
 
-    /** Rebuilds the oldest due dirty player; returns false when nothing is due. */
+    /**
+     * Rebuilds the oldest due dirty player; returns false when nothing is due. A player whose replay
+     * fails is put behind retry_at and counts as done; a failure to claim or defer ends the batch.
+     */
     public boolean rebuildOne() {
         long now = System.currentTimeMillis();
         String token = UUID.randomUUID().toString();
@@ -379,7 +376,7 @@ public class PlayerTotalsStore {
                     set("rebuild.retry_at", System.currentTimeMillis() + backoff),
                     unset("rebuild.lease_token"), unset("rebuild.lease_until")));
             countRebuild("failed", now);
-            throw e;
+            Log.err("[Stats] Rebuild of @ failed; retrying in @ s", state.getString("_id"), backoff / 1000, e);
         }
         return true;
     }

@@ -228,7 +228,8 @@ class PlayerTotalsStoreIntegrationTest {
         store.invalidate(null, "a");
         for (long expected : new long[]{30_000, 60_000}) {
             long before = System.currentTimeMillis();
-            assertThatThrownBy(() -> store.rebuildOne()).isInstanceOf(RuntimeException.class);
+            // The failed player is deferred, so a batch goes on with the next one.
+            assertThat(store.rebuildOne()).isTrue();
             var rebuild = totals.find(new Document("_id", "a")).first().get("rebuild", Document.class);
             assertThat(number(rebuild, "retry_at") - before).isBetween(expected, expected + 5_000);
             assertThat(store.rebuildOne()).isFalse();
