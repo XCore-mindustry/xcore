@@ -1,6 +1,7 @@
 package org.xcore.plugin.ui.menu;
 
 import com.ospx.flubundle.Bundle;
+import mindustry.gen.Iconc;
 import mindustry.gen.Player;
 import mindustry.net.NetConnection;
 import mindustry.ui.builder.MenuResult;
@@ -686,9 +687,12 @@ class PlayerProfileUiControllerTest {
                 List.of("[white]112[] [gray]матчей[]", "[lime]61%[] [gray]побед[]", "[gray]место[] [accent]#4[]"),
                 List.of("[lightgray]Сезон 3 закончится через [white]12 д 4 ч[][]", "[lightgray]58 ELO до [white]Алмаз I[][]"));
         var recent = new java.util.ArrayList<PlayerStatsOverview.RecentMatch>();
-        for (String outcome : List.of("WIN", "LOSS", "LEFT", "NOT_COUNTED", "WIN")) {
-            recent.add(new PlayerStatsOverview.RecentMatch("[scarlet]attack-and-defence-long-mode",
-                    outcome, 1_760_000_000_000L, "[#ff0000]Крепость на краю бесконечной пустыни v12"));
+        // Every category, one this build does not know, and a match whose map is unknown.
+        List<String> categories = List.of("PVP", "SURVIVAL", "HEXED", "EVENT", "[scarlet]attack-and-defence-long-mode");
+        List<String> outcomes = List.of("WIN", "LOSS", "LEFT", "NOT_COUNTED", "WIN");
+        for (int i = 0; i < categories.size(); i++) {
+            recent.add(new PlayerStatsOverview.RecentMatch(categories.get(i), outcomes.get(i), 1_760_000_000_000L,
+                    i == 1 ? null : "[#ff0000]Крепость на краю бесконечной пустыни v12"));
         }
         // Rebuilding, with every materialized figure filled: the most text the profile can show.
         var stats = new PlayerStatsOverview(
@@ -738,6 +742,46 @@ class PlayerProfileUiControllerTest {
     }
 
     @Test
+    @DisplayName("the statistics tab gives each mode one card, with no loose separators")
+    void statsTab_showsEachModeOnce() {
+        Session session = createTestSession("uuid-1", false);
+        session.localization = LayoutAssert.localization("en");
+        var controller = new PlayerProfileUiController(null, null, null, null, session, session.data);
+        var model = crowdedProfile(controller, session, false).withTab(PlayerProfileUiController.Tab.STATS);
+        String text = LayoutAssert.allText(controller.window(model, Screen.SMALL));
+
+        for (String title : List.of(Iconc.modePvp + " PvP", Iconc.defense + " Survival", Iconc.star + " Hexed")) {
+            assertThat(text.split(java.util.regex.Pattern.quote(title), -1)).as(title).hasSize(2);
+        }
+        assertThat(text).contains("Best win streak", "Reached the last wave").doesNotContain(": ·", "In counted matches");
+    }
+
+    @Test
+    @DisplayName("a recent match is dated today, yesterday, by day or with the year, and shorter where room is short")
+    void matchDate_shortensWithAge() {
+        var local = LayoutAssert.localization("en");
+        java.time.ZoneId zone = java.time.ZoneId.systemDefault();
+        java.util.function.Function<java.time.LocalDateTime, Long> at = time -> time.atZone(zone).toInstant().toEpochMilli();
+        long now = at.apply(java.time.LocalDateTime.of(2026, 11, 8, 15, 0));
+        long today = at.apply(java.time.LocalDateTime.of(2026, 11, 8, 14, 5));
+        long yesterday = at.apply(java.time.LocalDateTime.of(2026, 11, 7, 22, 10));
+        long earlier = at.apply(java.time.LocalDateTime.of(2026, 11, 6, 19, 40));
+        long lastYear = at.apply(java.time.LocalDateTime.of(2025, 10, 11, 14, 0));
+
+        assertThat(PlayerProfileUiController.matchDate(today, now, local, true)).contains("today", "14:05");
+        assertThat(PlayerProfileUiController.matchDate(today, now, local, false)).isEqualTo("14:05");
+        assertThat(PlayerProfileUiController.matchDate(yesterday, now, local, true)).contains("yesterday", "22:10");
+        assertThat(PlayerProfileUiController.matchDate(yesterday, now, local, false)).isEqualTo("07.11");
+        assertThat(PlayerProfileUiController.matchDate(earlier, now, local, true)).isEqualTo("06.11 19:40");
+        assertThat(PlayerProfileUiController.matchDate(lastYear, now, local, true)).isEqualTo("11.10.25");
+        long newYear = at.apply(java.time.LocalDateTime.of(2027, 1, 1, 10, 0));
+        long newYearsEve = at.apply(java.time.LocalDateTime.of(2026, 12, 31, 23, 10));
+        assertThat(PlayerProfileUiController.matchDate(newYearsEve, newYear, local, true)).contains("yesterday", "23:10");
+        assertThat(PlayerProfileUiController.matchDate(newYearsEve, newYear, local, false)).isEqualTo("31.12.26");
+        assertThat(PlayerProfileUiController.matchDate(0, now, local, true)).isEqualTo("-");
+    }
+
+    @Test
     @DisplayName("a player without counted games sees a note instead of a 0% win rate")
     void window_newcomerHasNoWinRate() {
         Session session = createTestSession("uuid-1", false);
@@ -776,8 +820,8 @@ class PlayerProfileUiControllerTest {
         var legacy = new PlayerStatsOverview(overall, ModeStatsSummary.EMPTY, ModeStatsSummary.EMPTY, ModeStatsSummary.EMPTY);
         var materialized = new PlayerStatsOverview(overall, ModeStatsSummary.EMPTY, ModeStatsSummary.EMPTY,
                 ModeStatsSummary.EMPTY, "ready", false, true, 0, 0, List.of());
-        String destroyed = session.locale().t("player-stats-blocks-destroyed");
-        String unitsLost = session.locale().t("player-stats-units-lost");
+        String destroyed = session.locale().t("player-stats-row-destroyed");
+        String unitsLost = session.locale().t("player-stats-row-units-lost");
 
         var legacyModel = controller.createInitialModel(PlayerProfileUiController.Tab.STATS, new ProfileDetails(legacy, null, List.of()));
         assertThat(LayoutAssert.allText(controller.window(legacyModel, Screen.SMALL)))

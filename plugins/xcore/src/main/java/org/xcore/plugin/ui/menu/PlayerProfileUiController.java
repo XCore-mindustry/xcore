@@ -29,6 +29,8 @@ import org.xcore.ui.runtime.UpdateResult;
 
 import java.text.NumberFormat;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -820,29 +822,28 @@ public class PlayerProfileUiController implements UiController<PlayerProfileUiCo
             PlayerStatsOverview stats = model.stats();
             if (stats.updating()) left.add(Kit.note(card, t(local, "player-stats-rebuilding")));
             if ("ready".equals(stats.status()) && stats.detailed() && !hasNoGames(stats)) {
-                left.add(Kit.note(card, t(local, "player-stats-participation",
-                        args("left", stats.left(), "streak", stats.streak()))));
-                if (!stats.recent().isEmpty()) left.add(Kit.card(card, (content, inner) -> {
-                    content.add(Kit.text(t(local, "player-stats-recent"), inner)).row();
-                    for (var match : stats.recent()) content.add(Kit.text(recentMatch(match, local, inner), inner)).row();
-                }));
+                String participation = t(local, "player-stats-participation",
+                        args("left", stats.left(), "streak", stats.streak()));
+                if (stats.recent().isEmpty()) {
+                    left.add(Kit.note(card, participation));
+                } else {
+                    // A row a match, then how often the player leaves and how many wins in a row they have now.
+                    long now = System.currentTimeMillis();
+                    left.add(Kit.card(card, Accent.GRAY, t(local, "player-stats-recent"), (content, inner) -> {
+                        for (int i = 0; i < stats.recent().size(); i++) {
+                            content.add(recentMatch(stats.recent().get(i), local, inner, i % 2 == 0, now)).row();
+                        }
+                        content.add(divider(inner)).row();
+                        content.add(Kit.centered("[lightgray]" + participation + "[]", inner)).row();
+                    }));
+                }
             }
         }
 
         // One card per section the server's modes contribute (rating ladders).
         for (ProfileSection section : renderSections(model, local)) {
-            right.add(Kit.card(card, (content, inner) -> {
-                StringBuilder text = new StringBuilder(section.headline());
-                if (!section.details().isEmpty()) {
-                    text.append('\n').append(String.join(SEPARATOR, section.details()));
-                }
-                for (String line : section.lines()) {
-                    text.append('\n').append(line);
-                }
-                content.add(Kit.text(text.toString(), inner)).row();
-            }));
+            right.add(sectionCard(card, section, true));
         }
-
         body.add(Kit.columns(screen, left, right)).row();
     }
 
@@ -869,102 +870,204 @@ public class PlayerProfileUiController implements UiController<PlayerProfileUiCo
         }
         float card = screen.card();
         NumberFormat nf = Localization.integers(local != null ? local.getLocale() : Locale.ROOT);
-        PlayerStatsOverview overview = model.stats() != null ? model.stats() : PlayerStatsOverview.EMPTY;
+        PlayerStatsOverview overview = model.stats();
         AggregatedPlayerStats overall = overview.overall();
+        boolean detailed = overview.detailed();
+
+        // Every mode together, then what a win means where it is not simply winning.
+        List<Kit.Tile> tiles = new ArrayList<>(List.of(
+                Kit.Tile.number(nf.format(overall.gamesPlayed()), t(local, "player-stats-tile-games")),
+                Kit.Tile.number(nf.format(overall.gamesWon()) + " · " + overall.winRatePercent() + "%",
+                        t(local, "player-stats-tile-wins"))));
+        if (detailed) {
+            tiles.add(Kit.Tile.number(nf.format(overview.left()), t(local, "player-stats-tile-left")));
+            tiles.add(Kit.Tile.number(hours(overview.playMs(), nf, local), t(local, "player-stats-tile-time")));
+        }
+        Kit.tiles(body, screen, Accent.GOLD, tiles);
+        body.add(Ui.table(hint -> {
+            hint.layout(l -> l.padBottom(GAP));
+            hint.add(Kit.centered("[gray]" + t(local, "player-stats-win-hint") + "[]", screen.cards()));
+        })).row();
+
+        // The rating ladders in short (the overview has the rest), a card per mode with all of its figures, the blocks.
+        List<VNode> cards = new ArrayList<>();
+        List<Integer> heights = new ArrayList<>();
+        for (ProfileSection section : renderSections(model, local)) {
+            cards.add(sectionCard(card, section, false));
+            heights.add(3);
+        }
+
+        ModeStatsSummary pvp = overview.pvp();
+        if (pvp.hasData()) {
+            List<Fact> facts = new ArrayList<>();
+            facts.add(fact(local, "games", nf.format(pvp.gamesPlayed())));
+            facts.add(fact(local, "wins", rate(nf, pvp.gamesWon(), pvp.winRatePercent())));
+            participation(facts, pvp, detailed, nf, local);
+            addFacts(cards, heights, card, ModeLook.PVP, facts, local);
+        }
+        ModeStatsSummary survival = overview.survival();
+        if (survival.hasData()) {
+            List<Fact> facts = new ArrayList<>();
+            facts.add(fact(local, "games", nf.format(survival.gamesPlayed())));
+            if (detailed) facts.add(fact(local, "completed", nf.format(survival.gamesPlayed() - survival.left())
+                    + " [gray]/ " + nf.format(survival.gamesPlayed()) + "[]"));
+            facts.add(fact(local, "last-wave", rate(nf, survival.gamesWon(), survival.winRatePercent())));
+            if (survival.bestWave() > 0) facts.add(fact(local, "waves", "[lime]" + nf.format(survival.bestWave())
+                    + "[] · " + nf.format(survival.averageWave())));
+            participation(facts, survival, detailed, nf, local);
+            addFacts(cards, heights, card, ModeLook.SURVIVAL, facts, local);
+        }
+        ModeStatsSummary hexed = overview.hexed();
+        if (hexed.hasData()) {
+            List<Fact> facts = new ArrayList<>();
+            facts.add(fact(local, "games", nf.format(hexed.gamesPlayed())));
+            facts.add(fact(local, "firsts", rate(nf, hexed.gamesWon(), hexed.winRatePercent())));
+            if (hexed.bestPlacement() > 0) facts.add(fact(local, "best-place", "[accent]#" + hexed.bestPlacement()
+                    + "[] · " + nf.format(hexed.top3Finishes())));
+            participation(facts, hexed, detailed, nf, local);
+            addFacts(cards, heights, card, ModeLook.HEXED, facts, local);
+        }
+        long otherGames = overview.otherGamesPlayed();
+        if (otherGames > 0) {
+            long otherWins = overview.otherGamesWon();
+            List<Fact> facts = new ArrayList<>();
+            facts.add(fact(local, "games", nf.format(otherGames)));
+            facts.add(fact(local, "wins", rate(nf, otherWins, Math.round(otherWins * 100f / otherGames))));
+            long otherMs = overview.playMs() - pvp.playMs() - survival.playMs() - hexed.playMs();
+            if (detailed && otherMs > 0) facts.add(fact(local, "time", hours(otherMs, nf, local)));
+            addFacts(cards, heights, card, ModeLook.EVENT, facts, local);
+        }
+
+        // What was built and taken apart; only the legacy reader counts destroyed blocks and units.
+        List<Fact> blocks = new ArrayList<>(List.of(
+                fact(local, "built", "[lime]" + nf.format(overall.blocksBuilt()) + "[]"),
+                fact(local, "deconstructed", "[orange]" + nf.format(overall.blocksDeconstructed()) + "[]")));
+        if (!detailed) {
+            blocks.add(fact(local, "destroyed", "[scarlet]" + nf.format(overall.blocksDestroyed()) + "[]"));
+            if (overall.unitsProduced() > 0 || overall.unitsDestroyed() > 0) {
+                blocks.add(fact(local, "units-produced", "[sky]" + nf.format(overall.unitsProduced()) + "[]"));
+                blocks.add(fact(local, "units-lost", "[scarlet]" + nf.format(overall.unitsDestroyed()) + "[]"));
+            }
+        }
+        cards.add(Kit.card(card, Accent.BLUE, Iconc.hammer + " " + t(local, "player-stats-building"), (content, inner) -> {
+            for (Fact fact : blocks) content.add(factRow(fact, inner)).row();
+            if (!detailed) content.add(Kit.text(renderBlockRatioBar(overall.blocksBuilt(), overall.blocksDeconstructed(),
+                    overall.blocksDestroyed(), 10) + "  " + t(local, "player-stats-ratio-legend"), inner)).row();
+        }));
+        heights.add(2 + blocks.size() + (detailed ? 0 : 1));
+
+        body.add(balanced(screen, cards, heights)).row();
+    }
+
+    /** How a stats category is shown: its icon, colour and name. */
+    private enum ModeLook {
+        PVP(Iconc.modePvp, Accent.RED, "player-stats-mode-pvp"),
+        SURVIVAL(Iconc.defense, Accent.GREEN, "player-stats-mode-survival"),
+        HEXED(Iconc.star, Accent.PURPLE, "player-stats-mode-hexed"),
+        EVENT(Iconc.effect, Accent.ORANGE, "player-stats-mode-other");
+
+        final char icon;
+        final Accent accent;
+        final String key;
+
+        ModeLook(char icon, Accent accent, String key) {
+            this.icon = icon;
+            this.accent = accent;
+            this.key = key;
+        }
+
+        /** Events and any category this build does not know yet share one look. */
+        static ModeLook of(String category) {
+            for (ModeLook look : values()) {
+                if (look.name().equals(category)) return look;
+            }
+            return EVENT;
+        }
+    }
+
+    /** A labelled figure in a mode's card. */
+    private record Fact(String label, String value) {}
+
+    private static Fact fact(Localization local, String row, String value) {
+        return new Fact(t(local, "player-stats-row-" + row), value);
+    }
+
+    /** "160 (53%)": a count of wins with its rate. */
+    private static String rate(NumberFormat nf, long wins, long percent) {
+        return "[lime]" + nf.format(wins) + "[] [gray](" + percent + "%)[]";
+    }
+
+    /** Leaves, the best streak and the time played: only the projection records them. */
+    private static void participation(List<Fact> facts, ModeStatsSummary mode, boolean detailed, NumberFormat nf,
+                                      Localization local) {
+        if (!detailed) return;
+        facts.add(fact(local, "left", nf.format(mode.left())));
+        facts.add(fact(local, "best-streak", nf.format(mode.bestStreak())));
+        if (mode.playMs() > 0) facts.add(fact(local, "time", hours(mode.playMs(), nf, local)));
+    }
+
+    private static void addFacts(List<VNode> cards, List<Integer> heights, float width, ModeLook mode,
+                                 List<Fact> facts, Localization local) {
+        cards.add(Kit.card(width, mode.accent, mode.icon + " " + t(local, mode.key), (content, inner) -> {
+            for (Fact fact : facts) content.add(factRow(fact, inner)).row();
+        }));
+        heights.add(2 + facts.size());
+    }
+
+    /** The label on the left, the figure against the right edge. */
+    private static VNode factRow(Fact fact, float width) {
+        float valueWidth = Math.min(width / 2f, TextWidth.of(fact.value()) + GAP);
+        return Ui.table(row -> {
+            row.add(Kit.text("[gray]" + fact.label() + "[]", width - valueWidth));
+            row.add(Kit.right("[white]" + fact.value() + "[]", valueWidth));
+        });
+    }
+
+    /** Whole hours, or minutes while there is less than an hour. */
+    private static String hours(long ms, NumberFormat nf, Localization local) {
+        long minutes = ms / 60_000;
+        if (minutes < 60) return t(local, "player-menu-time-minutes", args("value", minutes), minutes + "m");
+        String value = nf.format(minutes / 60);
+        return t(local, "player-menu-time-hours", args("value", value), value + "h");
+    }
+
+    /** One column keeps the cards in order; two put each card under the shorter column so far. */
+    private static VNode balanced(Screen screen, List<VNode> cards, List<Integer> heights) {
+        if (screen.columns() == 1) return Kit.columns(screen, cards);
         List<VNode> left = new ArrayList<>();
         List<VNode> right = new ArrayList<>();
-
-        // Every game of every mode together, and why its rate sits below the PvP one.
-        left.add(Kit.card(card, (content, inner) -> content.add(Kit.text(
-                t(local, "player-stats-total-games") + " [white]" + nf.format(overall.gamesPlayed()) + "[]\n"
-                        + victories(local, nf, overall.gamesWon(), overall.gamesPlayed(), overall.winRatePercent()) + "\n"
-                        + t(local, "player-stats-all-modes-note"),
-                inner)).row()));
-
-        // Mode by mode: the rating ladders first, then the modes that keep no rating.
-        left.add(Kit.card(card, (content, inner) -> {
-            List<String> modes = new ArrayList<>();
-            for (ProfileSection section : renderSections(model, local)) {
-                modes.add(section.details().isEmpty() ? section.headline()
-                        : section.headline() + "\n  [lightgray]\u21b3[] " + String.join(SEPARATOR, section.details()));
+        int leftHeight = 0;
+        int rightHeight = 0;
+        for (int i = 0; i < cards.size(); i++) {
+            if (leftHeight <= rightHeight) {
+                left.add(cards.get(i));
+                leftHeight += heights.get(i);
+            } else {
+                right.add(cards.get(i));
+                rightHeight += heights.get(i);
             }
-            // All-time figures per mode; together with the events they add up to the total above.
-            ModeStatsSummary pvp = overview.pvp();
-            modes.add("[scarlet]" + Iconc.modePvp + "[] " + t(local, "player-stats-pvp-summary") + " "
-                    + (pvp.hasData()
-                    ? games(local, nf, pvp.gamesPlayed()) + SEPARATOR + t(local, "player-stats-mode-wins",
-                    args("wins", nf.format(pvp.gamesWon()), "winRate", pvp.winRatePercent()))
-                    : t(local, "player-menu-player-no-mode-stats")));
-            ModeStatsSummary survival = overview.survival();
-            modes.add("[green]" + Iconc.defense + "[] " + t(local, "player-stats-survival-summary") + " "
-                    + (survival.hasData()
-                    ? games(local, nf, survival.gamesPlayed()) + SEPARATOR
-                    + t(local, "player-stats-survival-wins",
-                    args("wins", nf.format(survival.gamesWon()), "winRate", survival.winRatePercent())) + SEPARATOR
-                    + t(local, "player-stats-waves-summary",
-                    args("best", nf.format(survival.bestWave()), "avg", nf.format(survival.averageWave())))
-                    : t(local, "player-menu-player-no-mode-stats")));
-            if (survival.completedOnly() && survival.hasData()) modes.add(t(local, "player-stats-survival-summary") + " · "
-                    + t(local, "player-stats-completed", args("count", survival.gamesPlayed() - survival.left(), "games", survival.gamesPlayed())));
-            ModeStatsSummary hexed = overview.hexed();
-            modes.add("[purple]" + Iconc.star + "[] " + t(local, "player-stats-hexed-summary") + " "
-                    + (hexed.hasData()
-                    ? games(local, nf, hexed.gamesPlayed()) + SEPARATOR
-                    + t(local, "player-stats-hexed-firsts",
-                    args("wins", nf.format(hexed.gamesWon()), "winRate", hexed.winRatePercent()))
-                    + (hexed.bestPlacement() > 0 ? SEPARATOR + t(local, "player-stats-hexed-top-placement",
-                    args("best", hexed.bestPlacement(), "top3", hexed.top3Finishes())) : "")
-                    : t(local, "player-menu-player-no-mode-stats")));
-            long otherGames = overview.otherGamesPlayed();
-            if (otherGames > 0) {
-                long otherWins = overview.otherGamesWon();
-                modes.add("[accent]" + Iconc.effect + "[] " + t(local, "player-stats-other-summary") + " "
-                        + games(local, nf, otherGames) + SEPARATOR + t(local, "player-stats-mode-wins",
-                        args("wins", nf.format(otherWins), "winRate", Math.round(otherWins * 100f / otherGames))));
-            }
-            var summaries = List.of(pvp, survival, hexed);
-            var labels = List.of("player-stats-pvp-summary", "player-stats-survival-summary", "player-stats-hexed-summary");
-            for (int i = 0; i < summaries.size(); i++) {
-                var summary = summaries.get(i);
-                if (overview.detailed() && summary.hasData()) modes.add(t(local, labels.get(i)) + " · " + t(local, "player-stats-mode-participation",
-                        args("streak", summary.bestStreak(), "left", summary.left(), "minutes", summary.playMs() / 60_000)));
-            }
-            for (int i = 0; i < modes.size(); i++) {
-                String mode = modes.get(i);
-                boolean first = i == 0;
-                content.add(Ui.table(line -> {
-                    line.layout(l -> l.padTop(first ? 0f : GAP));
-                    line.add(Kit.text(mode, inner));
-                })).row();
-            }
-        }));
+        }
+        return Kit.columns(screen, left, right);
+    }
 
-        // What was built, taken apart and lost.
-        right.add(Kit.card(card, Accent.BLUE, Iconc.hammer + " " + t(local, "player-stats-combat-efficiency"),
-                (content, inner) -> {
-                    StringBuilder text = new StringBuilder()
-                            .append(t(local, "player-stats-blocks-built")).append(" [lime]")
-                            .append(nf.format(overall.blocksBuilt())).append("[]\n")
-                            .append(t(local, "player-stats-blocks-deconstructed")).append(" [orange]")
-                            .append(nf.format(overall.blocksDeconstructed())).append("[]");
-                    // Only the legacy reader counts destroyed blocks and units; the projection has no such counters.
-                    if (!overview.detailed()) {
-                        text.append('\n').append(t(local, "player-stats-blocks-destroyed")).append(" [scarlet]")
-                                .append(nf.format(overall.blocksDestroyed())).append("[]\n")
-                                .append(renderBlockRatioBar(overall.blocksBuilt(), overall.blocksDeconstructed(),
-                                        overall.blocksDestroyed(), 10))
-                                .append("  ").append(t(local, "player-stats-ratio-legend"));
-                        if (overall.unitsProduced() > 0 || overall.unitsDestroyed() > 0) {
-                            text.append('\n').append(t(local, "player-stats-units-produced")).append(" [sky]")
-                                    .append(nf.format(overall.unitsProduced())).append("[]\n")
-                                    .append(t(local, "player-stats-units-lost")).append(" [scarlet]")
-                                    .append(nf.format(overall.unitsDestroyed())).append("[]");
-                        }
-                    }
-                    content.add(Kit.text(text.toString(), inner)).row();
-                }));
+    /** A section a mode adds to the profile, such as a rating ladder, as a card of its own; in short, its headline and details. */
+    private static VNode sectionCard(float width, ProfileSection section, boolean withLines) {
+        return Kit.card(width, (content, inner) -> {
+            StringBuilder text = new StringBuilder(section.headline());
+            if (!section.details().isEmpty()) {
+                text.append('\n').append(String.join(SEPARATOR, section.details()));
+            }
+            if (withLines) {
+                for (String line : section.lines()) {
+                    text.append('\n').append(line);
+                }
+            }
+            content.add(Kit.text(text.toString(), inner)).row();
+        });
+    }
 
-        body.add(Kit.columns(screen, left, right)).row();
+    private static VNode divider(float width) {
+        return Ui.image("whiteui", l -> l.width(width).height(1f).padTop(GAP).padBottom(GAP).color(Accent.GRAY.band()));
     }
 
     /** A ready projection without games: a newcomer, or someone whose games all were excluded. */
@@ -972,24 +1075,67 @@ public class PlayerProfileUiController implements UiController<PlayerProfileUiCo
         return "ready".equals(stats.status()) && stats.overall().gamesPlayed() == 0;
     }
 
-    /** The map, then mode · result · date; map and mode names come from the database, so they are escaped. */
-    private static String recentMatch(PlayerStatsOverview.RecentMatch match, Localization local, float width) {
+    private static final float RECENT_MARGIN = 4f;
+    private static final float RECENT_ICON = 24f;
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd.MM");
+    private static final DateTimeFormatter DAY_TIME = DateTimeFormatter.ofPattern("dd.MM HH:mm");
+    private static final DateTimeFormatter OLD_DAY = DateTimeFormatter.ofPattern("dd.MM.yy");
+
+    /**
+     * The mode's icon, the map with the date under it, and the result against the right edge.
+     * The map name comes from the database, so it is escaped.
+     */
+    private static VNode recentMatch(PlayerStatsOverview.RecentMatch match, Localization local, float width,
+                                     boolean shaded, long now) {
+        ModeLook mode = ModeLook.of(match.category());
         String outcome = match.outcome() == null ? "not_counted" : match.outcome().toLowerCase(Locale.ROOT);
-        String mode = match.mode() == null ? "" : "[lightgray]" + TextWidth.escape(match.mode()) + "[] · ";
-        String result = TextWidth.fit(mode + t(local, "player-stats-outcome-" + outcome)
-                + " · [lightgray]" + formatTimestamp(match.endedAt()) + "[]", width);
-        if (match.map() == null || match.map().isBlank()) return result;
-        return TextWidth.fit("[white]" + TextWidth.escape(match.map()) + "[]", width) + "\n" + result;
+        String result = switch (outcome) {
+            case "win" -> "[lime]";
+            case "loss" -> "[scarlet]";
+            case "left" -> "[lightgray]";
+            default -> "[gray]";
+        } + t(local, "player-stats-outcome-" + outcome) + "[]";
+        float resultWidth = TextWidth.of(result) + GAP;
+        float middle = Math.max(GAP, width - 2f * RECENT_MARGIN - RECENT_ICON - resultWidth);
+        String map = match.map() == null || match.map().isBlank()
+                ? "[lightgray]" + t(local, mode.key) + "[]"
+                : "[white]" + TextWidth.escape(match.map()) + "[]";
+        String full = matchDate(match.endedAt(), now, local, true);
+        String date = TextWidth.of(full) <= middle ? full : matchDate(match.endedAt(), now, local, false);
+        return Ui.table(row -> {
+            row.background("whiteui");
+            row.margin(RECENT_MARGIN);
+            row.layout(l -> l.width(width).color(shaded ? Kit.HEADER : Kit.CARD));
+            row.add(Kit.text("[#" + mode.accent.color() + "]" + mode.icon + "[]", RECENT_ICON));
+            row.add(Ui.table(place -> {
+                place.add(Kit.text(TextWidth.fit(map, middle), middle)).row();
+                place.add(Kit.text("[gray]" + date + "[]", middle)).row();
+            }));
+            row.add(Kit.right(result, resultWidth));
+        });
+    }
+
+    /** "today 14:05", "06.11 19:40" or "11.10.25"; the short form keeps the time alone for today and the day alone for later. */
+    static String matchDate(long endedAt, long now, Localization local, boolean full) {
+        if (endedAt <= 0) return "-";
+        // The server's zone, as every other date in the profile; the client's zone is not known here.
+        ZoneId zone = ZoneId.systemDefault();
+        LocalDateTime at = LocalDateTime.ofInstant(Instant.ofEpochMilli(endedAt), zone);
+        LocalDate today = LocalDate.ofInstant(Instant.ofEpochMilli(now), zone);
+        String time = TIME.format(at);
+        if (at.toLocalDate().equals(today)) return full ? t(local, "player-stats-today", args("time", time)) : time;
+        if (full && at.toLocalDate().equals(today.minusDays(1))) {
+            return t(local, "player-stats-yesterday", args("time", time));
+        }
+        if (at.getYear() != today.getYear()) return OLD_DAY.format(at);
+        return full ? DAY_TIME.format(at) : DAY.format(at);
     }
 
     /** "Wins: 777 of 1,736 | 45% win rate": the rate next to both numbers it comes from. */
     private static String victories(Localization local, NumberFormat nf, long wins, long games, int winRate) {
         return t(local, "player-stats-victories-value",
                 args("wins", nf.format(wins), "games", nf.format(games), "winRate", winRate));
-    }
-
-    private static String games(Localization local, NumberFormat nf, long count) {
-        return t(local, "player-stats-games-played-value", args("count", nf.format(count)));
     }
 
     // =========================================================================
