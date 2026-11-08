@@ -17,20 +17,27 @@ import org.xcore.plugin.concurrent.Async;
 import org.xcore.plugin.concurrent.InlineStorageExecutor;
 import org.xcore.plugin.config.TomlSecretsConfig;
 import org.xcore.plugin.database.repository.PlayerDataRepository;
+import org.xcore.plugin.integration.profile.ProfileSection;
+import org.xcore.plugin.integration.profile.ProfileSectionView;
 import org.xcore.plugin.integration.top.LeaderboardEntry;
 import org.xcore.plugin.integration.top.LeaderboardPage;
 import org.xcore.plugin.integration.top.LeaderboardPageRequest;
 import org.xcore.plugin.integration.top.TopCategoryProvider;
 import org.xcore.plugin.integration.top.TopCategoryRegistry;
 import org.xcore.plugin.integration.top.TopScope;
+import org.xcore.plugin.model.AggregatedPlayerStats;
+import org.xcore.plugin.model.ModeStatsSummary;
 import org.xcore.plugin.model.PlayerData;
+import org.xcore.plugin.model.PlayerStatsOverview;
 import org.xcore.plugin.service.PlayerDisplayService;
 import org.xcore.plugin.service.PlayerProfileSettingsService;
 import org.xcore.plugin.session.Session;
 import org.xcore.plugin.session.SessionService;
 import org.xcore.plugin.ui.kit.LayoutAssert;
 import org.xcore.plugin.ui.menu.PlayerMenu;
+import org.xcore.plugin.ui.menu.PlayerProfileUiController;
 import org.xcore.plugin.ui.menu.PlayerSettingsUiController;
+import org.xcore.plugin.ui.menu.ProfileDetails;
 import org.xcore.plugin.ui.menu.TopMenu;
 import org.xcore.plugin.ui.menu.TopUiController;
 import org.xcore.testkit.ui.MenuFixtures;
@@ -117,6 +124,40 @@ class MenuRenderFixtureTest {
         for (var tab : PlayerSettingsUiController.Tab.values()) {
             fixture = "settings-" + language + "-" + tab.name().toLowerCase(Locale.ROOT);
             players.openSettingsUi(session, session.data, tab);
+            assertThat(output.resolve(fixture + ".packet")).isNotEmptyFile();
+        }
+
+        // The profile of a player with every mode played: the overview's recent matches and the statistics tab.
+        long now = System.currentTimeMillis();
+        long hour = 3_600_000L;
+        List<PlayerStatsOverview.RecentMatch> recent = List.of(
+                new PlayerStatsOverview.RecentMatch("PVP", "WIN", now - hour, "Frozen Forest"),
+                new PlayerStatsOverview.RecentMatch("PVP", "LOSS", now - 2 * hour, "Craters"),
+                new PlayerStatsOverview.RecentMatch("HEXED", "LEFT", now - 26 * hour, "Hexed Classic"),
+                new PlayerStatsOverview.RecentMatch("SURVIVAL", "WIN", now - 60 * hour, null),
+                new PlayerStatsOverview.RecentMatch("EVENT", "NOT_COUNTED", now - 400 * 24 * hour,
+                        "Fortress v12"));
+        var stats = new PlayerStatsOverview(
+                new AggregatedPlayerStats(477, 189, 1_234_567, 345_678, 0, 0, 0),
+                new ModeStatsSummary(302, 160, 0, 0, 0, 0, 113, 3, 17, 210 * hour, false),
+                new ModeStatsSummary(51, 10, 87, 34, 0, 0, 29, 0, 4, 31 * hour, true),
+                new ModeStatsSummary(98, 12, 0, 0, 1, 31, 40, 0, 3, 64 * hour, false),
+                "ready", false, true, 184, 3, recent, 312 * hour);
+        ProfileSectionView ladder = local -> new ProfileSection(
+                "[accent]\uf7a9[] [white]Mini-PvP:[] [#b4c7dc]Diamond I[] [accent]1642[]",
+                List.of("[white]112[]", "[lime]61%[]", "[accent]#4[]"),
+                List.of("[lightgray]Season 3: 12d 4h[]", "[lightgray]58 ELO -> Master[]"));
+        // An ordinary player, so the shots read like a real profile; the settings fixtures cover the long names.
+        PlayerData target = new PlayerData("gudinni-uuid", true);
+        target.pid = 421079;
+        target.nickname = "gudinni";
+        target.customNickname = "[#7fc8ff]gudinni";
+        target.description = "PvP и Hexed с 2022. Ищу тиммейтов на вечер";
+        target.createdModelTime = now - 900L * 24 * hour;
+        target.totalPlayTime = 41_250;
+        for (var tab : List.of(PlayerProfileUiController.Tab.OVERVIEW, PlayerProfileUiController.Tab.STATS)) {
+            fixture = "profile-" + language + "-" + tab.name().toLowerCase(Locale.ROOT);
+            players.openProfileUi(session, target, tab, new ProfileDetails(stats, 3, List.of(ladder)));
             assertThat(output.resolve(fixture + ".packet")).isNotEmptyFile();
         }
 

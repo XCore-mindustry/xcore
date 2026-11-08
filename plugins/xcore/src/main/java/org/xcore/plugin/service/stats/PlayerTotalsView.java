@@ -35,7 +35,7 @@ public final class PlayerTotalsView {
         var recent = totals.getList("recent", Document.class, List.of()).stream().limit(RECENT_SHOWN)
                 .map(row -> {
                     String mapId = row.getString("map_id");
-                    return new RecentMatch(row.getString("mode"), row.getString("outcome"), number(row, "ended_at"),
+                    return new RecentMatch(row.getString("category"), row.getString("outcome"), number(row, "ended_at"),
                             mapId == null ? null : mapNames.get(mapId));
                 })
                 .toList();
@@ -46,7 +46,7 @@ public final class PlayerTotalsView {
                 mode(modes.get("PVP", Document.class), false),
                 mode(modes.get("SURVIVAL", Document.class), true),
                 mode(modes.get("HEXED", Document.class), false),
-                "ready", dirty, true, number(all, "left"), number(all, "streak"), recent);
+                "ready", dirty, true, number(all, "left"), number(all, "streak"), recent, number(all, "play_ms"));
     }
 
     private static PlayerStatsOverview empty(String status, boolean updating) {
