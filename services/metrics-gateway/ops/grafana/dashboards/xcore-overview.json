@@ -75,7 +75,7 @@
       "id": 14, "type": "timeseries", "title": "Commands / min by result", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 13},
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "targets": [{"refId": "A", "expr": "sum by (server, result) (rate(xcore_commands_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{server}} {{result}}"}],
-      "fieldConfig": {"defaults": {"unit": "ops", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "fieldConfig": {"defaults": {"unit": "opm", "color": {"mode": "palette-classic"}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
     },
     {
@@ -92,14 +92,14 @@
         {"refId": "A", "expr": "sum by (server) (rate(mindustry_player_joins_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{server}} joins"},
         {"refId": "B", "expr": "sum by (server) (rate(mindustry_player_leaves_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{server}} leaves"}
       ],
-      "fieldConfig": {"defaults": {"unit": "ops", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "fieldConfig": {"defaults": {"unit": "opm", "color": {"mode": "palette-classic"}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
     },
     {
       "id": 17, "type": "timeseries", "title": "Ingress check errors / min", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 22},
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "targets": [{"refId": "A", "expr": "sum by (server, check, phase) (rate(xcore_ingress_check_errors_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{server}} {{check}}/{{phase}}"}],
-      "fieldConfig": {"defaults": {"unit": "ops", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "fieldConfig": {"defaults": {"unit": "opm", "color": {"mode": "palette-classic"}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
     },
     {
@@ -120,7 +120,7 @@
       "id": 27, "type": "timeseries", "title": "Storage tasks rejected / min", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 30},
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "targets": [{"refId": "A", "expr": "sum by (server) (rate(xcore_storage_tasks_rejected_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{server}} rejected"}],
-      "fieldConfig": {"defaults": {"unit": "ops", "color": {"mode": "palette-classic"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "red", "value": 1}]}}, "overrides": []},
+      "fieldConfig": {"defaults": {"unit": "opm", "color": {"mode": "palette-classic"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "red", "value": 1}]}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
     },
     {
@@ -130,14 +130,14 @@
       "id": 41, "type": "timeseries", "title": "Match writes / min by result", "gridPos": {"h": 8, "w": 6, "x": 0, "y": 39},
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "targets": [{"refId": "A", "expr": "sum by (result) (rate(xcore_stats_writes_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{result}}"}],
-      "fieldConfig": {"defaults": {"unit": "ops", "color": {"mode": "palette-classic"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green"}]}}, "overrides": []},
+      "fieldConfig": {"defaults": {"unit": "opm", "color": {"mode": "palette-classic"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green"}]}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
     },
     {
       "id": 42, "type": "timeseries", "title": "Totals rebuilds / min by result", "gridPos": {"h": 8, "w": 6, "x": 6, "y": 39},
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "targets": [{"refId": "A", "expr": "sum by (result) (rate(xcore_stats_rebuilds_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{result}}"}, {"refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(xcore_stats_rebuild_duration_seconds_bucket{server=~\"$server\"}[5m])))", "legendFormat": "p95 duration, s"}],
-      "fieldConfig": {"defaults": {"unit": "ops", "color": {"mode": "palette-classic"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green"}]}}, "overrides": [{"matcher": {"id": "byName", "options": "p95 duration, s"}, "properties": [{"id": "unit", "value": "s"}, {"id": "custom.axisPlacement", "value": "right"}]}]},
+      "fieldConfig": {"defaults": {"unit": "opm", "color": {"mode": "palette-classic"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green"}]}}, "overrides": [{"matcher": {"id": "byName", "options": "p95 duration, s"}, "properties": [{"id": "unit", "value": "s"}, {"id": "custom.axisPlacement", "value": "right"}]}]},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
     },
     {
@@ -168,28 +168,28 @@
         {"refId": "E", "expr": "sum by (server) (rate(sentinel_proxy_leak_denials_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{server}} proxy leak"},
         {"refId": "F", "expr": "sum by (server) (rate(sentinel_proxy_leak_autobans_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{server}} proxy leak autobans"}
       ],
-      "fieldConfig": {"defaults": {"unit": "ops", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "fieldConfig": {"defaults": {"unit": "opm", "color": {"mode": "palette-classic"}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
     },
     {
       "id": 22, "type": "timeseries", "title": "Admission waves / min", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48},
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "targets": [{"refId": "A", "expr": "sum by (server, action) (rate(sentinel_admission_waves_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{server}} {{action}}"}],
-      "fieldConfig": {"defaults": {"unit": "ops", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "fieldConfig": {"defaults": {"unit": "opm", "color": {"mode": "palette-classic"}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
     },
     {
       "id": 23, "type": "timeseries", "title": "Admission attempts / min by outcome", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 56},
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "targets": [{"refId": "A", "expr": "sum by (server, outcome) (rate(sentinel_admission_attempts_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{server}} {{outcome}}"}],
-      "fieldConfig": {"defaults": {"unit": "ops", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "fieldConfig": {"defaults": {"unit": "opm", "color": {"mode": "palette-classic"}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
     },
     {
       "id": 24, "type": "timeseries", "title": "Nickname denials / min by rule", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 56},
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "targets": [{"refId": "A", "expr": "topk(10, sum by (server, rule) (rate(sentinel_nickname_denials_total{server=~\"$server\"}[15m]) * 60))", "legendFormat": "{{server}} {{rule}}"}],
-      "fieldConfig": {"defaults": {"unit": "ops", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "fieldConfig": {"defaults": {"unit": "opm", "color": {"mode": "palette-classic"}}, "overrides": []},
       "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
     },
     {
@@ -199,7 +199,7 @@
         {"refId": "A", "expr": "sum by (server) (rate(sentinel_proxy_leak_denials_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{server}} drops"},
         {"refId": "B", "expr": "sum by (server) (rate(sentinel_proxy_leak_autobans_total{server=~\"$server\"}[5m]) * 60)", "legendFormat": "{{server}} autobans"}
       ],
-      "fieldConfig": {"defaults": {"unit": "ops", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "fieldConfig": {"defaults": {"unit": "opm", "color": {"mode": "palette-classic"}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
     },
     {
@@ -232,13 +232,13 @@
       "id": 25, "type": "timeseries", "title": "Gateway ingestion errors / min", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 73},
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "targets": [
-        {"refId": "A", "expr": "rate(xcore_metrics_gateway_poll_failures_total[5m])", "legendFormat": "poll"},
-        {"refId": "B", "expr": "rate(xcore_metrics_gateway_decode_failures_total[5m])", "legendFormat": "decode"},
-        {"refId": "C", "expr": "rate(xcore_metrics_gateway_validation_failures_total[5m])", "legendFormat": "validation"},
-        {"refId": "D", "expr": "rate(xcore_metrics_gateway_discovery_failures_total[5m])", "legendFormat": "discovery"},
-        {"refId": "E", "expr": "rate(xcore_metrics_gateway_dropped_series_total[5m])", "legendFormat": "dropped/{{reason}}"}
+        {"refId": "A", "expr": "rate(xcore_metrics_gateway_poll_failures_total[5m]) * 60", "legendFormat": "poll"},
+        {"refId": "B", "expr": "rate(xcore_metrics_gateway_decode_failures_total[5m]) * 60", "legendFormat": "decode"},
+        {"refId": "C", "expr": "rate(xcore_metrics_gateway_validation_failures_total[5m]) * 60", "legendFormat": "validation"},
+        {"refId": "D", "expr": "rate(xcore_metrics_gateway_discovery_failures_total[5m]) * 60", "legendFormat": "discovery"},
+        {"refId": "E", "expr": "rate(xcore_metrics_gateway_dropped_series_total[5m]) * 60", "legendFormat": "dropped/{{reason}}"}
       ],
-      "fieldConfig": {"defaults": {"unit": "ops", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "fieldConfig": {"defaults": {"unit": "opm", "color": {"mode": "palette-classic"}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
     }
   ],
