@@ -84,6 +84,7 @@ class ParticipantOutcomesTest {
             var fixture = Document.parse(new String(Objects.requireNonNull(in).readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
             var view = PlayerTotalsView.overview(fixture);
             assertThat(view.overall().gamesPlayed()).isEqualTo(8);
+            assertThat(view.playMs()).isEqualTo(600_000L);
             assertThat(view.overall().blocksBuilt()).isEqualTo(3_000_000_000L);
             assertThat(view.survival().winRatePercent()).isEqualTo(100);
             assertThat(view.hexed().bestPlacement()).isEqualTo(1);

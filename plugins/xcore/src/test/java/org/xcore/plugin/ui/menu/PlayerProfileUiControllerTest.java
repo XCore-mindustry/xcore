@@ -700,7 +700,7 @@ class PlayerProfileUiControllerTest {
                 new ModeStatsSummary(420, 260, 0, 0, 0, 0, 88, 12, 31, 9_000_000_000L, false),
                 new ModeStatsSummary(315, 120, 250, 125, 0, 0, 140, 3, 17, 7_000_000_000L, true),
                 new ModeStatsSummary(115, 40, 1, 38, 1, 38, 20, 1, 9, 1_000_000_000L, false),
-                "ready", true, true, 248, 12, recent);
+                "ready", true, true, 248, 12, recent, 18_000_000_000L);
         List<PlayerProfileUiController.OnlinePlayerRow> online = new java.util.ArrayList<>();
         for (int i = 0; i < 20; i++) {
             online.add(new PlayerProfileUiController.OnlinePlayerRow("p-" + i, 100 + i,
@@ -754,6 +754,8 @@ class PlayerProfileUiControllerTest {
             assertThat(text.split(java.util.regex.Pattern.quote(title), -1)).as(title).hasSize(2);
         }
         assertThat(text).contains("Best win streak", "Reached the last wave").doesNotContain(": ·", "In counted matches");
+        // All modes together: 5,000 hours, more than the three modes' 4,722 (the rest is events).
+        assertThat(text).contains("5,000h");
     }
 
     @Test

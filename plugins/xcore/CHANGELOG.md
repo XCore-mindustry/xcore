@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - The profile's recent matches take one row each: the mode's icon, the map with a short date under it ("today 14:05", "06.11"), and the result in its colour. The mode comes from the stats category, so raw mode names no longer show. Leaves and the win streak sit at the bottom of the same card.
-- The Statistics tab starts with tiles for games, wins, leaves and hours in matches, then gives each mode one card with all of its figures (games, wins, leaves, best streak, hours, waves for survival, places for Hexed), followed by a Building card. Play time is shown in hours, and the cards are balanced between the two columns.
+- The Statistics tab starts with tiles for games, wins, leaves and hours in matches, then gives PvP, survival and Hexed one card each with all of their figures (games, wins, leaves, best streak, hours, waves for survival, places for Hexed), events a card with games, wins and hours, followed by a Building card. Play time is shown in hours, and the cards are balanced between the two columns.
 
 ## [5.5.0] - 2026-11-08
 
