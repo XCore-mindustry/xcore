@@ -84,6 +84,23 @@ groups:
           summary: XCore storage executor is rejecting tasks
           description: '{{ $labels.server }} is dropping async storage writes because the bounded executor is saturated; persistence may be incomplete.'
 
+      - alert: XCoreStatsWriteFailures
+        expr: sum by (server) (increase(xcore_stats_writes_total{result="failed"}[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Match history writes are failing
+          description: '{{ $labels.server }} gave up on a match write after its retries; the match ID is in the server log.'
+
+      - alert: XCoreStatsRebuildStalled
+        expr: max(xcore_stats_oldest_dirty_seconds) > 1800
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Player totals rebuild is stuck
+          description: 'A player has waited over 30 minutes for a totals rebuild; check the [Stats] errors in the server logs.'
+
       - alert: XCoreGatewayScrapeErrors
         expr: increase(xcore_metrics_gateway_poll_failures_total[5m]) > 0
           or increase(xcore_metrics_gateway_decode_failures_total[5m]) > 0
