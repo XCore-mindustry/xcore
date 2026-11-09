@@ -16,3 +16,6 @@
 **/.next
 devtools/local.toml
 devtools/.run
+
+# web/.dockerignore only applies when web/ is the context; the image builds from the repo root
+web/tests

@@ -35,6 +35,11 @@ XCORE_METRICS = {
     "xcore_storage_tasks_active",
     "xcore_storage_tasks_rejected_total",
     "xcore_storage_task_duration_seconds",
+    "xcore_stats_writes_total",
+    "xcore_stats_rebuilds_total",
+    "xcore_stats_rebuild_duration_seconds",
+    "xcore_stats_dirty_players",
+    "xcore_stats_oldest_dirty_seconds",
 }
 
 GATEWAY_METRICS = {
