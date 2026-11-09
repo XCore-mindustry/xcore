@@ -258,9 +258,11 @@ compiler's native memory. `native-image` draws byte-identical images about 20 % 
    b. **done:** the measured prototype and the language decision (Java);
    c. **done:** `libs/msav`; still to do: snapshot tests of the compositor on a few bundled maps
       (perceptual diff, so a changed filter does not fail on single pixels);
-   d. the service around it, `maps.file`, `maps.render` and `RendererImages` in the
-      bot;
-   e. CI release, `ops/systemd/xcore-map-renderer.service`, `ops/deploy map-renderer`.
+   d. **done:** the service around it (`RenderServer`), `maps.file`, `maps.render`,
+      `RendererImages` and the 30 s per-person cooldown in the bot;
+   e. **done:** `ops/systemd/xcore-map-renderer.service` (one core, `MemoryMax=256M`),
+      `ops/deploy map-renderer` (built locally, rsynced, `/ready` checked), the client jar
+      cached in CI.
 4. **Polish.** Bridges and power links (needs the reader to keep their config), a gallery view in `/maps list`
    (up to four embeds sharing one `url` show as one image grid), the same renders on
    map pages of the website.

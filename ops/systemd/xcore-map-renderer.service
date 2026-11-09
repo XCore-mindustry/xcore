@@ -1,0 +1,22 @@
+[Unit]
+Description=XCore map renderer
+
+[Service]
+WorkingDirectory=%h/services/map-renderer
+EnvironmentFile=%h/.config/xcore/map-renderer.env
+Environment=MAP_RENDERER_DATA=%h/services/map-renderer/render-data
+Environment=MAP_RENDERER_CACHE=%h/.cache/xcore-map-renderer
+# The start script carries the JVM flags (-Xmx64m and friends); java comes from JAVA_HOME.
+ExecStart=%h/services/map-renderer/bin/map-renderer
+# It shares the host with the game servers: lower priority, one core, and a hard memory cap
+# (peak measured at 170 MB). Limits need the cpu and memory controllers delegated to the user
+# manager, as they are on systemd's default user@.service.
+Nice=10
+CPUQuota=100%
+MemoryMax=256M
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

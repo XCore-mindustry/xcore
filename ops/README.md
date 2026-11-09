@@ -1,11 +1,12 @@
 # Deploying the services
 
-The Discord bot, the metrics gateway and the website run on the game server as
-systemd user units of the `xcore` user. All three are deployed the same way, by
-`ops/deploy` from a developer machine:
+The Discord bot, the metrics gateway, the website and the map renderer run on the
+game server as systemd user units of the `xcore` user. All four are deployed the
+same way, by `ops/deploy` from a developer machine:
 
 ```sh
 ops/deploy <ssh-host> bot              # one service
+ops/deploy <ssh-host> map-renderer     # the renderer behind /map's Detailed render
 ops/deploy <ssh-host> gateway web      # several
 ops/deploy <ssh-host> all --ref <sha>  # a given commit of main, e.g. to roll back
 ```
@@ -13,12 +14,17 @@ ops/deploy <ssh-host> all --ref <sha>  # a given commit of main, e.g. to roll ba
 The script deploys a commit of `origin/main` (the latest one by default). It
 checks that commit out on the server, installs the unit from `ops/systemd/`,
 restarts the service and waits for it to be healthy: the bot has to log
-`Discord bot connected`, the gateway has to answer `/ready`, the website `/en`.
+`Discord bot connected`, the gateway and the map renderer have to answer `/ready`,
+the website `/en`.
 If the check fails, it prints the log and the previously deployed commit.
 
 The bot and the gateway are installed from the server checkout with uv. The
 website is built locally (it needs [Bun](https://bun.sh); the server has
-neither Bun nor the memory for a Next.js build) and copied with rsync.
+neither Bun nor the memory for a Next.js build) and copied with rsync. So is the
+map renderer: its build needs JDK 25 and downloads the Mindustry client for its
+sprites (set `MINDUSTRY_CLIENT_JAR` to a local copy to skip that); the server only
+needs a Java 25 runtime, named by `JAVA_HOME` in `map-renderer.env`. The unit caps
+it at one core and 256 MB (`MemoryMax`); it peaks at about 170 MB.
 
 ## Server layout
 
@@ -27,8 +33,10 @@ neither Bun nor the memory for a Next.js build) and copied with rsync.
 | `~/services/xcore` | checkout of this repository at the deployed commit |
 | `~/services/venvs/discord-bot`, `metrics-gateway` | Python environments (3.14 and 3.13) |
 | `~/services/web` | website build; `web.prev` is the one before it |
+| `~/services/map-renderer` | map renderer distribution (`bin/`, `lib/`, `render-data/`); `map-renderer.prev` is the one before it |
+| `~/.cache/xcore-map-renderer` | rendered maps, at most `MAP_RENDERER_CACHE_MB` |
 | `~/services/deployed/<service>` | deployed commit of each service |
-| `~/.config/xcore/<service>.env` | settings and secrets: `discord-bot.env`, `metrics-gateway.env`, `web.env`, mode 0600 |
+| `~/.config/xcore/<service>.env` | settings and secrets: `discord-bot.env`, `metrics-gateway.env`, `web.env`, `map-renderer.env`, mode 0600 |
 | `~/.config/systemd/user/xcore-*.service` | copies of `ops/systemd/`, written by the deploy |
 
 The env files are read by systemd (`EnvironmentFile=`), so they hold plain

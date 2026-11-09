@@ -66,14 +66,17 @@ val downloadClient = tasks.register("downloadClient") {
     doLast {
         val target = clientJar.get().asFile
         target.parentFile.mkdirs()
+        fun sha256(file: File) = MessageDigest.getInstance("SHA-256")
+            .digest(file.readBytes()).joinToString("") { byte -> "%02x".format(byte) }
+        // A copy that is already here (CI restores it from its cache) is not fetched again.
+        if (!local.isPresent && target.isFile && sha256(target) == clientJarSha256) return@doLast
         if (local.isPresent) {
             file(local.get()).copyTo(target, overwrite = true)
         } else {
             uri("https://github.com/Anuken/Mindustry/releases/download/$mindustryVersion/Mindustry.jar")
                 .toURL().openStream().use { input -> target.outputStream().use { input.copyTo(it) } }
         }
-        val digest = MessageDigest.getInstance("SHA-256")
-            .digest(target.readBytes()).joinToString("") { byte -> "%02x".format(byte) }
+        val digest = sha256(target)
         check(digest == clientJarSha256) { "Unexpected Mindustry client checksum: $digest" }
     }
 }
