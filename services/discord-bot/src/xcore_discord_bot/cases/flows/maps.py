@@ -54,8 +54,8 @@ logger = logging.getLogger(__name__)
 
 BADGE_WINDOW = timedelta(days=30)
 # A busy renderer is asked again a few times; reviewers can always open the file in game.
-# Reviewers judge spawns and talk about places on the map: both layers are on.
-REVIEW_STYLE = RenderStyle(grid=True, spawns=True)
+# The same default render /map shows, so an accepted map's render is already cached.
+REVIEW_STYLE = RenderStyle()
 PREVIEW_ATTEMPTS = 3
 PREVIEW_RETRY_SECONDS = 20.0
 # Renders on their way into a thread, by (thread, file hash): kept so the task is not

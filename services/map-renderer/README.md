@@ -67,7 +67,8 @@ renders at a time) it answered in 30 s, 0.49 s median render, with a peak RSS of
     does not join;
   - other buildings: full icon, rotated, team region tinted;
   - darkness (`World.getWallDarkness` and `borderDarkness`): wall masses go black with their
-    distance to open ground, and so do the two tiles at the map border.
+    distance to open ground, and so do the two tiles at the map border. Only when the request asks for
+    it (`darkness: true`): by default the walls are drawn as they are.
 
   Variants are picked as the engine picks them (`Mathf.randomSeed(pos, 0, n - 1)`).
 - Scale: the largest of 32/16/8/4 px per tile whose long side fits `maxSide` (4096). If the PNG

@@ -40,7 +40,7 @@ public final class RenderServer implements AutoCloseable {
     static final String PRESENCE_KEY = "xcore:service:map-renderer";
     static final long PRESENCE_TTL_MS = 30_000, PRESENCE_EVERY_MS = 10_000;
     /** Bumped when drawing changes, so cached renders of the old drawing are not served. */
-    static final String RENDERER_REVISION = "1";
+    static final String RENDERER_REVISION = "2";
     private static final long RESPONSE_STREAM_MAXLEN = 20_000;
     private static final Pattern HASH = Pattern.compile("\"contentHash\"\\s*:\\s*\"([a-f0-9]{64})\"");
 

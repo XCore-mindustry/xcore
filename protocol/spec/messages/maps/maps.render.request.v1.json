@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:xcore:protocol:messages:maps:maps.render.request:v1",
   "title": "MapsRenderRequestV1",
-  "description": "Asks the map renderer for a detailed render of the map in `file`. Defaults: `maxSide` 4096, `maxBytes` 8 MiB, and the map as the game shows it: `darkness` and `buildings` true, `ores`, `grid` and `spawns` false.",
+  "description": "Asks the map renderer for a detailed render of the map in `file`. Defaults: `maxSide` 4096, `maxBytes` 8 MiB, and the map with its buildings only: `buildings` true, `darkness`, `ores`, `grid` and `spawns` false.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -37,7 +37,7 @@
     },
     "darkness": {
       "type": "boolean",
-      "description": "The game's darkness over static walls and outside the map. Default true."
+      "description": "The game's darkness over static walls and outside the map. Default false: it hides the walls themselves."
     },
     "buildings": {
       "type": "boolean",

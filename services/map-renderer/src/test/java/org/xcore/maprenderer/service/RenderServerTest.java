@@ -1,5 +1,7 @@
 package org.xcore.maprenderer.service;
 
+import org.xcore.protocol.generated.messages.maps.MapsMessages.MapsRenderRequestV1;
+
 import arc.util.serialization.JsonReader;
 import arc.util.serialization.JsonValue;
 import org.junit.jupiter.api.AfterEach;
@@ -182,6 +184,17 @@ class RenderServerTest {
         assertEquals(1, value.getInt("concurrency"));
         long ttl = ((Number) client.command("PTTL", RenderServer.PRESENCE_KEY)).longValue();
         assertTrue(ttl > 0 && ttl <= RenderServer.PRESENCE_TTL_MS);
+    }
+
+    @Test
+    void aRequestWithoutLayersGetsTheDefaultRender() {
+        var file = new org.xcore.protocol.generated.shared.MapBlobRefV1("xcore:blob:" + "ab".repeat(32), "ab".repeat(32), 10,
+                org.xcore.protocol.generated.shared.MapBlobRefV1ContentType.APPLICATION_OCTET_STREAM, null, null, 1L);
+        var plain = new MapsRenderRequestV1("ab".repeat(32), file, null, null, null, null, null, null, null);
+        var dark = new MapsRenderRequestV1("ab".repeat(32), file, null, null, true, null, null, true, null);
+
+        assertEquals(org.xcore.maprenderer.RenderOptions.DEFAULT, RenderHandler.options(plain));
+        assertEquals(new org.xcore.maprenderer.RenderOptions(true, true, false, true, false), RenderHandler.options(dark));
     }
 
     @Test

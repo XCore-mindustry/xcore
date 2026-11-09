@@ -10,12 +10,17 @@ package org.xcore.maprenderer;
  * @param spawns    enemy spawns with their drop zones (units die inside)
  */
 public record RenderOptions(boolean darkness, boolean buildings, boolean ores, boolean grid, boolean spawns) {
+    /**
+     * What a render shows unless asked otherwise: the map with its buildings, without the game's
+     * darkness, which hides the static walls themselves.
+     */
+    public static final RenderOptions DEFAULT = new RenderOptions(false, true, false, false, false);
     /** As the game shows the map. */
     public static final RenderOptions GAME = new RenderOptions(true, true, false, false, false);
 
-    /** A short, stable name for cache keys; empty for {@link #GAME}. */
+    /** A short, stable name for cache keys; empty for {@link #DEFAULT}. */
     public String key() {
-        if (equals(GAME)) return "";
+        if (equals(DEFAULT)) return "";
         return (darkness ? "d" : "") + (buildings ? "b" : "") + (ores ? "o" : "") + (grid ? "g" : "") + (spawns ? "s" : "");
     }
 }

@@ -130,9 +130,9 @@ final class RenderHandler {
         }
     }
 
-    /** The request's flags over the game's defaults. */
+    /** The request's flags over {@link RenderOptions#DEFAULT}. */
     static RenderOptions options(MapsRenderRequestV1 request) {
-        var game = RenderOptions.GAME;
+        var game = RenderOptions.DEFAULT;
         return new RenderOptions(
                 request.darkness() == null ? game.darkness() : request.darkness(),
                 request.buildings() == null ? game.buildings() : request.buildings(),

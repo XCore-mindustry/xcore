@@ -1184,7 +1184,7 @@ async def test_review_thread_gets_the_render_of_the_submitted_file_once(monkeypa
     await asyncio.gather(*maps._previews.values())
 
     [render] = _renders(thread)
-    assert render.file.filename == "arena-detailed-bgs.png"
+    assert render.file.filename == "arena-detailed.png"
     assert render.file.fp.read() == b"\x89PNG-render"
     assert render.content == t(
         "en",

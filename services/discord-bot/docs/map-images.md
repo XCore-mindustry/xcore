@@ -125,8 +125,8 @@ costs one round trip.
   every 10 s, deleted on shutdown). While it is missing the card has no **Detailed
   render** button, and a press answers "not running" at once instead of after 60 s.
 - Layers (`RenderStyle`, the flags of `maps.render.request`): `buildings` (off: the
-  terrain only), `darkness` (the game's darkness over static walls; off by default in the
-  bot, since it hides the walls), `ores` (everything but ores dimmed and greyed), `grid`
+  terrain only), `darkness` (the game's darkness over static walls; off by default everywhere,
+  protocol included, since it hides the walls), `ores` (everything but ores dimmed and greyed), `grid`
   (a line every 10 tiles, coordinates every 50, y up as in game) and `spawns` (enemy
   spawns with the rules' drop zone). Each combination is cached on its own, in the bot
   and in the renderer.
@@ -139,12 +139,13 @@ costs one round trip.
 
 When a post in the map forum (`DISCORD_MAPS_FORUM_ID`) gets a file and the bot's own
 checks pass, `cases/flows/maps.py` posts the render of that file under the review card,
-with the coordinate grid and the spawns' drop zones on (`REVIEW_STYLE`):
+in the same default style as `/map` (`REVIEW_STYLE`):
 "Render of this map, file `<sha>`" with the PNG. It runs in the background so the
 inspection and the card do not wait for it, once per file (a recheck or a restart finds
 the posted message), and only while the renderer is up. A busy renderer is asked again
 twice, 20 s apart; any other failure leaves the review as it was. The render lands in the
-renderer's disk cache under the file's hash and style.
+renderer's disk cache under the file's hash, so after **Accept** the same map's
+**Detailed render** in `/map` is answered from the cache.
 
 ## The renderer (phase 3)
 

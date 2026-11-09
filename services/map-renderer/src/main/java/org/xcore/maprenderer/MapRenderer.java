@@ -52,7 +52,7 @@ public final class MapRenderer {
      * {@code maxBytes}, renders again at the next smaller scale.
      */
     public Result render(InputStream msav, long size, int maxSide, int maxBytes) throws IOException {
-        return render(msav, size, maxSide, maxBytes, RenderOptions.GAME);
+        return render(msav, size, maxSide, maxBytes, RenderOptions.DEFAULT);
     }
 
     /** As {@link #render(InputStream, long, int, int)}, showing what {@code options} asks for. */
