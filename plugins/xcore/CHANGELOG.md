@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Maps that embed custom content (a `content` asset, such as a unit or weather defined in the map) are read again by the map inspection, the vote-menu thumbnail and the map renderer. The detached reader missed the content type written before such an asset and rejected the file as invalid.
+
 ## [5.6.0] - 2026-11-09
 
 ### Added

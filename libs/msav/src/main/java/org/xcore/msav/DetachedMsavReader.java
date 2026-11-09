@@ -428,6 +428,8 @@ public final class DetachedMsavReader {
                 int embedded = region.data.readUnsignedByte();
                 if (embedded > 1) throw new IOException("Invalid embedded asset flag");
                 if (type <= 1) gameplay++; // patch or content
+                // An embedded content asset (ContentAsset) writes its content type before the length.
+                if (embedded == 1 && type == 1) region.data.readShort();
                 if (embedded == 1) nestedRegion(region).discard();
                 else region.skip(32);
             }

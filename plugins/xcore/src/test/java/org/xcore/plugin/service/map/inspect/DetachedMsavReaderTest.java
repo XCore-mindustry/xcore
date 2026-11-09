@@ -335,6 +335,10 @@ class DetachedMsavReaderTest {
             a.writeByte(1); a.writeUTF("content.json"); a.writeBoolean(false); a.write(new byte[32]);
             a.writeByte(2); a.writeUTF("bundle.properties"); a.writeBoolean(true); a.writeInt(0); });
         assertThat(read(fixture.compressed()).metadata().dataPatches()).isEqualTo(2);
+        fixture.assets = MsavFixture.bytes(a -> { a.writeInt(2); a.writeInt(2);
+            a.writeByte(1); a.writeUTF("unit.hjson"); a.writeBoolean(true); a.writeShort(6); a.writeInt(2); a.write(new byte[2]);
+            a.writeByte(3); a.writeUTF("unit.png"); a.writeBoolean(true); a.writeInt(3); a.write(new byte[3]); });
+        assertThat(read(fixture.compressed()).metadata().dataPatches()).isEqualTo(1);
         fixture.version = 11; fixture.assets = new byte[]{1}; assertInvalid(fixture.compressed());
         fixture.assets = MsavFixture.bytes(a -> { a.writeByte(1); a.writeInt(2); a.write(new byte[2]); });
         assertThat(read(fixture.compressed()).metadata().dataPatches()).isEqualTo(1);
