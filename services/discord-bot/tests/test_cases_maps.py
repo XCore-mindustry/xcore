@@ -1130,9 +1130,10 @@ async def test_latest_author_file_remains_selected_after_more_than_200_discussio
 class _Renderer:
     """A map renderer that is up and draws every file, or is busy ``busy`` times first."""
 
-    def __init__(self, *, online=True, busy=0):
+    def __init__(self, *, online=True, busy=0, during=None):
         self.online = online
         self.busy = busy
+        self.during = during
         self.files: list[bytes] = []
 
     def supports(self, kind):
@@ -1149,6 +1150,8 @@ class _Renderer:
             self.busy -= 1
             raise RendererBusy("busy")
         self.files.append(data)
+        if self.during is not None:
+            await self.during()
         return MapImage(png=b"\x89PNG-render", width=8, height=8)
 
 
@@ -1222,3 +1225,23 @@ async def test_the_review_of_a_file_is_found_by_its_hash():
     assert found is not None and found.number == case.number
     assert found.discord["thread_id"] == str(thread.id)
     assert await service.store.by_map_file("00" * 32) is None
+
+
+async def test_a_review_closed_while_drawing_gets_no_render(monkeypatch):
+    holder = {}
+
+    async def close_review():
+        service = holder["service"]
+        monkeypatch.setattr(
+            service, "get", AsyncMock(return_value=SimpleNamespace(actionable=False))
+        )
+
+    renderer = _Renderer(during=close_review)
+    monkeypatch.setattr(maps, "PREVIEW_RETRY_SECONDS", 0)
+    service, _, bot, _, _, _, thread, _, _ = await map_core()
+    holder["service"] = service
+    bot.container.map_images = MapImages(renderer, files=renderer)
+    await maps.on_thread_create(service, thread)
+    await asyncio.gather(*maps._previews.values())
+
+    assert renderer.files and _renders(thread) == []

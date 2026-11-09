@@ -414,3 +414,18 @@ async def test_a_file_the_bot_holds_is_published_and_rendered() -> None:
     assert request["file"]["key"] == f"xcore:blob:{FILE_SHA}"
     assert await bot.bus.redis.get(f"xcore:blob:{FILE_SHA}") is not None
     assert images.cached(MapRef("x", "y", FILE_SHA), MapImageKind.DETAILED) == first
+
+
+async def test_a_render_already_running_for_someone_else_costs_no_wait() -> None:
+    bot, renderer = await _render_bot(
+        {"status": "ok", "image": _image(), "scale": 8, "renderMs": 420}
+    )
+    card = _Interaction()
+    await cmd_map_details(bot, card, "mini-pvp", "arena.msav")
+    view = card.followup.messages[0]["view"]
+    bot.container.render_cooldown.start(8)  # 8 just rendered another map
+
+    first, second = await asyncio.gather(view._render(7), view._render(8))
+
+    assert not isinstance(first, str) and not isinstance(second, str)
+    assert len(renderer.sent(RENDER_REQUEST)) == 1

@@ -258,8 +258,11 @@ async def send_map_card(
     cooldown = bot.container.render_cooldown
 
     async def render(presser: int) -> tuple[discord.Embed, discord.File] | str:
-        # Only a new render costs the wait; one already drawn is shown again at once.
-        if images.cached(ref, MapImageKind.DETAILED) is not None:
+        # Only a new render costs the wait; one already drawn, or being drawn for someone
+        # else, is shown without it.
+        if images.cached(ref, MapImageKind.DETAILED) is not None or images.drawing(
+            ref, MapImageKind.DETAILED
+        ):
             drawn = await picture(MapImageKind.DETAILED)
             return t(locale, drawn) if isinstance(drawn, str) else drawn
         wait = cooldown.remaining(presser)

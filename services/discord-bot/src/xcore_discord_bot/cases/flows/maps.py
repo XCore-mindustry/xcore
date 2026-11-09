@@ -459,6 +459,17 @@ def _schedule_preview(service, thread, case, data, local, filename) -> None:
     task.add_done_callback(lambda _: _previews.pop(key, None))
 
 
+async def _render_patiently(images, ref, data):
+    """The render, asking a busy renderer again; ``None`` when it stays busy."""
+    for attempt in range(PREVIEW_ATTEMPTS):
+        try:
+            return await images.render_file(ref, data)
+        except RendererBusy:
+            if attempt + 1 < PREVIEW_ATTEMPTS:
+                await asyncio.sleep(PREVIEW_RETRY_SECONDS)
+    return None
+
+
 async def _post_preview(service, thread, case, data, local, filename) -> None:
     images = service.bot.container.map_images
     content = t(case.origin.locale, "maps-preview-attached", sha=local.sha256[:12])
@@ -470,15 +481,12 @@ async def _post_preview(service, thread, case, data, local, filename) -> None:
             return
         if await service.threads._has_content(thread, content):
             return
-        image = None
-        for attempt in range(PREVIEW_ATTEMPTS):
-            try:
-                image = await images.render_file(ref, data)
-                break
-            except RendererBusy:
-                if attempt + 1 < PREVIEW_ATTEMPTS:
-                    await asyncio.sleep(PREVIEW_RETRY_SECONDS)
+        image = await _render_patiently(images, ref, data)
         if image is None:
+            return
+        # A review closed meanwhile keeps its thread as it was left.
+        current = await service.get(case.number)
+        if current is None or not current.actionable:
             return
         await thread.send(
             content,

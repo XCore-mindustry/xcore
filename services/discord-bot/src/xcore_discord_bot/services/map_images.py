@@ -163,7 +163,7 @@ class MapImages:
         if task is None:
             task = asyncio.ensure_future(self._produce(key, ref, kind, produce))
             self._inflight[key] = task
-            task.add_done_callback(lambda _: self._inflight.pop(key, None))
+            task.add_done_callback(lambda done: self._settled(key, done))
         # One waiter giving up (its interaction expired) must not cancel the others.
         return await asyncio.shield(task)
 
@@ -192,6 +192,18 @@ class MapImages:
         while len(self._cache) > CACHE_ENTRIES or self._bytes > CACHE_BYTES:
             self._drop(next(iter(self._cache)))
         return image
+
+    def _settled(
+        self, key: tuple[str, ...], task: asyncio.Task[MapImage | None]
+    ) -> None:
+        self._inflight.pop(key, None)
+        # Retrieved here, so a failure every waiter gave up on is not reported as unhandled.
+        if not task.cancelled():
+            task.exception()
+
+    def drawing(self, ref: MapRef, kind: MapImageKind) -> bool:
+        """Whether this picture is being fetched right now for someone else."""
+        return self._key(ref, kind) in self._inflight
 
     def _drop(self, key: tuple[str, ...]) -> None:
         entry = self._cache.pop(key, None)
