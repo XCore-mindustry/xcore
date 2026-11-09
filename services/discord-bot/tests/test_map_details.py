@@ -142,6 +142,11 @@ def test_map_card_shows_details_without_colors() -> None:
     assert embed.image.url == "attachment://arena-thumbnail.png"
     assert embed.footer.text == "Server: mini-pvp"
 
+    rendered = map_card(
+        "mini-pvp", item, image_name="arena-detailed.png", render_ms=420
+    )
+    assert rendered.footer.text == "Server: mini-pvp • Rendered in 0.42 s"
+
 
 async def test_map_details_without_images_sends_card_only() -> None:
     bot = await _bot([ARENA])

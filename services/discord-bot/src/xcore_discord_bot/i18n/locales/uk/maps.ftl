@@ -108,6 +108,7 @@ maps-card-discord = Додана через Discord
 maps-card-file = Файл
 maps-card-review = Розгляд
 maps-card-footer = Сервер: { $server }
+maps-render-time = Відмальовано за { NUMBER($seconds, maximumFractionDigits: 2) } с
 maps-card-render-button = Детальний рендер
 maps-card-layers = Шари рендеру…
 maps-card-layer-buildings = Будівлі

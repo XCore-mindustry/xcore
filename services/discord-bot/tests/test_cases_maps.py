@@ -1153,7 +1153,7 @@ class _Renderer:
         self.files.append(data)
         if self.during is not None:
             await self.during()
-        return MapImage(png=b"\x89PNG-render", width=8, height=8)
+        return MapImage(png=b"\x89PNG-render", width=8, height=8, render_ms=420)
 
 
 async def _previewed(renderer, monkeypatch):
@@ -1186,10 +1186,14 @@ async def test_review_thread_gets_the_render_of_the_submitted_file_once(monkeypa
     [render] = _renders(thread)
     assert render.file.filename == "arena-detailed.png"
     assert render.file.fp.read() == b"\x89PNG-render"
-    assert render.content == t(
-        "en",
-        "maps-preview-attached",
-        sha=hashlib.sha256(attachment.data).hexdigest()[:12],
+    assert (
+        render.content
+        == t(
+            "en",
+            "maps-preview-attached",
+            sha=hashlib.sha256(attachment.data).hexdigest()[:12],
+        )
+        + "\n-# Rendered in 0.42 s"
     )
     assert renderer.style == maps.REVIEW_STYLE
     # The recheck found the posted render: the file was drawn once.

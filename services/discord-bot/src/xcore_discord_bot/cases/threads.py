@@ -186,7 +186,10 @@ class CaseThreads:
 
     async def _has_content(self, thread, content: str) -> bool:
         async for message in thread.history(limit=ADOPT_ARCHIVED_LIMIT):
-            if message.author.id == self.bot.user.id and message.content == content:
+            # A post may carry a second line, such as a render's time, after the content.
+            if message.author.id == self.bot.user.id and (
+                message.content == content or message.content.startswith(content + "\n")
+            ):
                 return True
         return False
 

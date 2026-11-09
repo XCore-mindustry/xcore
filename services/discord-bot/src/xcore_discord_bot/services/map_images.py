@@ -84,6 +84,8 @@ class MapImage:
     png: bytes
     width: int
     height: int
+    # How long the renderer took to draw it; None for server thumbnails.
+    render_ms: int | None = None
 
     def attachment_name(
         self, ref: MapRef, kind: MapImageKind, style: RenderStyle = PLAIN
@@ -480,7 +482,10 @@ class RendererImages:
             )
             return None
         return MapImage(
-            png=png, width=render.image.width or 0, height=render.image.height or 0
+            png=png,
+            width=render.image.width or 0,
+            height=render.image.height or 0,
+            render_ms=render.renderMs,
         )
 
 

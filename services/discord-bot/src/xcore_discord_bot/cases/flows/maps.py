@@ -491,6 +491,11 @@ async def _post_preview(service, thread, case, data, local, filename) -> None:
         current = await service.get(case.number)
         if current is None or not current.actionable:
             return
+        if image.render_ms is not None:
+            took = t(
+                case.origin.locale, "maps-render-time", seconds=image.render_ms / 1000
+            )
+            content += f"\n-# {took}"
         await thread.send(
             content,
             file=discord.File(

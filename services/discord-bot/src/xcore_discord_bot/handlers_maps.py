@@ -16,6 +16,7 @@ from .i18n import t
 from .map_card import find_map, map_card
 from .map_list import map_list_page_items, map_list_row, map_text
 from .moderation_views import MapRemoveConfirmView
+from .permissions import general_admin_role_ids, has_any_role, map_reviewer_role_ids
 from .server_views import MapDetailsView, MapOption, MapsListView
 from .services.map_images import (
     PLAIN,
@@ -200,7 +201,7 @@ async def _card_picture(
         return RENDER_FAILED
     name = image.attachment_name(ref, kind, style)
     file = discord.File(io.BytesIO(image.png), filename=name)
-    return card(image_name=name), file
+    return card(image_name=name, render_ms=image.render_ms), file
 
 
 async def _review_thread(bot: XCoreDiscordBot, content_hash: str) -> str | None:
@@ -262,8 +263,11 @@ async def send_map_card(
     }
     cooldown = bot.container.render_cooldown
 
+    settings = bot.settings
+    unlimited = (*map_reviewer_role_ids(settings), *general_admin_role_ids(settings))
+
     async def render(
-        presser: int, style: RenderStyle
+        presser: discord.User | discord.Member, style: RenderStyle
     ) -> tuple[discord.Embed, discord.File] | str:
         kind = MapImageKind.DETAILED
         # Only a new render costs the wait; one already drawn, or being drawn for someone
@@ -273,14 +277,18 @@ async def send_map_card(
         ):
             drawn = await picture(kind, style)
             return t(locale, drawn) if isinstance(drawn, str) else drawn
-        wait = cooldown.remaining(presser)
+        # Map reviewers and admins render without the wait.
+        if has_any_role(presser, unlimited):
+            drawn = await picture(kind, style)
+            return t(locale, drawn) if isinstance(drawn, str) else drawn
+        wait = cooldown.remaining(presser.id)
         if wait > 0:
             return t(locale, "maps-card-render-cooldown", seconds=math.ceil(wait))
         # Started before the render, so pressing again meanwhile waits too.
-        cooldown.start(presser)
+        cooldown.start(presser.id)
         drawn = await picture(kind, style)
         if isinstance(drawn, str) and drawn in REFUNDED:
-            cooldown.cancel(presser)
+            cooldown.cancel(presser.id)
         return t(locale, drawn) if isinstance(drawn, str) else drawn
 
     # No button while the renderer is down, unless the default render is still cached.

@@ -243,8 +243,8 @@ class MapDetailsView(discord.ui.View):
 
     The first press swaps the thumbnail for the detailed render in the default style. After
     that a menu turns layers on and off (buildings, wall darkness, ores, grid, spawns), and
-    choosing draws the map again. Anyone who sees the card may use them. ``render`` gets the
-    id of whoever chose and the style, and returns the new card and file, or a message for
+    choosing draws the map again. Anyone who sees the card may use them. ``render`` gets
+    whoever chose and the style, and returns the new card and file, or a message for
     that person when it could not (including when their render cooldown has not run out).
     """
 
@@ -252,7 +252,8 @@ class MapDetailsView(discord.ui.View):
         self,
         *,
         render: Callable[
-            [int, RenderStyle], Awaitable[tuple[discord.Embed, discord.File] | str]
+            [discord.User | discord.Member, RenderStyle],
+            Awaitable[tuple[discord.Embed, discord.File] | str],
         ],
         locale: str = DEFAULT,
     ) -> None:
@@ -306,7 +307,7 @@ class MapDetailsView(discord.ui.View):
     ) -> None:
         control.disabled = True
         await interaction.response.edit_message(view=self)
-        result = await self._render(interaction.user.id, style)
+        result = await self._render(interaction.user, style)
         control.disabled = False
         if isinstance(result, str):
             await interaction.edit_original_response(view=self)

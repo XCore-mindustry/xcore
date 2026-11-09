@@ -108,6 +108,7 @@ maps-card-discord = Added via Discord
 maps-card-file = File
 maps-card-review = Review
 maps-card-footer = Server: { $server }
+maps-render-time = Rendered in { NUMBER($seconds, maximumFractionDigits: 2) } s
 maps-card-render-button = Detailed render
 maps-card-layers = Render layers…
 maps-card-layer-buildings = Buildings
