@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from jsonschema import ValidationError
 import pytest
 
 from xcore_protocol.generated import (
@@ -190,3 +191,85 @@ def test_inspect_route_resolves_spec_streams() -> None:
     assert route.response.payloadType is MapsInspectResponseV1
     assert route.response.stream.format(requester="discord") == "xcore:rpc:resp:discord"
     assert route.response.bindings == {"requester": "rpc.requester"}
+
+
+def _image_models() -> dict[str, type]:
+    from xcore_protocol.generated import (
+        MapsFileRequestV1,
+        MapsFileResponseV1,
+        MapsPreviewRequestV1,
+        MapsPreviewResponseV1,
+        MapsRenderRequestV1,
+        MapsRenderResponseV1,
+    )
+
+    return {
+        model.MESSAGE_TYPE: model
+        for model in (
+            MapsPreviewRequestV1,
+            MapsPreviewResponseV1,
+            MapsFileRequestV1,
+            MapsFileResponseV1,
+            MapsRenderRequestV1,
+            MapsRenderResponseV1,
+        )
+    }
+
+
+IMAGE_FIXTURES = ("maps.preview.*.json", "maps.file.*.json", "maps.render.*.json")
+
+
+@pytest.mark.parametrize(
+    "fixture_path",
+    sorted(path for pattern in IMAGE_FIXTURES for path in (fixtures_root() / "valid" / "maps").glob(pattern)),
+    ids=lambda path: path.name,
+)
+def test_image_models_roundtrip(fixture_path: Path) -> None:
+    payload = load_json(fixture_path)
+    model = _image_models()[payload["messageType"]].from_payload(payload)
+    assert model.to_payload() == payload
+    validate_instance(spec_root() / "messages/maps" / f"{model.MESSAGE_TYPE}.v1.json", model.to_payload())
+
+
+@pytest.mark.parametrize(
+    "fixture_path",
+    sorted(path for pattern in IMAGE_FIXTURES for path in (fixtures_root() / "invalid" / "maps").glob(pattern)),
+    ids=lambda path: path.name,
+)
+def test_image_models_reject_invalid_fixtures(fixture_path: Path) -> None:
+    """Models enforce minima, patterns and enums; the schema is authoritative for upper bounds."""
+    payload = load_json(fixture_path)
+    try:
+        _image_models()[payload["messageType"]].from_payload(payload)
+    except ValueError:
+        return
+    with pytest.raises(ValidationError):
+        validate_instance(spec_root() / "messages/maps" / f"{payload['messageType']}.v1.json", payload)
+
+
+def test_map_entry_content_hash_is_optional() -> None:
+    payload = load_json(fixtures_root() / "valid" / "maps" / "maps.list.response.v1.content-hash.json")
+    response = MapsListResponseV1.from_payload(payload)
+    assert response.maps[0].contentHash == payload["maps"][0]["contentHash"]
+    assert response.to_payload() == payload
+    plain = MapsListResponseV1.from_payload(load_json(fixtures_root() / "valid" / "maps" / "maps.list.response.v1.json"))
+    assert plain.maps[0].contentHash is None
+
+
+def test_image_routes() -> None:
+    from xcore_protocol.generated import (
+        MAPS_FILE_REQUEST_V1,
+        MAPS_PREVIEW_REQUEST_V1,
+        MAPS_RENDER_REQUEST_V1,
+    )
+
+    for route in (MAPS_PREVIEW_REQUEST_V1, MAPS_FILE_REQUEST_V1):
+        assert route.stream.format(server="mini-pvp") == "xcore:rpc:req:mini-pvp"
+        assert route.bindings == {"server": "payload.server"}
+        assert route.targetScope == "server"
+    render = MAPS_RENDER_REQUEST_V1
+    assert render.stream == "xcore:rpc:req:map-renderer"
+    assert render.bindings == {}
+    assert render.targetScope == "service"
+    assert render.owner == "map-renderer"
+    assert render.response.stream.format(requester="discord") == "xcore:rpc:resp:discord"

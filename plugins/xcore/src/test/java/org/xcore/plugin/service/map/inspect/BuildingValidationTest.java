@@ -4,6 +4,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.xcore.msav.ContentRegistrySnapshot;
+import org.xcore.msav.DetachedMsavReader;
+import org.xcore.msav.MapSnapshot;
 import org.xcore.plugin.concurrent.GameThread;
 import org.xcore.plugin.config.TomlSecretsConfig;
 import org.xcore.plugin.service.map.MapInspectionService;
@@ -95,7 +98,7 @@ class BuildingValidationTest {
     void nativeDescriptorsSupplyAllLegacyModulesWithoutBuildingConstruction() throws Exception {
         GameThread.setGameThreadOverride(Thread.currentThread());
         try (var world = HeadlessWorld.create(5, 5)) {
-            var registry = ContentRegistrySnapshot.capture();
+            var registry = ContentRegistryCapture.capture();
             var melter = registry.resolve(ContentRegistrySnapshot.BLOCK_TYPE, "melter");
             assertThat(melter.modules()).isEqualTo(7);
             assertThat(melter.size()).isEqualTo(1);

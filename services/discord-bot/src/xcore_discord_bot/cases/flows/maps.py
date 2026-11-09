@@ -18,6 +18,13 @@ from ...bus.transport import RpcError
 from ...i18n import resolve_dm_locale, t
 from ...retry import TRANSIENT_EXCEPTIONS
 from ...rpc.mindustry_rpc import NoLiveServerError
+from ...services.map_images import (
+    MapImageKind,
+    MapRef,
+    RendererBusy,
+    RendererUnavailable,
+    RenderStyle,
+)
 from ...staff_actions import (
     Actor,
     MapUploadFile,
@@ -46,6 +53,14 @@ from .badges import grant_map_maker, linked_players
 logger = logging.getLogger(__name__)
 
 BADGE_WINDOW = timedelta(days=30)
+# A busy renderer is asked again a few times; reviewers can always open the file in game.
+# The same default render /map shows, so an accepted map's render is already cached.
+REVIEW_STYLE = RenderStyle()
+PREVIEW_ATTEMPTS = 3
+PREVIEW_RETRY_SECONDS = 20.0
+# Renders on their way into a thread, by (thread, file hash): kept so the task is not
+# collected and so a recheck while one runs does not start a second.
+_previews: dict[tuple[int, str], asyncio.Task[None]] = {}
 KNOWN_FINDINGS = frozenset(
     (
         "missing-name",
@@ -322,6 +337,7 @@ async def _refresh(service, case, *, message=None):  # noqa: C901
             max_file_bytes=service.settings.maps_max_file_bytes,
         )
         await _post_patches(service, thread, case, data, local, attachment.filename)
+        _schedule_preview(service, thread, case, data, local, attachment.filename)
         payload.update(
             sha256=local.sha256,
             info={
@@ -431,6 +447,66 @@ async def _post_patches(service, thread, case, data, local, filename) -> None:
         )
     except discord.HTTPException:
         logger.warning("Could not attach data patches to case %s", case.number)
+
+
+def _schedule_preview(service, thread, case, data, local, filename) -> None:
+    """Posts the render of the file under the card, once per file, without holding up checks."""
+    key = (thread.id, local.sha256)
+    if key in _previews:
+        return
+    task = asyncio.create_task(
+        _post_preview(service, thread, case, data, local, filename),
+        name=f"map-preview-{case.number}",
+    )
+    _previews[key] = task
+    task.add_done_callback(lambda _: _previews.pop(key, None))
+
+
+async def _render_patiently(images, ref, data):
+    """The render, asking a busy renderer again; ``None`` when it stays busy."""
+    for attempt in range(PREVIEW_ATTEMPTS):
+        try:
+            return await images.render_file(ref, data, REVIEW_STYLE)
+        except RendererBusy:
+            if attempt + 1 < PREVIEW_ATTEMPTS:
+                await asyncio.sleep(PREVIEW_RETRY_SECONDS)
+    return None
+
+
+async def _post_preview(service, thread, case, data, local, filename) -> None:
+    images = service.bot.container.map_images
+    content = t(case.origin.locale, "maps-preview-attached", sha=local.sha256[:12])
+    ref = MapRef("review", filename)
+    try:
+        if getattr(thread, "archived", False) or not await images.available(
+            MapImageKind.DETAILED
+        ):
+            return
+        if await service.threads._has_content(thread, content):
+            return
+        image = await _render_patiently(images, ref, data)
+        if image is None:
+            return
+        # A review closed meanwhile keeps its thread as it was left.
+        current = await service.get(case.number)
+        if current is None or not current.actionable:
+            return
+        await thread.send(
+            content,
+            file=discord.File(
+                io.BytesIO(image.png),
+                filename=image.attachment_name(
+                    ref, MapImageKind.DETAILED, REVIEW_STYLE
+                ),
+            ),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+    except (TimeoutError, RendererUnavailable) as error:
+        logger.info("No render for map case %s: %r", case.number, error)
+    except discord.HTTPException:
+        logger.warning("Could not attach the render to map case %s", case.number)
+    except Exception:
+        logger.exception("Render for map case %s failed", case.number)
 
 
 async def on_created(service, case):

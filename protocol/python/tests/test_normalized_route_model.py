@@ -64,7 +64,7 @@ def test_load_shared_schema_normalizes_require_any_of_groups(tmp_path: Path) -> 
 def test_load_routes_normalizes_maps_manifest() -> None:
     routes = load_routes(Path("spec/routes/maps.routes.v1.yaml"))
 
-    assert len(routes) == 5
+    assert len(routes) == 8
     first = routes[0]
     assert first.family == "maps"
     assert first.message_type == "maps.list.request"
@@ -80,6 +80,7 @@ def test_generation_plan_only_uses_reachable_maps_shared_types() -> None:
 
     assert [schema.title for schema in plan.shared_schemas] == [
         "DiscordIdentityRefV1",
+        "MapBlobRefV1",
         "MapDiscordUploadV1",
         "MapEntryV1",
         "MapFileSourceV1",
@@ -88,13 +89,19 @@ def test_generation_plan_only_uses_reachable_maps_shared_types() -> None:
         "MapUploadResultV1",
     ]
     assert [schema.title for schema in plan.map_schemas] == [
+        "MapsFileRequestV1",
+        "MapsFileResponseV1",
         "MapsInspectRequestV1",
         "MapsInspectResponseV1",
         "MapsListRequestV1",
         "MapsListResponseV1",
         "MapsLoadCommandV1",
+        "MapsPreviewRequestV1",
+        "MapsPreviewResponseV1",
         "MapsRemoveRequestV1",
         "MapsRemoveResponseV1",
+        "MapsRenderRequestV1",
+        "MapsRenderResponseV1",
         "MapsUploadRequestV1",
         "MapsUploadResponseV1",
     ]
@@ -104,6 +111,9 @@ def test_generation_plan_only_uses_reachable_maps_shared_types() -> None:
         "MAPS_LOAD_COMMAND_V1",
         "MAPS_UPLOAD_REQUEST_V1",
         "MAPS_INSPECT_REQUEST_V1",
+        "MAPS_PREVIEW_REQUEST_V1",
+        "MAPS_FILE_REQUEST_V1",
+        "MAPS_RENDER_REQUEST_V1",
     ]
 
 

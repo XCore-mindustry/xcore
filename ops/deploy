@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Deploys the Discord bot, the metrics gateway and the website to the server.
-# Usage: ops/deploy <ssh-host> <bot|gateway|web|all>... [--ref <git-ref>]
+# Deploys the Discord bot, the metrics gateway, the website and the map renderer to the server.
+# Usage: ops/deploy <ssh-host> <bot|gateway|web|map-renderer|all>... [--ref <git-ref>]
 # See ops/README.md for the server layout.
 set -euo pipefail
 
 usage() {
-  echo "usage: ops/deploy <ssh-host> <bot|gateway|web|all>... [--ref <git-ref>]" >&2
+  echo "usage: ops/deploy <ssh-host> <bot|gateway|web|map-renderer|all>... [--ref <git-ref>]" >&2
   exit 2
 }
 
@@ -18,8 +18,8 @@ services=()
 while [[ $# -gt 0 ]]; do
   case $1 in
     --ref) ref=${2:?}; shift 2 ;;
-    bot | gateway | web) services+=("$1"); shift ;;
-    all) services+=(bot gateway web); shift ;;
+    bot | gateway | web | map-renderer) services+=("$1"); shift ;;
+    all) services+=(bot gateway web map-renderer); shift ;;
     *) usage ;;
   esac
 done
@@ -32,10 +32,13 @@ git -C "$root" merge-base --is-ancestor "$sha" origin/main ||
   { echo "$ref ($sha) is not on origin/main" >&2; exit 1; }
 echo "deploying ${services[*]} at $(git -C "$root" log -1 --format='%h %s' "$sha")"
 
-if [[ " ${services[*]} " == *" web "* ]]; then
+if [[ " ${services[*]} " == *" web "* || " ${services[*]} " == *" map-renderer "* ]]; then
   tmp=$(mktemp -d)
   trap 'git -C "$root" worktree remove --force "$tmp/src" 2>/dev/null; rm -rf "$tmp"' EXIT
   git -C "$root" worktree add -q --detach "$tmp/src" "$sha"
+fi
+
+if [[ " ${services[*]} " == *" web "* ]]; then
   (
     cd "$tmp/src/web"
     bun install --frozen-lockfile
@@ -45,6 +48,19 @@ if [[ " ${services[*]} " == *" web "* ]]; then
   )
   ssh "$host" mkdir -p services/web
   rsync -az --delete --link-dest=../web "$tmp/src/web/.next/standalone/" "$host:services/web.next/"
+fi
+
+if [[ " ${services[*]} " == *" map-renderer "* ]]; then
+  # Built here like the website: the build downloads the Mindustry client for its sprites and
+  # needs JDK 25; the server only runs the result. MINDUSTRY_CLIENT_JAR skips the download.
+  (
+    cd "$tmp/src"
+    ./gradlew -q :services:map-renderer:installDist \
+      ${MINDUSTRY_CLIENT_JAR:+-PmindustryClientJar="$MINDUSTRY_CLIENT_JAR"}
+  )
+  ssh "$host" mkdir -p services/map-renderer
+  rsync -az --delete --link-dest=../map-renderer \
+    "$tmp/src/services/map-renderer/build/install/map-renderer/" "$host:services/map-renderer.next/"
 fi
 
 ssh "$host" bash -s -- "$sha" "${services[@]}" <<'REMOTE'
@@ -70,14 +86,15 @@ for svc in "$@"; do
     bot) unit=xcore-discord-bot pkg=xcore-discord-bot python=3.14 ;;
     gateway) unit=xcore-metrics-gateway pkg=xcore-metrics-gateway python=3.13 ;;
     web) unit=xcore-web ;;
+    map-renderer) unit=xcore-map-renderer ;;
   esac
   echo "== $svc"
   [[ -f ~/.config/xcore/${unit#xcore-}.env ]] || { echo "missing ~/.config/xcore/${unit#xcore-}.env" >&2; exit 1; }
 
-  if [[ $svc == web ]]; then
-    rm -rf ~/services/web.prev
-    mv ~/services/web ~/services/web.prev
-    mv ~/services/web.next ~/services/web
+  if [[ $svc == web || $svc == map-renderer ]]; then
+    rm -rf ~/services/"$svc".prev
+    [[ -d ~/services/$svc ]] && mv ~/services/"$svc" ~/services/"$svc".prev
+    mv ~/services/"$svc".next ~/services/"$svc"
   else
     # Non-editable, so later checkouts do not change the code of a running service.
     UV_PROJECT_ENVIRONMENT=~/services/venvs/${unit#xcore-} "$uv" sync -q --locked --no-dev --no-editable \
@@ -96,6 +113,9 @@ for svc in "$@"; do
       port=$(sed -n 's/^GATEWAY_HTTP_PORT=//p' ~/.config/xcore/metrics-gateway.env)
       check() { curl -fsS "http://127.0.0.1:${port:-9100}/ready"; }; limit=30 ;;
     web) check() { curl -fsS -o /dev/null http://127.0.0.1:3100/en; }; limit=30 ;;
+    map-renderer)
+      listen=$(sed -n 's/^MAP_RENDERER_HTTP=//p' ~/.config/xcore/map-renderer.env)
+      check() { curl -fsS "http://${listen:-127.0.0.1:9471}/ready"; }; limit=60 ;;
   esac
   if ! wait_for "$limit" check || ! systemctl --user is-active -q "$unit"; then
     journalctl --user -u "$unit" --since "@$since" --no-pager | tail -30

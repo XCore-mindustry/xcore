@@ -1,7 +1,11 @@
-cmd-map-review-name = review
-cmd-map-review-description = Start map review in this forum post
+cmd-map-description = Show one map in detail
+cmd-map-param-server-description = Server name
+cmd-map-param-file_name-name = map
+cmd-map-param-file_name-description = The map
+cmd-maps-review-name = review
+cmd-maps-review-description = Start map review in this forum post
 maps-file-needed = Please attach the map as a .msav file in this post. Its author must upload the file.
-maps-review-in-post = Use /map review inside a post in the maps forum.
+maps-review-in-post = Use /maps review inside a post in the maps forum.
 maps-review-no-file = No map review started. Check the post's tags and attach a .msav file from its author.
 maps-map = Map
 maps-file = File
@@ -69,16 +73,19 @@ maps-finding-missing-author = The map has no declared author
 maps-finding-requires-mods = The map requires mods
 maps-finding-data-patches = The map changes gameplay with data patches; the other checks ignored them
 maps-patches-attached = Data patches in this map ({ $count }), file { $sha }:
+maps-preview-attached = Render of this map, file { $sha }:
 maps-finding-unknown-content = The map uses content unknown to this server
 maps-badge-link-needed = The map's author has no linked game account, so the Map maker badge is not granted yet. The bot grants it on its own once the account is linked (within 30 days).
 
-# /map list
+# /maps list
 
 maps-list-timeout = No response from target server (timeout).
 maps-list-empty = No maps found on server `{ $server }`
 maps-list-empty-creator = No maps found on server `{ $server }` for this creator.
 maps-list-title = Maps on `{ $server }`
 maps-list-footer = Sort: { $sort } • Page { $page }/{ $pages } • total maps: { $total } • entries on page: { $shown }
+maps-list-open = Open a map…
+maps-list-open-gone = This map is no longer in the list.
 maps-list-legend = 🎨 declared creator • ⬆ added via Discord
 maps-list-sort-reputation = reputation
 maps-list-sort-popularity = popularity
@@ -87,3 +94,34 @@ maps-list-unknown = Unknown
 maps-list-by = by `{ $author }`
 maps-list-file-author = file author `{ $author }`
 maps-list-reputation = rep { NUMBER($reputation, useGrouping: 1) }
+
+# /map
+
+maps-card-not-found = There is no map `{ $file }` on `{ $server }`.
+maps-card-author = Author
+maps-card-size = Size
+maps-card-mode = Mode
+maps-card-rating = Rating
+maps-card-activity = Activity
+maps-card-activity-value = popularity { NUMBER($popularity, maximumFractionDigits: 2) } • interest { NUMBER($interest, maximumFractionDigits: 2) }
+maps-card-discord = Added via Discord
+maps-card-file = File
+maps-card-review = Review
+maps-card-footer = Server: { $server }
+maps-card-render-button = Detailed render
+maps-card-layers = Render layers…
+maps-card-layer-buildings = Buildings
+maps-card-layer-buildings-hint = Blocks and their shadows; off shows the terrain only
+maps-card-layer-darkness = Wall darkness
+maps-card-layer-darkness-hint = Darkens static walls and the map edge, as in game
+maps-card-layer-ores = Ores
+maps-card-layer-ores-hint = Dims everything but ores, to judge resources
+maps-card-layer-grid = Coordinate grid
+maps-card-layer-grid-hint = A line every 10 tiles, coordinates every 50
+maps-card-layer-spawns = Spawns and drop zones
+maps-card-layer-spawns-hint = Where enemies appear; units inside the circle die
+maps-card-render-timeout = The renderer did not answer in time. Try again later.
+maps-card-render-busy = The renderer is busy with other maps. Try again in a minute.
+maps-card-render-cooldown = You can start a new render in { $seconds } s.
+maps-card-render-failed = Could not draw this map.
+maps-card-render-unavailable = The renderer is not running right now. Try again later.

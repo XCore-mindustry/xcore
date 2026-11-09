@@ -1,19 +1,33 @@
-"""Maps: listing, uploading, removing and inspecting maps on a server."""
+"""Maps: listing, uploading, removing and inspecting maps on a server, and their pictures."""
 
 from __future__ import annotations
 
+import hashlib
 import json
+import time
+from typing import Any, cast
 
+from redis.client import NEVER_DECODE
 from xcore_protocol.generated.maps import (
+    MapsFileRequestV1,
+    MapsFileResponseV1,
     MapsInspectResponseV1,
     MapsListRequestV1,
     MapsListResponseV1,
+    MapsPreviewRequestV1,
+    MapsPreviewResponseV1,
     MapsRemoveRequestV1,
     MapsRemoveResponseV1,
+    MapsRenderRequestV1,
+    MapsRenderResponseV1,
     MapsUploadRequestV1,
     MapsUploadResponseV1,
 )
-from xcore_protocol.generated.shared import MapEntryV1
+from xcore_protocol.generated.shared import (
+    MapBlobRefV1,
+    MapBlobRefV1ContentType,
+    MapEntryV1,
+)
 
 from ..protocol_outbound import (
     build_maps_inspect_request,
@@ -24,6 +38,18 @@ from ..protocol_outbound import (
 from .transport import RedisTransport
 
 MAP_INSPECT_TTL_MS = 60_000
+# The map renderer listens on xcore:rpc:req:map-renderer, as if it were a server of that name.
+RENDERER = "map-renderer"
+# The protocol's ceiling for one blob.
+MAX_BLOB_BYTES = 16 * 1024 * 1024
+BLOB_PREFIX = "xcore:blob:"
+BLOB_TTL_SECONDS = 15 * 60
+# Kept by the renderer while it listens (a 30 s TTL refreshed every 10 s).
+RENDERER_PRESENCE_KEY = "xcore:service:map-renderer"
+
+
+class BlobUnavailable(RuntimeError):
+    """A referenced blob expired, never arrived, or does not match its reference."""
 
 
 class MapsBus:
@@ -99,6 +125,102 @@ class MapsBus:
             raise ValueError("Map inspection response does not match request server")
         return response
 
+    async def rpc_maps_preview(
+        self, *, server: str, file_name: str, max_side: int | None, timeout_ms: int
+    ) -> MapsPreviewResponseV1:
+        request = MapsPreviewRequestV1(
+            server=server, fileName=file_name, maxSide=max_side
+        )
+        body = await self._transport.rpc_request(
+            server=server,
+            rpc_type=request.MESSAGE_TYPE,
+            payload=request.to_payload(),
+            timeout_ms=timeout_ms,
+        )
+        response = MapsPreviewResponseV1.from_payload(
+            json.loads(body.get("payload_json", "{}"))
+        )
+        if response.server != server or response.fileName != file_name:
+            raise ValueError("Map preview response does not match the request")
+        return response
+
+    async def rpc_maps_file(
+        self, *, server: str, file_name: str, timeout_ms: int
+    ) -> MapsFileResponseV1:
+        request = MapsFileRequestV1(server=server, fileName=file_name)
+        body = await self._transport.rpc_request(
+            server=server,
+            rpc_type=request.MESSAGE_TYPE,
+            payload=request.to_payload(),
+            timeout_ms=timeout_ms,
+        )
+        response = MapsFileResponseV1.from_payload(
+            json.loads(body.get("payload_json", "{}"))
+        )
+        if response.server != server or response.fileName != file_name:
+            raise ValueError("Map file response does not match the request")
+        return response
+
+    async def rpc_maps_render(
+        self,
+        *,
+        content_hash: str,
+        file: MapBlobRefV1,
+        timeout_ms: int,
+        layers: dict[str, bool] | None = None,
+    ) -> MapsRenderResponseV1:
+        """``layers`` are the request's flags (``darkness``, ``buildings``, ...)."""
+        request = MapsRenderRequestV1(
+            contentHash=content_hash, file=file, **(layers or {})
+        )
+        body = await self._transport.rpc_request(
+            server=RENDERER,
+            rpc_type=request.MESSAGE_TYPE,
+            payload=request.to_payload(),
+            timeout_ms=timeout_ms,
+        )
+        response = MapsRenderResponseV1.from_payload(
+            json.loads(body.get("payload_json", "{}"))
+        )
+        if response.contentHash != content_hash:
+            raise ValueError("Map render response does not match the request")
+        return response
+
+    async def renderer_online(self) -> bool:
+        """Whether the map renderer announced itself in the last 30 seconds."""
+        return bool(await self._transport.redis.exists(RENDERER_PRESENCE_KEY))
+
+    async def write_blob(
+        self, data: bytes, content_type: MapBlobRefV1ContentType
+    ) -> MapBlobRefV1:
+        """Publishes bytes the bot holds (a submitted map file) as a blob for the renderer."""
+        if not 0 < len(data) <= MAX_BLOB_BYTES:
+            raise ValueError(f"blob size {len(data)} out of range")
+        sha = hashlib.sha256(data).hexdigest()
+        key = BLOB_PREFIX + sha
+        await self._transport.redis.set(key, data, ex=BLOB_TTL_SECONDS)
+        return MapBlobRefV1(
+            key=key,
+            sha256=sha,
+            sizeBytes=len(data),
+            contentType=content_type,
+            expiresAt=int((time.time() + BLOB_TTL_SECONDS) * 1000),
+        )
+
+    async def read_blob(self, ref: MapBlobRefV1) -> bytes:
+        """The bytes a reference points at, checked against its size and SHA-256."""
+        if not 0 < ref.sizeBytes <= MAX_BLOB_BYTES:
+            raise BlobUnavailable(f"blob size {ref.sizeBytes} out of range")
+        # The bus decodes replies as text; a blob is binary.
+        data = await cast(Any, self._transport.redis).execute_command(
+            "GET", ref.key, **{NEVER_DECODE: True}
+        )
+        if data is None:
+            raise BlobUnavailable(f"blob {ref.key} is gone")
+        if len(data) != ref.sizeBytes or hashlib.sha256(data).hexdigest() != ref.sha256:
+            raise BlobUnavailable(f"blob {ref.key} does not match its reference")
+        return bytes(data)
+
     @staticmethod
     def _normalize_map_entry_v1(entry: MapEntryV1) -> dict[str, str]:
         return {
@@ -116,6 +238,7 @@ class MapsBus:
             "popularity": str(entry.popularity) if entry.popularity is not None else "",
             "interest": str(entry.interest) if entry.interest is not None else "",
             "game_mode": entry.gameMode if entry.gameMode is not None else "",
+            "content_hash": entry.contentHash or "",
             **(
                 {
                     "uploaded_by_discord_id": entry.discordUpload.uploadedBy.discordId,

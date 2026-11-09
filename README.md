@@ -98,11 +98,13 @@ plugins/
 libs/
   flubundle/          localization
   cloud-mindustry/    commands
+  msav/               map file reader, without the engine (plugin and map renderer)
   xcore-ui/           menus
   mindustry-testkit/  test helpers and menu renderer
 protocol/             message spec and generated bindings
 services/
   discord-bot/
+  map-renderer/       detailed map pictures for /map (prototype)
   metrics-gateway/
 web/                  x-core.org
 devtools/             the ./dev command, Compose stack and seed data

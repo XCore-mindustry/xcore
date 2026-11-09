@@ -12,6 +12,20 @@ Maps request/response contracts belong here.
 - `maps.inspect.request` — inspect one `.msav` without installing it; an absent profile is inferred from map rules.
 - `maps.inspect.response` — return inspection status, optional map metadata and open-code findings.
 - `maps.load.command` — command one server to download and load uploaded `.msav` files.
+- `maps.preview.request` / `maps.preview.response` — the thumbnail of one installed map, as a blob.
+- `maps.file.request` / `maps.file.response` — one installed map file, published as a blob.
+- `maps.render.request` / `maps.render.response` — a detailed render from the map renderer service (`xcore:rpc:req:map-renderer`).
+
+## Blobs
+Images and map files travel as `MapBlobRefV1`: a Redis string `xcore:blob:{sha256}` with a TTL, referenced
+from the message. Stream entries stay small; readers check `sizeBytes` and `sha256` before use.
+Game servers publish previews and map files, the renderer its renders, and the Discord bot map files
+it holds itself (a file submitted for review), always under the bytes' own SHA-256.
+
+## Renderer presence
+The map renderer keeps the Redis string `xcore:service:map-renderer` (JSON with `version`,
+`concurrency` and `inFlight`) with a 30 s TTL while it consumes requests. Clients may skip
+`maps.render` while the key is absent instead of waiting out the RPC timeout.
 
 ## Field Policy
 - Payload fields use camelCase.

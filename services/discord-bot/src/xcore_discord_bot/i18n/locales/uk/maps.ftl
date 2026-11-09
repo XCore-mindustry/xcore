@@ -1,7 +1,11 @@
-cmd-map-review-name = перевірка
-cmd-map-review-description = Почати перевірку карти в цій публікації
+cmd-map-description = Детально показати одну мапу
+cmd-map-param-server-description = Назва сервера
+cmd-map-param-file_name-name = мапа
+cmd-map-param-file_name-description = Мапа
+cmd-maps-review-name = перевірка
+cmd-maps-review-description = Почати перевірку карти в цій публікації
 maps-file-needed = Прикріпіть карту у форматі .msav до цієї публікації. Файл має завантажити її автор.
-maps-review-in-post = Використовуйте /map review усередині публікації на форумі карт.
+maps-review-in-post = Використовуйте /maps review усередині публікації на форумі карт.
 maps-review-no-file = Перевірку не розпочато. Перевірте теги публікації; автор має прикріпити файл .msav.
 maps-map = Карта
 maps-file = Файл
@@ -69,16 +73,19 @@ maps-finding-missing-author = Автора карти не вказано
 maps-finding-requires-mods = Для карти потрібні моди
 maps-finding-data-patches = Карта змінює геймплей дата-патчами; решта перевірок їх не враховувала
 maps-patches-attached = Дата-патчі цієї карти ({ $count }), файл { $sha }:
+maps-preview-attached = Рендер цієї мапи, файл { $sha }:
 maps-finding-unknown-content = Карта використовує невідомий цьому серверу вміст
 maps-badge-link-needed = Автор карти не прив’язав ігровий акаунт, тому значок Map maker ще не видано. Бот видасть його сам, коли акаунт прив’яжуть (протягом 30 днів).
 
-# /map list
+# /maps list
 
 maps-list-timeout = Сервер не відповів (тайм-аут).
 maps-list-empty = На сервері `{ $server }` немає карт
 maps-list-empty-creator = На сервері `{ $server }` немає карт цього автора.
 maps-list-title = Карти на `{ $server }`
 maps-list-footer = Сортування: { $sort } • Сторінка { $page }/{ $pages } • усього карт: { $total } • на сторінці: { $shown }
+maps-list-open = Відкрити мапу…
+maps-list-open-gone = Цієї мапи більше немає у списку.
 maps-list-legend = 🎨 заявлений автор • ⬆ додано через Discord
 maps-list-sort-reputation = за репутацією
 maps-list-sort-popularity = за популярністю
@@ -87,3 +94,34 @@ maps-list-unknown = Невідомо
 maps-list-by = автор `{ $author }`
 maps-list-file-author = автор у файлі `{ $author }`
 maps-list-reputation = реп. { NUMBER($reputation, useGrouping: 1) }
+
+# /map
+
+maps-card-not-found = На `{ $server }` немає мапи `{ $file }`.
+maps-card-author = Автор
+maps-card-size = Розмір
+maps-card-mode = Режим
+maps-card-rating = Оцінки
+maps-card-activity = Активність
+maps-card-activity-value = популярність { NUMBER($popularity, maximumFractionDigits: 2) } • інтерес { NUMBER($interest, maximumFractionDigits: 2) }
+maps-card-discord = Додана через Discord
+maps-card-file = Файл
+maps-card-review = Розгляд
+maps-card-footer = Сервер: { $server }
+maps-card-render-button = Детальний рендер
+maps-card-layers = Шари рендеру…
+maps-card-layer-buildings = Будівлі
+maps-card-layer-buildings-hint = Блоки та їхні тіні; без них видно лише рельєф
+maps-card-layer-darkness = Затемнення стін
+maps-card-layer-darkness-hint = Темрява над стінами та краєм мапи, як у грі
+maps-card-layer-ores = Руди
+maps-card-layer-ores-hint = Приглушує все, крім руд, щоб оцінити ресурси
+maps-card-layer-grid = Сітка координат
+maps-card-layer-grid-hint = Лінія кожні 10 тайлів, координати кожні 50
+maps-card-layer-spawns = Спавни та зони висадки
+maps-card-layer-spawns-hint = Де з'являються вороги; юніти всередині кола гинуть
+maps-card-render-timeout = Рендерер не відповів вчасно. Спробуйте пізніше.
+maps-card-render-busy = Рендерер зайнятий іншими мапами. Спробуйте за хвилину.
+maps-card-render-cooldown = Новий рендер можна запустити через { $seconds } с.
+maps-card-render-failed = Не вдалося відмалювати цю мапу.
+maps-card-render-unavailable = Рендерер зараз не запущений. Спробуйте пізніше.

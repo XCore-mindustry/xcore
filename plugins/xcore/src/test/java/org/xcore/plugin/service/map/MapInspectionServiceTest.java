@@ -1,8 +1,8 @@
 package org.xcore.plugin.service.map;
 
 import arc.Events;
-import arc.func.Cons;
 import arc.files.Fi;
+import arc.func.Cons;
 import arc.struct.StringMap;
 import io.avaje.inject.BeanScope;
 import io.avaje.inject.spi.AvajeModule;
@@ -16,10 +16,12 @@ import mindustry.game.EventType;
 import mindustry.gen.Groups;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
+import org.xcore.msav.DetachedMsavReader;
 import org.xcore.plugin.concurrent.Async;
 import org.xcore.plugin.concurrent.GameThread;
 import org.xcore.plugin.config.TomlSecretsConfig;
 import org.xcore.plugin.service.map.inspect.*;
+import org.xcore.plugin.service.map.inspect.ContentRegistryCapture;
 import org.xcore.plugin.ui.XcoreImageService;
 import org.xcore.protocol.generated.shared.MapFileSourceV1;
 import org.xcore.testkit.fixtures.HeadlessWorld;
@@ -183,7 +185,7 @@ class MapInspectionServiceTest {
     void bundledV160MapsCanBeInspectedWithoutLoadingThem() throws Exception {
         GameThread.setGameThreadOverride(Thread.currentThread());
         try (var engine = HeadlessWorld.create(8, 8)) {
-            var registry = ContentRegistrySnapshot.capture();
+            var registry = ContentRegistryCapture.capture();
             for (String name : List.of("fork", "fortress", "caldera")) {
                 Path file = directory.resolve(name + ".msav");
                 try (InputStream input = getClass().getResourceAsStream("/maps/inspection/" + name + ".msav")) {

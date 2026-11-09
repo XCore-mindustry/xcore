@@ -1,5 +1,12 @@
 # Detached map inspection (P4)
 
+> The reader itself now lives in [`libs/msav`](../../../../../../../../../../../libs/msav) (package
+> `org.xcore.msav`): `DetachedMsavReader`, `MapSnapshot`, `MapRules`, the value record
+> `ContentRegistrySnapshot` and the limits as `MsavLimits`. Copying the registry from the running
+> game moved to `ContentRegistryCapture.capture()` here, and `InspectionSettings` implements
+> `MsavLimits`. Everything below still describes them; paths in the inventory are as they were
+> when this report was written.
+
 `MapInspectionService.capture()` copies the registered content descriptors, aliases,
 team names, new-game rule defaults and inspection settings on the game thread.
 `inspect(file, requestedProfile, context)` is a synchronous worker API. The transport

@@ -9,6 +9,7 @@ from discord import Interaction
 from .i18n import DEFAULT, t
 from .presentation import build_servers_embed, sort_live_servers
 from .registry import LiveServerRegistry
+from .services.map_images import RenderStyle
 from .ui_helpers import disable_view_buttons, safe_edit_view_message
 
 MapSortMode = Literal["reputation", "popularity", "name"]
@@ -110,7 +111,13 @@ class ServersView(discord.ui.View):
         )
 
 
+MapOption = tuple[str, str, str]
+"""One map in the open menu: label, value and description."""
+
+
 class MapsListView(discord.ui.View):
+    """Pages, sort order and, when ``open_map`` is given, a menu that opens a map of the page."""
+
     def __init__(
         self,
         *,
@@ -118,20 +125,54 @@ class MapsListView(discord.ui.View):
         has_prev: bool,
         has_next: bool,
         sort_mode: MapSortMode,
-        fetch_page: Callable[[int, MapSortMode], Awaitable[tuple[discord.Embed, bool]]],
+        fetch_page: Callable[
+            [int, MapSortMode], Awaitable[tuple[discord.Embed, bool, list[MapOption]]]
+        ],
         locale: str = DEFAULT,
+        options: list[MapOption] | None = None,
+        open_map: Callable[[Interaction, str], Awaitable[None]] | None = None,
     ) -> None:
         super().__init__(timeout=120)
         self._page = page
         self._sort_mode: MapSortMode = sort_mode
         self._fetch_page = fetch_page
         self._locale = locale
+        self._open_map = open_map
         self.bot_message: discord.Message | None = None
         self._prev_btn.label = t(locale, "command-page-previous")
         self._next_btn.label = t(locale, "command-page-next")
         self._prev_btn.disabled = not has_prev
         self._next_btn.disabled = not has_next
         self._sync_sort_button_label()
+        self._open: discord.ui.Select | None = None
+        if open_map is not None:
+            self._open = discord.ui.Select(
+                placeholder=t(locale, "maps-list-open"),
+                min_values=1,
+                max_values=1,
+                row=1,
+            )
+            self._open.callback = self._on_open  # type: ignore[method-assign]
+            self._set_options(options or [])
+            self.add_item(self._open)
+
+    def _set_options(self, options: list[MapOption]) -> None:
+        if self._open is None:
+            return
+        self._open.options = [
+            discord.SelectOption(
+                label=label[:100] or "?",
+                value=value,
+                description=description[:100] or None,
+            )
+            for label, value, description in options[:25]
+        ]
+        self._open.disabled = not options
+
+    async def _on_open(self, interaction: Interaction) -> None:
+        if self._open is None or self._open_map is None or not self._open.values:
+            return
+        await self._open_map(interaction, self._open.values[0])
 
     @discord.ui.button(label="◀ Prev", style=discord.ButtonStyle.secondary)
     async def _prev_btn(
@@ -151,21 +192,25 @@ class MapsListView(discord.ui.View):
     ) -> None:
         self._sort_mode = self._next_sort_mode()
         self._sync_sort_button_label()
-        embed, has_next = await self._fetch_page(0, self._sort_mode)
+        embed, has_next, options = await self._fetch_page(0, self._sort_mode)
         self._page = 0
         self._prev_btn.disabled = True
         self._next_btn.disabled = not has_next
+        self._set_options(options)
         await interaction.response.edit_message(embed=embed, view=self)
 
     async def _turn(self, interaction: Interaction, new_page: int) -> None:
-        embed, has_next = await self._fetch_page(new_page, self._sort_mode)
+        embed, has_next, options = await self._fetch_page(new_page, self._sort_mode)
         self._page = new_page
         self._prev_btn.disabled = new_page == 0
         self._next_btn.disabled = not has_next
+        self._set_options(options)
         await interaction.response.edit_message(embed=embed, view=self)
 
     async def on_timeout(self) -> None:
         disable_view_buttons(self)
+        if self._open is not None:
+            self._open.disabled = True
         await safe_edit_view_message(self.bot_message, view=self)
 
     def _sync_sort_button_label(self) -> None:
@@ -181,3 +226,100 @@ class MapsListView(discord.ui.View):
         if self._sort_mode == "popularity":
             return "name"
         return "reputation"
+
+
+# The layers menu under a detailed render: the style flag, its emoji and its text keys.
+MAP_LAYERS = (
+    ("buildings", "🏗️"),
+    ("darkness", "🌑"),
+    ("ores", "⛏️"),
+    ("grid", "#️⃣"),
+    ("spawns", "🎯"),
+)
+
+
+class MapDetailsView(discord.ui.View):
+    """Under the /map card: the detailed render, then the menu of its layers.
+
+    The first press swaps the thumbnail for the detailed render in the default style. After
+    that a menu turns layers on and off (buildings, wall darkness, ores, grid, spawns), and
+    choosing draws the map again. Anyone who sees the card may use them. ``render`` gets the
+    id of whoever chose and the style, and returns the new card and file, or a message for
+    that person when it could not (including when their render cooldown has not run out).
+    """
+
+    def __init__(
+        self,
+        *,
+        render: Callable[
+            [int, RenderStyle], Awaitable[tuple[discord.Embed, discord.File] | str]
+        ],
+        locale: str = DEFAULT,
+    ) -> None:
+        # The render can take a while; the interaction token outlives it (15 minutes).
+        super().__init__(timeout=600)
+        self._render = render
+        self._locale = locale
+        self.style: RenderStyle | None = None
+        self.bot_message: discord.Message | None = None
+        button: discord.ui.Button[MapDetailsView] = discord.ui.Button(
+            label=t(locale, "maps-card-render-button"),
+            style=discord.ButtonStyle.primary,
+        )
+        button.callback = lambda interaction: self._show(  # type: ignore[method-assign]
+            interaction, RenderStyle(), button
+        )
+        self.add_item(button)
+
+    def _layers(self, style: RenderStyle) -> discord.ui.Select[MapDetailsView]:
+        menu: discord.ui.Select[MapDetailsView] = discord.ui.Select(
+            placeholder=t(self._locale, "maps-card-layers"),
+            min_values=0,
+            max_values=len(MAP_LAYERS),
+            options=[
+                discord.SelectOption(
+                    label=t(self._locale, f"maps-card-layer-{name}"),
+                    description=t(self._locale, f"maps-card-layer-{name}-hint"),
+                    emoji=emoji,
+                    value=name,
+                    default=getattr(style, name),
+                )
+                for name, emoji in MAP_LAYERS
+            ],
+        )
+
+        async def chosen(interaction: Interaction) -> None:
+            wanted = RenderStyle.of(menu.values)
+            if wanted == self.style:
+                await interaction.response.defer()
+                return
+            await self._show(interaction, wanted, menu)
+
+        menu.callback = chosen  # type: ignore[method-assign]
+        return menu
+
+    async def _show(
+        self,
+        interaction: Interaction,
+        style: RenderStyle,
+        control: discord.ui.Button[MapDetailsView] | discord.ui.Select[MapDetailsView],
+    ) -> None:
+        control.disabled = True
+        await interaction.response.edit_message(view=self)
+        result = await self._render(interaction.user.id, style)
+        control.disabled = False
+        if isinstance(result, str):
+            await interaction.edit_original_response(view=self)
+            await interaction.followup.send(result, ephemeral=True)
+            return
+        embed, file = result
+        self.style = style
+        self.clear_items()
+        self.add_item(self._layers(style))
+        await interaction.edit_original_response(
+            embed=embed, attachments=[file], view=self
+        )
+
+    async def on_timeout(self) -> None:
+        disable_view_buttons(self)
+        await safe_edit_view_message(self.bot_message, view=self)

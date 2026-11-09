@@ -41,6 +41,7 @@ async def test_rpc_maps_list_parses_canonical_response() -> None:
                 popularity=7.5,
                 interest=1.5,
                 gameMode="pvp",
+                contentHash="ab" * 32,
             ),
             MapEntryV1(name="Map B", fileName="b.msav", author="Bob"),
         ),
@@ -74,6 +75,7 @@ async def test_rpc_maps_list_parses_canonical_response() -> None:
             "popularity": "7.5",
             "interest": "1.5",
             "game_mode": "pvp",
+            "content_hash": "ab" * 32,
         },
         {
             "name": "Map B",
@@ -88,6 +90,7 @@ async def test_rpc_maps_list_parses_canonical_response() -> None:
             "popularity": "",
             "interest": "",
             "game_mode": "",
+            "content_hash": "",
         },
     ]
 

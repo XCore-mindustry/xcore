@@ -1,4 +1,4 @@
-"""The rows of the map list, as /map list shows them."""
+"""The rows of the map list, as /maps list shows them."""
 
 from __future__ import annotations
 
@@ -115,10 +115,11 @@ def map_list_row(item: dict[str, str], locale: str = DEFAULT) -> str:
     return row
 
 
-def map_list_pages(
+def map_list_page_items(
     maps: list[dict[str, str]], sort_mode: str, locale: str = DEFAULT
-) -> list[list[str]]:
-    pages: list[list[str]] = [[]]
+) -> list[list[dict[str, str]]]:
+    """The maps on each page, sorted: at most 15 per page, and rows that fit one embed."""
+    pages: list[list[dict[str, str]]] = [[]]
     length = 0
     for item in _sort_maps(maps, sort_mode):
         row = map_list_row(item, locale)
@@ -126,6 +127,15 @@ def map_list_pages(
         if pages[-1] and (len(pages[-1]) >= 15 or length + row_length + 1 > 3800):
             pages.append([])
             length = 0
-        pages[-1].append(row)
+        pages[-1].append(item)
         length += row_length + 1
     return pages
+
+
+def map_list_pages(
+    maps: list[dict[str, str]], sort_mode: str, locale: str = DEFAULT
+) -> list[list[str]]:
+    return [
+        [map_list_row(item, locale) for item in page]
+        for page in map_list_page_items(maps, sort_mode, locale)
+    ]

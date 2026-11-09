@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:protocol:messages:maps:maps.render.response:v1",
+  "title": "MapsRenderResponseV1",
+  "description": "`image` and `scale` (pixels per tile) are present when `status` is `ok`. `download_failed` means the map blob was missing or did not match its hash.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "messageVersion",
+    "contentHash",
+    "status"
+  ],
+  "properties": {
+    "messageType": {
+      "const": "maps.render.response"
+    },
+    "messageVersion": {
+      "const": 1
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "busy",
+        "too_large",
+        "invalid_map",
+        "download_failed",
+        "failed"
+      ]
+    },
+    "image": {
+      "$ref": "urn:xcore:protocol:shared:types:map-blob-ref:v1"
+    },
+    "scale": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 32
+    },
+    "renderMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 300
+    }
+  }
+}

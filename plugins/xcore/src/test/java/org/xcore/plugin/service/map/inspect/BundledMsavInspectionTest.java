@@ -3,6 +3,7 @@ package org.xcore.plugin.service.map.inspect;
 import mindustry.Vars;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
+import org.xcore.msav.DetachedMsavReader;
 import org.xcore.plugin.concurrent.GameThread;
 import org.xcore.testkit.fixtures.HeadlessWorld;
 
@@ -50,7 +51,7 @@ class BundledMsavInspectionTest {
             var state = Vars.state;
             var content = Vars.content;
             var rules = state.rules;
-            var registry = ContentRegistrySnapshot.capture();
+            var registry = ContentRegistryCapture.capture();
             var file = directory.resolve(name.replace('/', '_'));
             Files.write(file, bytes);
             var hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));

@@ -33,6 +33,13 @@ from .rating_store import RatingStore
 from .registry import LiveServerRegistry
 from .rpc.mindustry_rpc import MindustryRpcClient
 from .services.map_catalog import MapCatalog
+from .services.map_images import (
+    MapImages,
+    RenderCooldown,
+    RendererImages,
+    RoutedImages,
+    ServerThumbnails,
+)
 from .services.player_service import PlayerService
 from .services.rating_service import RatingService
 from .settings import Settings
@@ -58,6 +65,9 @@ class ServiceContainer:
     # The live game servers, as their heartbeats report them.
     servers: LiveServerRegistry
     map_catalog: MapCatalog
+    # Thumbnails from the game servers, detailed renders from the map renderer.
+    map_images: MapImages
+    render_cooldown: RenderCooldown
     players: PlayerService
     punishments: PunishmentStore
     audit: AuditStore
@@ -117,6 +127,7 @@ class ServiceContainer:
         rating_merge_daemon = RatingMergeDaemon(bot=bot, ratings=rating_service)
         stream_supervisor = StreamSupervisor(bot=bot)
         case_store = CaseStore(store)
+        renderer = RendererImages(rpc, settings.rpc_timeout_ms)
 
         cases = CaseService(
             store=case_store,
@@ -143,6 +154,11 @@ class ServiceContainer:
             rpc=rpc,
             servers=servers,
             map_catalog=MapCatalog(rpc),
+            map_images=MapImages(
+                RoutedImages(ServerThumbnails(rpc, settings.rpc_timeout_ms), renderer),
+                files=renderer,
+            ),
+            render_cooldown=RenderCooldown(),
             players=players,
             punishments=punishments,
             audit=audit,

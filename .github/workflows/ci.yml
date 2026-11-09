@@ -59,6 +59,7 @@ jobs:
               - *shared
               - libs/**
               - plugins/**
+              - services/map-renderer/**
               - protocol/**
             menus:
               - *shared
@@ -95,6 +96,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
+      # The map renderer's build reads sprites from the Mindustry client release (87 MB).
+      - uses: actions/cache@v4
+        with:
+          path: services/map-renderer/build/client
+          key: mindustry-client-${{ hashFiles('services/map-renderer/build.gradle.kts') }}
       - name: Build and test everything
         run: ./gradlew build
       - name: Upload plugin jar

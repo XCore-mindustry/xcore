@@ -18,7 +18,8 @@ public record MapEntryV1(
         Double popularity,
         Double interest,
         String gameMode,
-        MapDiscordUploadV1 discordUpload
+        MapDiscordUploadV1 discordUpload,
+        String contentHash
 ) implements ProtocolPayload {
     public MapEntryV1 {
         Objects.requireNonNull(name, "name must not be null");
@@ -57,6 +58,9 @@ public record MapEntryV1(
         if (discordUpload != null) {
             Objects.requireNonNull(discordUpload, "discordUpload must not be null");
         }
+        if (contentHash != null) {
+            Objects.requireNonNull(contentHash, "contentHash must not be null");
+        }
     }
 
     @Override
@@ -94,6 +98,9 @@ public record MapEntryV1(
         }
         if (discordUpload != null) {
             payload.put("discordUpload", discordUpload.toPayload());
+        }
+        if (contentHash != null) {
+            payload.put("contentHash", contentHash);
         }
         return payload;
     }

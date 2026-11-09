@@ -55,6 +55,11 @@
     },
     "discordUpload": {
       "$ref": "urn:xcore:protocol:shared:types:map-discord-upload:v1"
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 of the map file; names its pictures in caches."
     }
   }
 }

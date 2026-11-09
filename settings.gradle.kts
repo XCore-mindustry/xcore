@@ -10,6 +10,7 @@ rootProject.name = "xcore"
 
 include(
     ":libs:flubundle",
+    ":libs:msav",
     ":libs:cloud-mindustry:lib",
     ":libs:cloud-mindustry:example-plugin",
     ":libs:xcore-ui",
@@ -20,4 +21,5 @@ include(
     ":plugins:xcore",
     ":plugins:tilelogger",
     ":plugins:tilelogger:native",
+    ":services:map-renderer",
 )

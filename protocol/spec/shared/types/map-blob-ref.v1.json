@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:protocol:shared:types:map-blob-ref:v1",
+  "title": "MapBlobRefV1",
+  "description": "Bytes stored beside a message instead of inside it: a Redis string at `key` that expires at `expiresAt`. Readers check `sizeBytes` and `sha256` before using the bytes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "key",
+    "sha256",
+    "sizeBytes",
+    "contentType",
+    "expiresAt"
+  ],
+  "properties": {
+    "key": {
+      "type": "string",
+      "pattern": "^xcore:blob:[a-f0-9]{64}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sizeBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16777216
+    },
+    "contentType": {
+      "type": "string",
+      "enum": [
+        "image/png",
+        "application/octet-stream"
+      ]
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16384
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16384
+    },
+    "expiresAt": {
+      "type": "integer",
+      "format": "int64",
+      "minimum": 0
+    }
+  }
+}

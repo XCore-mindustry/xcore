@@ -921,6 +921,6 @@ class RedisNetworkBackendIntegrationTest {
             String gameMode
     ) {
         Integer fileSize = fileSizeBytes == null ? null : Math.toIntExact(fileSizeBytes);
-        return new MapEntryV1(name, fileName, author, width, height, fileSize, like, dislike, reputation, popularity, interest, gameMode, null);
+        return new MapEntryV1(name, fileName, author, width, height, fileSize, like, dislike, reputation, popularity, interest, gameMode, null, null);
     }
 }

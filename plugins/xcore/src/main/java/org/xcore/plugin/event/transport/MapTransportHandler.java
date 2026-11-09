@@ -81,7 +81,8 @@ public class MapTransportHandler {
     }
 
     /** A map plus the identity fields read from the engine, captured on the game thread. */
-    private record MapIdentity(Map map, String fileName, String plainName, String author, MapDiscordUpload upload) {
+    private record MapIdentity(Map map, String fileName, String plainName, String author, MapDiscordUpload upload,
+                               String contentHash) {
     }
 
     private record DownloadedMap(String hash, long sequence) {}
@@ -129,10 +130,12 @@ public class MapTransportHandler {
 
             String currentGameMode = state.rules.mode().name();
             var customMaps = maps.customMaps();
+            var hashes = mapService.contentHashes();
             List<MapIdentity> snapshot = new ArrayList<>(customMaps.size);
             for (int i = 0; i < customMaps.size; i++) {
                 Map map = customMaps.get(i);
-                snapshot.add(new MapIdentity(map, map.file.name(), map.plainName(), map.author(), mapService.discordUploadFor(map)));
+                snapshot.add(new MapIdentity(map, map.file.name(), map.plainName(), map.author(), mapService.discordUploadFor(map),
+                        hashes.get(map.file.name())));
             }
 
             async.supply(() -> {
@@ -169,7 +172,7 @@ public class MapTransportHandler {
                     for (int i = 0; i < snapshot.size(); i++) {
                         MapIdentity identity = snapshot.get(i);
                         mapsList.add(MapsProtocolMapper.toMapEntry(identity.map(), currentGameMode,
-                                persisted.get(i), identity.upload()));
+                                persisted.get(i), identity.upload(), identity.contentHash()));
                     }
                     network.respond(request,
                             MapsProtocolMapper.toMapsListResponse(request.server(), mapsList));

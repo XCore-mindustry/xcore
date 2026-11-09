@@ -381,10 +381,16 @@ async def test_cmd_maps_answers_in_the_users_language() -> None:
     assert sent["embed"].footer.text == (
         "Сортировка: по репутации • Страница 1/1 • всего карт: 1 • на странице: 1"
     )
-    assert [item.label for item in sent["view"].children] == [
+    buttons = [i for i in sent["view"].children if isinstance(i, discord.ui.Button)]
+    assert [item.label for item in buttons] == [
         "◀ Назад",
         "Вперёд ▶",
         "Сортировка: по репутации",
+    ]
+    [menu] = [i for i in sent["view"].children if isinstance(i, discord.ui.Select)]
+    assert menu.placeholder == "Открыть карту…"
+    assert [(o.label, o.value, o.description) for o in menu.options] == [
+        ("Arena", "0", "Alice • arena.msav")
     ]
 
 

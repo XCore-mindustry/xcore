@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:protocol:messages:maps:maps.preview.request:v1",
+  "title": "MapsPreviewRequestV1",
+  "description": "Asks a server for the thumbnail of one installed map: one pixel per tile, scaled up by a whole number so the long side is at most `maxSide` (512 when absent).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "messageVersion",
+    "server",
+    "fileName"
+  ],
+  "properties": {
+    "messageType": {
+      "const": "maps.preview.request"
+    },
+    "messageVersion": {
+      "const": 1
+    },
+    "server": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fileName": {
+      "type": "string",
+      "pattern": "^[^/\\\\]+\\.[mM][sS][aA][vV]$"
+    },
+    "maxSide": {
+      "type": "integer",
+      "minimum": 64,
+      "maximum": 4096
+    }
+  }
+}

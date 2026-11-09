@@ -423,6 +423,75 @@ class ExpirationInfoV1:
             payload['permanent'] = self.permanent
         return payload
 
+class MapBlobRefV1ContentType(StrEnum):
+    IMAGE_PNG = 'image/png'
+    APPLICATION_OCTET_STREAM = 'application/octet-stream'
+
+@dataclass(frozen=True, slots=True)
+class MapBlobRefV1:
+    key: str
+    sha256: str
+    sizeBytes: int
+    contentType: MapBlobRefV1ContentType
+    expiresAt: int
+    width: int | None = None
+    height: int | None = None
+
+    def __post_init__(self) -> None:
+        _expect_str(self.key, 'key')
+        if re.search('^xcore:blob:[a-f0-9]{64}$', self.key) is None:
+            raise ValueError("key does not match its pattern")
+        _expect_str(self.sha256, 'sha256')
+        if re.search('^[a-f0-9]{64}$', self.sha256) is None:
+            raise ValueError("sha256 does not match its pattern")
+        _expect_int(self.sizeBytes, 'sizeBytes')
+        if self.sizeBytes < 1:
+            raise ValueError("sizeBytes must be >= 1")
+        _expect_instance(self.contentType, 'contentType', MapBlobRefV1ContentType)
+        if self.width is not None:
+            _expect_int(self.width, 'width')
+            if self.width < 1:
+                raise ValueError("width must be >= 1")
+        if self.height is not None:
+            _expect_int(self.height, 'height')
+            if self.height < 1:
+                raise ValueError("height must be >= 1")
+        _expect_int(self.expiresAt, 'expiresAt')
+        if self.expiresAt < 0:
+            raise ValueError("expiresAt must be >= 0")
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "MapBlobRefV1":
+        mapping = _expect_mapping(payload, "MapBlobRefV1")
+        _expect_exact_keys(
+            mapping,
+            required=frozenset(('key', 'sha256', 'sizeBytes', 'contentType', 'expiresAt')),
+            allowed=frozenset(('key', 'sha256', 'sizeBytes', 'contentType', 'width', 'height', 'expiresAt')),
+            model_name="MapBlobRefV1",
+        )
+        return cls(
+            key=_expect_str(mapping['key'], 'key'),
+            sha256=_expect_str(mapping['sha256'], 'sha256'),
+            sizeBytes=_expect_int(mapping['sizeBytes'], 'sizeBytes'),
+            contentType=_expect_enum(mapping['contentType'], 'contentType', MapBlobRefV1ContentType),
+            width=(_expect_int(mapping['width'], 'width') if 'width' in mapping else None),
+            height=(_expect_int(mapping['height'], 'height') if 'height' in mapping else None),
+            expiresAt=_expect_int(mapping['expiresAt'], 'expiresAt'),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        payload['key'] = self.key
+        payload['sha256'] = self.sha256
+        payload['sizeBytes'] = self.sizeBytes
+        payload['contentType'] = str(self.contentType)
+        if self.width is not None:
+            payload['width'] = self.width
+        if self.height is not None:
+            payload['height'] = self.height
+        payload['expiresAt'] = self.expiresAt
+        return payload
+
 @dataclass(frozen=True, slots=True)
 class MapDiscordUploadV1:
     uploadedBy: DiscordIdentityRefV1
@@ -491,6 +560,7 @@ class MapEntryV1:
     interest: float | None = None
     gameMode: str | None = None
     discordUpload: MapDiscordUploadV1 | None = None
+    contentHash: str | None = None
 
     def __post_init__(self) -> None:
         _expect_str(self.name, 'name')
@@ -530,6 +600,10 @@ class MapEntryV1:
                 raise ValueError("gameMode is too short")
         if self.discordUpload is not None:
             _expect_instance(self.discordUpload, 'discordUpload', MapDiscordUploadV1)
+        if self.contentHash is not None:
+            _expect_str(self.contentHash, 'contentHash')
+            if re.search('^[a-f0-9]{64}$', self.contentHash) is None:
+                raise ValueError("contentHash does not match its pattern")
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "MapEntryV1":
@@ -537,7 +611,7 @@ class MapEntryV1:
         _expect_exact_keys(
             mapping,
             required=frozenset(('name', 'fileName', 'author')),
-            allowed=frozenset(('name', 'fileName', 'author', 'width', 'height', 'fileSizeBytes', 'like', 'dislike', 'reputation', 'popularity', 'interest', 'gameMode', 'discordUpload')),
+            allowed=frozenset(('name', 'fileName', 'author', 'width', 'height', 'fileSizeBytes', 'like', 'dislike', 'reputation', 'popularity', 'interest', 'gameMode', 'discordUpload', 'contentHash')),
             model_name="MapEntryV1",
         )
         return cls(
@@ -554,6 +628,7 @@ class MapEntryV1:
             interest=(_expect_number(mapping['interest'], 'interest') if 'interest' in mapping else None),
             gameMode=(_expect_str(mapping['gameMode'], 'gameMode') if 'gameMode' in mapping else None),
             discordUpload=(MapDiscordUploadV1.from_payload(_expect_mapping(mapping['discordUpload'], 'discordUpload')) if 'discordUpload' in mapping else None),
+            contentHash=(_expect_str(mapping['contentHash'], 'contentHash') if 'contentHash' in mapping else None),
         )
 
     def to_payload(self) -> dict[str, Any]:
@@ -581,6 +656,8 @@ class MapEntryV1:
             payload['gameMode'] = self.gameMode
         if self.discordUpload is not None:
             payload['discordUpload'] = self.discordUpload.to_payload()
+        if self.contentHash is not None:
+            payload['contentHash'] = self.contentHash
         return payload
 
 @dataclass(frozen=True, slots=True)
@@ -1361,6 +1438,7 @@ __all__ = [
     "CaseChatLineV1",
     "DiscordIdentityRefV1",
     "ExpirationInfoV1",
+    "MapBlobRefV1",
     "MapDiscordUploadV1",
     "MapEntryV1",
     "MapFileSourceV1",
@@ -1378,6 +1456,7 @@ __all__ = [
     "VoteKickParticipantV1",
     "ActorRefV1ActorType",
     "CaseChatLineV1Role",
+    "MapBlobRefV1ContentType",
     "MapInspectFindingV1Severity",
     "MapUploadResultV1Status",
     "MetricSampleV1Type",

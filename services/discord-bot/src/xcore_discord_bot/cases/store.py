@@ -52,6 +52,10 @@ class CaseStore:
         await cases.create_index("discord.reporter_threads.thread_id", sparse=True)
         await cases.create_index("co_openers.submission_id", sparse=True)
         await cases.create_index("co_openers.discord_id", sparse=True)
+        # The review of a map file, from the map card (/map) by the file's hash.
+        await cases.create_index(
+            [("payload.sha256", ASCENDING), ("created_at", DESCENDING)], sparse=True
+        )
         await self.database["case_notices"].create_index(
             [("player_uuid", ASCENDING), ("delivered_at", ASCENDING)]
         )
@@ -125,6 +129,17 @@ class CaseStore:
             {"kind": str(kind), "dedup_key": dedup_key, "active": True}
         )
         return self._seen(row)
+
+    async def by_map_file(self, sha256: str) -> Case | None:
+        """The latest map review of the file with this SHA-256."""
+        cursor = (
+            self.database["cases"]
+            .find({"kind": "map", "payload.sha256": sha256})
+            .sort("created_at", DESCENDING)
+            .limit(1)
+        )
+        rows = [row async for row in cursor]
+        return self._seen(rows[0]) if rows else None
 
     async def by_thread(self, thread_id: int | str) -> Case | None:
         row = await self.database["cases"].find_one(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from dataclasses import replace
 from datetime import timedelta
@@ -34,6 +35,12 @@ from xcore_discord_bot.cogs.maps import MapsCog
 from xcore_discord_bot.i18n import t
 from xcore_discord_bot.registry import LiveServerRegistry
 from xcore_discord_bot.rpc.mindustry_rpc import NoLiveServerError
+from xcore_discord_bot.services.map_images import (
+    MapImage,
+    MapImageKind,
+    MapImages,
+    RendererBusy,
+)
 from xcore_discord_bot.staff_actions import MapUploadFailed
 
 
@@ -1118,3 +1125,125 @@ async def test_latest_author_file_remains_selected_after_more_than_200_discussio
     assert current.payload["attachment_id"] == "3000"
     final = await do_accept(service, current)
     assert final.resolution.file_name == "latest.msav" and len(bus.upload_calls) == 1
+
+
+class _Renderer:
+    """A map renderer that is up and draws every file, or is busy ``busy`` times first."""
+
+    def __init__(self, *, online=True, busy=0, during=None):
+        self.online = online
+        self.busy = busy
+        self.during = during
+        self.files: list[bytes] = []
+
+    def supports(self, kind):
+        return kind is MapImageKind.DETAILED
+
+    async def available(self, kind):
+        return self.online
+
+    async def fetch(self, ref, kind, style=None):
+        return None
+
+    async def render_file(self, data, sha256, style=None):
+        self.style = style
+        if self.busy:
+            self.busy -= 1
+            raise RendererBusy("busy")
+        self.files.append(data)
+        if self.during is not None:
+            await self.during()
+        return MapImage(png=b"\x89PNG-render", width=8, height=8)
+
+
+async def _previewed(renderer, monkeypatch):
+    monkeypatch.setattr(maps, "PREVIEW_RETRY_SECONDS", 0)
+    env = await map_core()
+    service, _, bot, _, _, _, thread, _, _ = env
+    bot.container.map_images = MapImages(renderer, files=renderer)
+    await maps.on_thread_create(service, thread)
+    await asyncio.gather(*maps._previews.values())
+    return env
+
+
+def _renders(thread):
+    return [
+        m
+        for m in thread.messages
+        if getattr(m, "file", None) and "-detailed" in m.file.filename
+    ]
+
+
+async def test_review_thread_gets_the_render_of_the_submitted_file_once(monkeypatch):
+    renderer = _Renderer()
+    service, _, _, _, _, _, thread, _, attachment = await _previewed(
+        renderer, monkeypatch
+    )
+    case = await service.store.by_submission(f"map:{thread.id}")
+    await maps._refresh(service, await service.get(case.number))
+    await asyncio.gather(*maps._previews.values())
+
+    [render] = _renders(thread)
+    assert render.file.filename == "arena-detailed.png"
+    assert render.file.fp.read() == b"\x89PNG-render"
+    assert render.content == t(
+        "en",
+        "maps-preview-attached",
+        sha=hashlib.sha256(attachment.data).hexdigest()[:12],
+    )
+    assert renderer.style == maps.REVIEW_STYLE
+    # The recheck found the posted render: the file was drawn once.
+    assert renderer.files == [attachment.data]
+
+
+async def test_busy_renderer_is_asked_again(monkeypatch):
+    renderer = _Renderer(busy=maps.PREVIEW_ATTEMPTS - 1)
+    _, _, _, _, _, _, thread, _, _ = await _previewed(renderer, monkeypatch)
+
+    assert len(_renders(thread)) == 1
+
+
+@pytest.mark.parametrize(
+    "state",
+    [{"online": False}, {"busy": maps.PREVIEW_ATTEMPTS}],
+    ids=["offline", "always-busy"],
+)
+async def test_no_render_leaves_the_review_as_it_was(state, monkeypatch):
+    service, _, _, _, _, _, thread, _, _ = await _previewed(
+        _Renderer(**state), monkeypatch
+    )
+
+    assert _renders(thread) == []
+    case = await service.store.by_submission(f"map:{thread.id}")
+    assert case is not None and case.payload.get("sha256")
+
+
+async def test_the_review_of_a_file_is_found_by_its_hash():
+    (service, _, _, _, _, _, thread, _, attachment), case = await opened()
+    sha = hashlib.sha256(attachment.data).hexdigest()
+
+    found = await service.store.by_map_file(sha)
+
+    assert found is not None and found.number == case.number
+    assert found.discord["thread_id"] == str(thread.id)
+    assert await service.store.by_map_file("00" * 32) is None
+
+
+async def test_a_review_closed_while_drawing_gets_no_render(monkeypatch):
+    holder = {}
+
+    async def close_review():
+        service = holder["service"]
+        monkeypatch.setattr(
+            service, "get", AsyncMock(return_value=SimpleNamespace(actionable=False))
+        )
+
+    renderer = _Renderer(during=close_review)
+    monkeypatch.setattr(maps, "PREVIEW_RETRY_SECONDS", 0)
+    service, _, bot, _, _, _, thread, _, _ = await map_core()
+    holder["service"] = service
+    bot.container.map_images = MapImages(renderer, files=renderer)
+    await maps.on_thread_create(service, thread)
+    await asyncio.gather(*maps._previews.values())
+
+    assert renderer.files and _renders(thread) == []

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:protocol:messages:maps:maps.file.request:v1",
+  "title": "MapsFileRequestV1",
+  "description": "Asks a server to publish the bytes of one installed map file as a blob, for the map renderer.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "messageVersion",
+    "server",
+    "fileName"
+  ],
+  "properties": {
+    "messageType": {
+      "const": "maps.file.request"
+    },
+    "messageVersion": {
+      "const": 1
+    },
+    "server": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fileName": {
+      "type": "string",
+      "pattern": "^[^/\\\\]+\\.[mM][sS][aA][vV]$"
+    }
+  }
+}

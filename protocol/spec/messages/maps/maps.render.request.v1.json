@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:protocol:messages:maps:maps.render.request:v1",
+  "title": "MapsRenderRequestV1",
+  "description": "Asks the map renderer for a detailed render of the map in `file`. Defaults: `maxSide` 4096, `maxBytes` 8 MiB, and the map with its buildings only: `buildings` true, `darkness`, `ores`, `grid` and `spawns` false.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "messageVersion",
+    "contentHash",
+    "file"
+  ],
+  "properties": {
+    "messageType": {
+      "const": "maps.render.request"
+    },
+    "messageVersion": {
+      "const": 1
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "file": {
+      "$ref": "urn:xcore:protocol:shared:types:map-blob-ref:v1"
+    },
+    "maxSide": {
+      "type": "integer",
+      "minimum": 256,
+      "maximum": 4096
+    },
+    "maxBytes": {
+      "type": "integer",
+      "minimum": 65536,
+      "maximum": 16777216
+    },
+    "darkness": {
+      "type": "boolean",
+      "description": "The game's darkness over static walls and outside the map. Default false: it hides the walls themselves."
+    },
+    "buildings": {
+      "type": "boolean",
+      "description": "Buildings and their shadows; false draws the terrain only. Default true."
+    },
+    "ores": {
+      "type": "boolean",
+      "description": "Ores stand out: tiles without one are dimmed and greyed. Default false."
+    },
+    "grid": {
+      "type": "boolean",
+      "description": "A line every 10 tiles and a brighter one every 50, labelled with its tile coordinates (y up, as in game). Default false."
+    },
+    "spawns": {
+      "type": "boolean",
+      "description": "Enemy spawns with their drop zones (the rules' dropZoneRadius). Default false."
+    }
+  }
+}

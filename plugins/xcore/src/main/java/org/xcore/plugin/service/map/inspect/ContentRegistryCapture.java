@@ -1,7 +1,6 @@
 package org.xcore.plugin.service.map.inspect;
 
 import mindustry.Vars;
-import mindustry.ctype.ContentType;
 import mindustry.ctype.MappableContent;
 import mindustry.game.Rules;
 import mindustry.game.Team;
@@ -10,25 +9,16 @@ import mindustry.world.Block;
 import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.environment.OverlayFloor;
 import mindustry.world.blocks.storage.CoreBlock;
+import org.xcore.msav.ContentRegistrySnapshot.Entry;
+import org.xcore.msav.ContentRegistrySnapshot;
+import org.xcore.msav.MapRules;
 import org.xcore.plugin.concurrent.GameThread;
 
 import java.util.HashMap;
 import java.util.Map;
 
-/** Value copies only: no worker holds a ContentLoader, Block, Rules, Team, or Tile. */
-public record ContentRegistrySnapshot(Map<Integer, Map<String, Entry>> types, Map<Integer, Entry> blocks,
-                                      Map<String, String> aliases, Map<Integer, String> teams, MapRules defaults) {
-    public static final int BLOCK_TYPE = ContentType.block.ordinal();
-
-    public ContentRegistrySnapshot {
-        var copy = new HashMap<Integer, Map<String, Entry>>();
-        types.forEach((id, entries) -> copy.put(id, Map.copyOf(entries)));
-        types = Map.copyOf(copy);
-        blocks = Map.copyOf(blocks);
-        aliases = Map.copyOf(aliases);
-        teams = Map.copyOf(teams);
-    }
-
+/** Copies the running game's content into a {@link ContentRegistrySnapshot}, on the game thread. */
+public final class ContentRegistryCapture {
     public static ContentRegistrySnapshot capture() {
         GameThread.require("map inspection registry capture");
         if (Vars.content == null) throw new IllegalStateException("Content registry unavailable");
@@ -61,18 +51,5 @@ public record ContentRegistrySnapshot(Map<Integer, Map<String, Entry>> types, Ma
                         rules.waveTimer, rules.spawns.size, rules.dropZoneRadius));
     }
 
-    public Entry resolve(int type, String name) {
-        if (type == BLOCK_TYPE) name = aliases.getOrDefault(name, name);
-        return types.getOrDefault(type, Map.of()).get(name);
-    }
-
-    public String teamName(int id) { return teams.getOrDefault(id, "team#" + id); }
-
-    /** Module presence for pre-bitmask base formats, copied from Block fields without constructing a Building. */
-    public record Entry(int id, String name, boolean floor, boolean overlay, boolean building, boolean core, int size,
-                        int modules) {
-        public Entry(int id, String name, boolean floor, boolean overlay, boolean building, boolean core, int size) {
-            this(id, name, floor, overlay, building, core, size, 0);
-        }
-    }
+    private ContentRegistryCapture() {}
 }

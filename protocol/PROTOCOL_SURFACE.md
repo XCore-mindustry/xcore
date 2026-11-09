@@ -4,11 +4,11 @@
 
 ## Overview
 
-- **Protocol Version:** 0.17.0
+- **Protocol Version:** 0.18.0
 - **Message Families:** 11
-- **Total Messages:** 64
-- **Total Routes:** 48
-- **Shared Types:** 23
+- **Total Messages:** 70
+- **Total Routes:** 51
+- **Shared Types:** 24
 - **Envelope Schemas:** 6
 
 ## Shared Types
@@ -22,8 +22,9 @@
 | `CaseChatLineV1` | required: sentAt, playerName, role, text; optional: playerPid, team |
 | `DiscordIdentityRefV1` | required: discordId; optional: discordUsername |
 | `ExpirationInfoV1` | optional: expiresAt, permanent |
+| `MapBlobRefV1` | required: key, sha256, sizeBytes, contentType, expiresAt; optional: width, height |
 | `MapDiscordUploadV1` | required: uploadedBy, uploadedAt; optional: creator, uploadedByHandle, creatorHandle |
-| `MapEntryV1` | required: name, fileName, author; optional: width, height, fileSizeBytes, like, dislike, reputation, popularity, interest, gameMode, discordUpload |
+| `MapEntryV1` | required: name, fileName, author; optional: width, height, fileSizeBytes, like, dislike, reputation, popularity, interest, gameMode, discordUpload, contentHash |
 | `MapFileSourceV1` | required: url, fileName; optional: discordUpload |
 | `MapInspectFindingV1` | required: code, severity; optional: detail, x, y, count |
 | `MapInspectInfoV1` | required: name, width, height, sha256, sizeBytes; optional: author, description, saveVersion, build, gameMode, profile, spawnCount, coresByTeam, waves, waveTimer, spawnGroupCount, dropZoneRadius, mods |
@@ -54,13 +55,19 @@
 
 | Message | Schema File | Fields |
 |---------|-------------|--------|
+| `MapsFileRequestV1` | `urn:xcore:protocol:messages:maps:maps.file.request:v1` | required: messageType, messageVersion, server, fileName |
+| `MapsFileResponseV1` | `urn:xcore:protocol:messages:maps:maps.file.response:v1` | required: messageType, messageVersion, server, fileName, status; optional: contentHash, file |
 | `MapsInspectRequestV1` | `urn:xcore:protocol:messages:maps:maps.inspect.request:v1` | required: messageType, messageVersion, server, file; optional: profile |
 | `MapsInspectResponseV1` | `urn:xcore:protocol:messages:maps:maps.inspect.response:v1` | required: messageType, messageVersion, server, status, findings; optional: detail, info |
 | `MapsListRequestV1` | `urn:xcore:protocol:messages:maps:maps.list.request:v1` | required: messageType, messageVersion, server |
 | `MapsListResponseV1` | `urn:xcore:protocol:messages:maps:maps.list.response:v1` | required: messageType, messageVersion, server, maps |
 | `MapsLoadCommandV1` | `urn:xcore:protocol:messages:maps:maps.load.command:v1` | required: messageType, messageVersion, server, files |
+| `MapsPreviewRequestV1` | `urn:xcore:protocol:messages:maps:maps.preview.request:v1` | required: messageType, messageVersion, server, fileName; optional: maxSide |
+| `MapsPreviewResponseV1` | `urn:xcore:protocol:messages:maps:maps.preview.response:v1` | required: messageType, messageVersion, server, fileName, status; optional: contentHash, image |
 | `MapsRemoveRequestV1` | `urn:xcore:protocol:messages:maps:maps.remove.request:v1` | required: messageType, messageVersion, server, fileName |
 | `MapsRemoveResponseV1` | `urn:xcore:protocol:messages:maps:maps.remove.response:v1` | required: messageType, messageVersion, server, result |
+| `MapsRenderRequestV1` | `urn:xcore:protocol:messages:maps:maps.render.request:v1` | required: messageType, messageVersion, contentHash, file; optional: maxSide, maxBytes |
+| `MapsRenderResponseV1` | `urn:xcore:protocol:messages:maps:maps.render.response:v1` | required: messageType, messageVersion, contentHash, status; optional: image, scale, renderMs, reason |
 | `MapsUploadRequestV1` | `urn:xcore:protocol:messages:maps:maps.upload.request:v1` | required: messageType, messageVersion, server, files |
 | `MapsUploadResponseV1` | `urn:xcore:protocol:messages:maps:maps.upload.response:v1` | required: messageType, messageVersion, server, results |
 
@@ -178,6 +185,9 @@
 | `MapsLoadCommandV1` | command | xcore:cmd:maps-load:{server} | 300000ms | False | `—` |
 | `MapsUploadRequestV1` | rpc-request | xcore:rpc:req:{server} | 180000ms | False | `MapsUploadResponseV1` |
 | `MapsInspectRequestV1` | rpc-request | xcore:rpc:req:{server} | 60000ms | False | `MapsInspectResponseV1` |
+| `MapsPreviewRequestV1` | rpc-request | xcore:rpc:req:{server} | 15000ms | False | `MapsPreviewResponseV1` |
+| `MapsFileRequestV1` | rpc-request | xcore:rpc:req:{server} | 15000ms | False | `MapsFileResponseV1` |
+| `MapsRenderRequestV1` | rpc-request | xcore:rpc:req:map-renderer | 60000ms | False | `MapsRenderResponseV1` |
 | `CasesReportSubmittedV1` | event | xcore:evt:cases:report | 604800000ms | True | `—` |
 | `CasesNoticeCommandV1` | command | xcore:cmd:cases-notice:{server} | 120000ms | False | `—` |
 | `CasesEvidenceRequestV1` | rpc-request | xcore:rpc:req:{server} | 15000ms | False | `CasesEvidenceResponseV1` |

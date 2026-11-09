@@ -156,6 +156,75 @@ public final class ProtocolRoutes {
             )
     );
 
+    public static final RouteDescriptor MAPS_PREVIEW_REQUEST_V1 = new RouteDescriptor(
+            "maps",
+            "mapsPreviewRequestV1Route",
+            "maps.preview.request",
+            1,
+            MapsMessages.MapsPreviewRequestV1.class,
+            "rpc-request",
+            "xcore:rpc:req:{server}",
+            Map.of("server", "payload.server"),
+            "server",
+            15000,
+            false,
+            false,
+            "maps",
+            new RouteResponseDescriptor(
+                    "maps.preview.response",
+                    1,
+                    MapsMessages.MapsPreviewResponseV1.class,
+                    "xcore:rpc:resp:{requester}",
+                    Map.of("requester", "rpc.requester")
+            )
+    );
+
+    public static final RouteDescriptor MAPS_FILE_REQUEST_V1 = new RouteDescriptor(
+            "maps",
+            "mapsFileRequestV1Route",
+            "maps.file.request",
+            1,
+            MapsMessages.MapsFileRequestV1.class,
+            "rpc-request",
+            "xcore:rpc:req:{server}",
+            Map.of("server", "payload.server"),
+            "server",
+            15000,
+            false,
+            false,
+            "maps",
+            new RouteResponseDescriptor(
+                    "maps.file.response",
+                    1,
+                    MapsMessages.MapsFileResponseV1.class,
+                    "xcore:rpc:resp:{requester}",
+                    Map.of("requester", "rpc.requester")
+            )
+    );
+
+    public static final RouteDescriptor MAPS_RENDER_REQUEST_V1 = new RouteDescriptor(
+            "maps",
+            "mapsRenderRequestV1Route",
+            "maps.render.request",
+            1,
+            MapsMessages.MapsRenderRequestV1.class,
+            "rpc-request",
+            "xcore:rpc:req:map-renderer",
+            Map.of(),
+            "service",
+            60000,
+            false,
+            false,
+            "map-renderer",
+            new RouteResponseDescriptor(
+                    "maps.render.response",
+                    1,
+                    MapsMessages.MapsRenderResponseV1.class,
+                    "xcore:rpc:resp:{requester}",
+                    Map.of("requester", "rpc.requester")
+            )
+    );
+
     public static final RouteDescriptor CASES_REPORT_SUBMITTED_V1 = new RouteDescriptor(
             "cases",
             "casesReportSubmittedV1Route",
@@ -959,6 +1028,9 @@ public final class ProtocolRoutes {
             entry(key("maps.load.command", 1), MAPS_LOAD_COMMAND_V1),
             entry(key("maps.upload.request", 1), MAPS_UPLOAD_REQUEST_V1),
             entry(key("maps.inspect.request", 1), MAPS_INSPECT_REQUEST_V1),
+            entry(key("maps.preview.request", 1), MAPS_PREVIEW_REQUEST_V1),
+            entry(key("maps.file.request", 1), MAPS_FILE_REQUEST_V1),
+            entry(key("maps.render.request", 1), MAPS_RENDER_REQUEST_V1),
             entry(key("cases.report.submitted", 1), CASES_REPORT_SUBMITTED_V1),
             entry(key("cases.notice.command", 1), CASES_NOTICE_COMMAND_V1),
             entry(key("cases.evidence.request", 1), CASES_EVIDENCE_REQUEST_V1),
@@ -1011,6 +1083,9 @@ public final class ProtocolRoutes {
             entry((Class<? extends ProtocolPayload>) MapsMessages.MapsLoadCommandV1.class, MAPS_LOAD_COMMAND_V1),
             entry((Class<? extends ProtocolPayload>) MapsMessages.MapsUploadRequestV1.class, MAPS_UPLOAD_REQUEST_V1),
             entry((Class<? extends ProtocolPayload>) MapsMessages.MapsInspectRequestV1.class, MAPS_INSPECT_REQUEST_V1),
+            entry((Class<? extends ProtocolPayload>) MapsMessages.MapsPreviewRequestV1.class, MAPS_PREVIEW_REQUEST_V1),
+            entry((Class<? extends ProtocolPayload>) MapsMessages.MapsFileRequestV1.class, MAPS_FILE_REQUEST_V1),
+            entry((Class<? extends ProtocolPayload>) MapsMessages.MapsRenderRequestV1.class, MAPS_RENDER_REQUEST_V1),
             entry((Class<? extends ProtocolPayload>) CasesMessages.CasesReportSubmittedV1.class, CASES_REPORT_SUBMITTED_V1),
             entry((Class<? extends ProtocolPayload>) CasesMessages.CasesNoticeCommandV1.class, CASES_NOTICE_COMMAND_V1),
             entry((Class<? extends ProtocolPayload>) CasesMessages.CasesEvidenceRequestV1.class, CASES_EVIDENCE_REQUEST_V1),

@@ -1,5 +1,7 @@
 package org.xcore.plugin.service.map.inspect;
 
+import org.xcore.msav.MapSnapshot;
+
 import java.util.List;
 
 /** Checks receive detached values only and have no engine, I/O, or transport dependencies. */

@@ -1,0 +1,12 @@
+{
+  "messageType": "maps.render.request",
+  "messageVersion": 1,
+  "contentHash": "3f0afdf1fc2e7ac82be5d20217e52bdcb3d423a7caf50b28c124ef81b156d16a",
+  "file": {
+    "key": "xcore:blob:3f0afdf1fc2e7ac82be5d20217e52bdcb3d423a7caf50b28c124ef81b156d16a",
+    "sha256": "3f0afdf1fc2e7ac82be5d20217e52bdcb3d423a7caf50b28c124ef81b156d16a",
+    "sizeBytes": 183402,
+    "contentType": "application/octet-stream",
+    "expiresAt": 1794000900000
+  }
+}

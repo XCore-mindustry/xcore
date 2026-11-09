@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:protocol:messages:maps:maps.preview.response:v1",
+  "title": "MapsPreviewResponseV1",
+  "description": "`image` and `contentHash` are present when `status` is `ok`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "messageVersion",
+    "server",
+    "fileName",
+    "status"
+  ],
+  "properties": {
+    "messageType": {
+      "const": "maps.preview.response"
+    },
+    "messageVersion": {
+      "const": 1
+    },
+    "server": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fileName": {
+      "type": "string",
+      "pattern": "^[^/\\\\]+\\.[mM][sS][aA][vV]$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "not_found",
+        "failed"
+      ]
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "image": {
+      "$ref": "urn:xcore:protocol:shared:types:map-blob-ref:v1"
+    }
+  }
+}

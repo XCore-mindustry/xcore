@@ -415,7 +415,7 @@ class ProtocolPayloadTest {
     @SuppressWarnings("unchecked")
     @Test
     void mapsListResponseIncludesMessageIdentityAndMaps() {
-        var entry = new MapEntryV1("map1", "map1.msav", "author", 200, 150, 1024000, 5, 1, 4, 0.8, 0.9, "pvp", null);
+        var entry = new MapEntryV1("map1", "map1.msav", "author", 200, 150, 1024000, 5, 1, 4, 0.8, 0.9, "pvp", null, null);
         var resp = new MapsListResponseV1("alpha", List.of(entry));
         var payload = resp.toPayload();
 

@@ -6,7 +6,13 @@ from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
 from xcore_protocol.generated.cases import CasesEvidenceResponseV1
-from xcore_protocol.generated.maps import MapsInspectResponseV1, MapsUploadResponseV1
+from xcore_protocol.generated.maps import (
+    MapsFileResponseV1,
+    MapsInspectResponseV1,
+    MapsPreviewResponseV1,
+    MapsRenderResponseV1,
+    MapsUploadResponseV1,
+)
 from xcore_protocol.generated.rating import (
     RatingAccountsMergeResponseV1,
     RatingPrizeGrantUpdateResponseV1,
@@ -25,7 +31,11 @@ from xcore_protocol.generated.sentinel import (
     SentinelSubnetRulesListResponseV1,
     SentinelSubnetRulesResponseV1,
 )
-from xcore_protocol.generated.shared import SeasonPrizeV1
+from xcore_protocol.generated.shared import (
+    MapBlobRefV1,
+    MapBlobRefV1ContentType,
+    SeasonPrizeV1,
+)
 
 from ..bus.cases import CasesBus
 from ..bus.maps import MapsBus
@@ -310,6 +320,54 @@ class MindustryRpcClient:
         return await retry_read_rpc(
             lambda: self._maps.rpc_maps_list(server=server, timeout_ms=timeout_ms)
         )
+
+    async def preview_map(
+        self, *, server: str, file_name: str, max_side: int | None, timeout_ms: int
+    ) -> MapsPreviewResponseV1:
+        return await retry_read_rpc(
+            lambda: self._maps.rpc_maps_preview(
+                server=server,
+                file_name=file_name,
+                max_side=max_side,
+                timeout_ms=timeout_ms,
+            )
+        )
+
+    async def map_file(
+        self, *, server: str, file_name: str, timeout_ms: int
+    ) -> MapsFileResponseV1:
+        return await retry_read_rpc(
+            lambda: self._maps.rpc_maps_file(
+                server=server, file_name=file_name, timeout_ms=timeout_ms
+            )
+        )
+
+    async def render_map(
+        self,
+        *,
+        content_hash: str,
+        file: MapBlobRefV1,
+        timeout_ms: int,
+        layers: dict[str, bool] | None = None,
+    ) -> MapsRenderResponseV1:
+        # Not retried: a render that timed out may still be running.
+        return await self._maps.rpc_maps_render(
+            content_hash=content_hash,
+            file=file,
+            timeout_ms=timeout_ms,
+            layers=layers,
+        )
+
+    async def read_blob(self, ref: MapBlobRefV1) -> bytes:
+        return await self._maps.read_blob(ref)
+
+    async def publish_blob(
+        self, data: bytes, content_type: MapBlobRefV1ContentType
+    ) -> MapBlobRefV1:
+        return await self._maps.write_blob(data, content_type)
+
+    async def renderer_online(self) -> bool:
+        return await self._maps.renderer_online()
 
     async def remove_map(self, *, server: str, file_name: str, timeout_ms: int) -> str:
         return await self._maps.rpc_remove_map(
