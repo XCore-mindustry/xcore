@@ -270,7 +270,7 @@ after durable acceptance. Badge failures do not prevent map outcome delivery.
 
 Map authors conflict with every case action, including senior actions. `CaseService.started_at`
 is the process timestamp; successful map startup stores `service.maps_enabled_at`, the actual
-intake boundary. Untracked posts older than that boundary are ignored until `/map review`.
+intake boundary. Untracked posts older than that boundary are ignored until `/maps review`.
 The maps flow owns `case_map_intake` (`_id` = thread id, author id, first intake timestamp) so a
 missing-file prompt and later author upload remain eligible after restart. No old posts are
 walked automatically. Map status tags are found by name at projection time. Discord's five-tag

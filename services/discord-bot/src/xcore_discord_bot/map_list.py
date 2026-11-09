@@ -1,4 +1,4 @@
-"""The rows of the map list, as /map list shows them."""
+"""The rows of the map list, as /maps list shows them."""
 
 from __future__ import annotations
 

@@ -771,6 +771,7 @@ async def perform_map_upload(
     if case_number is not None and len(payload) != 1:
         raise InvalidMapUpload("A map case must upload exactly one .msav file.")
     bot.container.map_catalog.forget(server)
+    bot.container.map_images.forget(server)
     try:
         response = await bot.container.rpc.upload_maps(
             server=server, files=payload, timeout_ms=120_000
@@ -783,13 +784,14 @@ async def perform_map_upload(
             raise ValueError("Map upload response does not match the request")
     except TimeoutError as error:
         raise MapUploadTimeout(
-            "The server has not confirmed the result yet. Some files may already be installed; check /map list before retrying."
+            "The server has not confirmed the result yet. Some files may already be installed; check /maps list before retrying."
         ) from error
     except (RpcError, *TRANSIENT_EXCEPTIONS, ValueError, TypeError) as error:
         raise MapUploadFailed(
-            "Could not confirm the upload result. Check /map list before retrying."
+            "Could not confirm the upload result. Check /maps list before retrying."
         ) from error
     bot.container.map_catalog.forget(server)
+    bot.container.map_images.forget(server)
     audit_id = None
     if case_number is not None:
         result = response.results[0]

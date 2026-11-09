@@ -1,7 +1,11 @@
-cmd-map-review-name = проверка
-cmd-map-review-description = Начать проверку карты в этой публикации
+cmd-map-description = Подробно показать одну карту
+cmd-map-param-server-description = Название сервера
+cmd-map-param-file_name-name = карта
+cmd-map-param-file_name-description = Карта
+cmd-maps-review-name = проверка
+cmd-maps-review-description = Начать проверку карты в этой публикации
 maps-file-needed = Прикрепите карту в формате .msav к этой публикации. Файл должен загрузить её автор.
-maps-review-in-post = Используйте /map review внутри публикации на форуме карт.
+maps-review-in-post = Используйте /maps review внутри публикации на форуме карт.
 maps-review-no-file = Проверка не начата. Проверьте теги публикации; автор должен прикрепить файл .msav.
 maps-map = Карта
 maps-file = Файл
@@ -72,7 +76,7 @@ maps-patches-attached = Дата-патчи этой карты ({ $count }), ф
 maps-finding-unknown-content = Карта использует неизвестный этому серверу контент
 maps-badge-link-needed = У автора карты не привязан игровой аккаунт, поэтому значок Map maker пока не выдан. Бот выдаст его сам, когда аккаунт привяжут (в течение 30 дней).
 
-# /map list
+# /maps list
 
 maps-list-timeout = Сервер не ответил (тайм-аут).
 maps-list-empty = На сервере `{ $server }` нет карт
@@ -87,3 +91,20 @@ maps-list-unknown = Неизвестно
 maps-list-by = автор `{ $author }`
 maps-list-file-author = автор в файле `{ $author }`
 maps-list-reputation = реп. { NUMBER($reputation, useGrouping: 1) }
+
+# /map
+
+maps-card-not-found = На `{ $server }` нет карты `{ $file }`.
+maps-card-author = Автор
+maps-card-size = Размер
+maps-card-mode = Режим
+maps-card-rating = Оценки
+maps-card-activity = Активность
+maps-card-activity-value = популярность { NUMBER($popularity, maximumFractionDigits: 2) } • интерес { NUMBER($interest, maximumFractionDigits: 2) }
+maps-card-discord = Добавлена через Discord
+maps-card-file = Файл
+maps-card-footer = Сервер: { $server }
+maps-card-render-button = Детальный рендер
+maps-card-render-not-yours = Отрисовать карту может только тот, кто её открыл.
+maps-card-render-timeout = Рендерер не ответил вовремя. Попробуйте позже.
+maps-card-render-failed = Не удалось отрисовать эту карту.

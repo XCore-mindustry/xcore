@@ -1,7 +1,11 @@
-cmd-map-review-name = review
-cmd-map-review-description = Start map review in this forum post
+cmd-map-description = Show one map in detail
+cmd-map-param-server-description = Server name
+cmd-map-param-file_name-name = map
+cmd-map-param-file_name-description = The map
+cmd-maps-review-name = review
+cmd-maps-review-description = Start map review in this forum post
 maps-file-needed = Please attach the map as a .msav file in this post. Its author must upload the file.
-maps-review-in-post = Use /map review inside a post in the maps forum.
+maps-review-in-post = Use /maps review inside a post in the maps forum.
 maps-review-no-file = No map review started. Check the post's tags and attach a .msav file from its author.
 maps-map = Map
 maps-file = File
@@ -72,7 +76,7 @@ maps-patches-attached = Data patches in this map ({ $count }), file { $sha }:
 maps-finding-unknown-content = The map uses content unknown to this server
 maps-badge-link-needed = The map's author has no linked game account, so the Map maker badge is not granted yet. The bot grants it on its own once the account is linked (within 30 days).
 
-# /map list
+# /maps list
 
 maps-list-timeout = No response from target server (timeout).
 maps-list-empty = No maps found on server `{ $server }`
@@ -87,3 +91,20 @@ maps-list-unknown = Unknown
 maps-list-by = by `{ $author }`
 maps-list-file-author = file author `{ $author }`
 maps-list-reputation = rep { NUMBER($reputation, useGrouping: 1) }
+
+# /map
+
+maps-card-not-found = There is no map `{ $file }` on `{ $server }`.
+maps-card-author = Author
+maps-card-size = Size
+maps-card-mode = Mode
+maps-card-rating = Rating
+maps-card-activity = Activity
+maps-card-activity-value = popularity { NUMBER($popularity, maximumFractionDigits: 2) } • interest { NUMBER($interest, maximumFractionDigits: 2) }
+maps-card-discord = Added via Discord
+maps-card-file = File
+maps-card-footer = Server: { $server }
+maps-card-render-button = Detailed render
+maps-card-render-not-yours = Only the person who opened this map can render it.
+maps-card-render-timeout = The renderer did not answer in time. Try again later.
+maps-card-render-failed = Could not draw this map.

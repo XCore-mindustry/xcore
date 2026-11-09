@@ -36,15 +36,29 @@ async def _autocomplete_server_for_command(
 
 
 class MapsCog(commands.Cog):
-    map_group = app_commands.Group(
-        name="map",
+    """``/maps …`` browses and manages a server's maps; ``/map`` opens one of them."""
+
+    maps_group = app_commands.Group(
+        name="maps",
         description="Browse and manage server maps",
     )
 
     def __init__(self, bot: XCoreDiscordBot) -> None:
         self.bot = bot
 
-    @map_group.command(name="review", description="Start map review in this forum post")
+    @app_commands.command(name="map", description="Show one map in detail")
+    @app_commands.describe(server="Server name", file_name="The map")
+    @app_commands.rename(file_name="map")
+    @app_commands.autocomplete(server=_autocomplete_server_for_command)
+    @app_commands.autocomplete(file_name=autocomplete_map_file)
+    async def cmd_map(
+        self, interaction: Interaction, server: str, file_name: str
+    ) -> None:
+        await handlers_maps.cmd_map_details(self.bot, interaction, server, file_name)
+
+    @maps_group.command(
+        name="review", description="Start map review in this forum post"
+    )
     async def cmd_review_map(self, interaction: Interaction) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
         service = self.bot.container.cases
@@ -73,7 +87,7 @@ class MapsCog(commands.Cog):
         except ValueError as error:
             await interaction.followup.send(error_text(locale, error), ephemeral=True)
 
-    @map_group.command(name="list", description="List maps on a server")
+    @maps_group.command(name="list", description="List maps on a server")
     @app_commands.describe(
         server="Server name", creator="Only maps by this declared creator"
     )
@@ -83,7 +97,7 @@ class MapsCog(commands.Cog):
     ) -> None:
         await handlers_maps.cmd_maps(self.bot, interaction, server, creator=creator)
 
-    @map_group.command(
+    @maps_group.command(
         name="remove",
         description="Remove a map from a server (map reviewer)",
     )
@@ -101,7 +115,7 @@ class MapsCog(commands.Cog):
     ) -> None:
         await handlers_maps.cmd_remove_map(self.bot, interaction, server, file_name)
 
-    @map_group.command(
+    @maps_group.command(
         name="upload",
         description="Upload .msav map files to a server (up to 3 per command)",
     )

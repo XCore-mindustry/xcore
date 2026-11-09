@@ -181,3 +181,53 @@ class MapsListView(discord.ui.View):
         if self._sort_mode == "popularity":
             return "name"
         return "reputation"
+
+
+class MapDetailsView(discord.ui.View):
+    """The /map card's button that swaps the thumbnail for the detailed render.
+
+    ``render`` draws the picture and returns the new card and file, or a message for the
+    person who pressed the button when it could not.
+    """
+
+    def __init__(
+        self,
+        *,
+        requester_id: int,
+        render: Callable[[], Awaitable[tuple[discord.Embed, discord.File] | str]],
+        locale: str = DEFAULT,
+    ) -> None:
+        # The render can take a while; the interaction token outlives it (15 minutes).
+        super().__init__(timeout=600)
+        self._requester_id = requester_id
+        self._render = render
+        self._locale = locale
+        self.bot_message: discord.Message | None = None
+        self._render_btn.label = t(locale, "maps-card-render-button")
+
+    @discord.ui.button(label="Detailed render", style=discord.ButtonStyle.primary)
+    async def _render_btn(
+        self, interaction: Interaction, button: discord.ui.Button
+    ) -> None:
+        if interaction.user.id != self._requester_id:
+            await interaction.response.send_message(
+                t(self._locale, "maps-card-render-not-yours"), ephemeral=True
+            )
+            return
+        button.disabled = True
+        await interaction.response.edit_message(view=self)
+        result = await self._render()
+        if isinstance(result, str):
+            button.disabled = False
+            await interaction.edit_original_response(view=self)
+            await interaction.followup.send(result, ephemeral=True)
+            return
+        embed, file = result
+        self.stop()
+        await interaction.edit_original_response(
+            embed=embed, attachments=[file], view=None
+        )
+
+    async def on_timeout(self) -> None:
+        disable_view_buttons(self)
+        await safe_edit_view_message(self.bot_message, view=self)

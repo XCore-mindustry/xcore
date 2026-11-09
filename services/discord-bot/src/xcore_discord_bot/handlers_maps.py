@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import io
 import logging
 import secrets
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import discord
 from discord import Interaction
 
 from .command_helpers import claim_mutation, reply_locale
 from .i18n import t
+from .map_card import find_map, map_card
 from .map_list import map_list_pages, map_text
 from .moderation_views import MapRemoveConfirmView
-from .server_views import MapsListView
+from .server_views import MapDetailsView, MapsListView
+from .services.map_images import MapImageKind, MapRef
 from .staff_actions import (
     Actor,
     InvalidMapUpload,
@@ -96,6 +99,73 @@ async def cmd_maps(
     view.bot_message = sent
 
 
+async def cmd_map_details(
+    bot: XCoreDiscordBot,
+    interaction: Interaction,
+    server: str,
+    file_name: str,
+) -> None:
+    """The card of one map: its details, the thumbnail and, on request, the detailed render."""
+    locale = reply_locale(bot, interaction)
+    await interaction.response.defer()
+    try:
+        maps = await bot.container.rpc.list_maps(
+            server=server, timeout_ms=bot.settings.rpc_timeout_ms
+        )
+    except TimeoutError:
+        await interaction.followup.send(t(locale, "maps-list-timeout"))
+        return
+    item = find_map(maps, file_name)
+    if item is None:
+        await interaction.followup.send(
+            t(
+                locale,
+                "maps-card-not-found",
+                server=map_text(server, inline_code=True),
+                file=map_text(file_name, 100, inline_code=True),
+            ),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        return
+
+    images = bot.container.map_images
+    ref = MapRef(server, item.get("file_name", file_name))
+
+    async def picture(kind: MapImageKind) -> tuple[discord.Embed, discord.File] | str:
+        try:
+            image = await images.get(ref, kind)
+        except TimeoutError:
+            return t(locale, "maps-card-render-timeout")
+        except Exception:
+            logger.exception(
+                "Could not draw %s of %s on %s", kind, ref.file_name, server
+            )
+            image = None
+        if image is None:
+            return t(locale, "maps-card-render-failed")
+        name = image.attachment_name(ref, kind)
+        file = discord.File(io.BytesIO(image.png), filename=name)
+        return map_card(server, item, locale, image_name=name), file
+
+    thumbnail = await picture(MapImageKind.THUMBNAIL)
+    view: MapDetailsView | None = None
+    kwargs: dict[str, Any] = {"allowed_mentions": discord.AllowedMentions.none()}
+    if images.supports(MapImageKind.DETAILED):
+        view = MapDetailsView(
+            requester_id=interaction.user.id,
+            render=lambda: picture(MapImageKind.DETAILED),
+            locale=locale,
+        )
+        kwargs["view"] = view
+    if isinstance(thumbnail, str):
+        kwargs["embed"] = map_card(server, item, locale)
+    else:
+        kwargs["embed"], kwargs["file"] = thumbnail
+    sent = await interaction.followup.send(**kwargs)
+    if view is not None:
+        view.bot_message = sent
+
+
 async def cmd_remove_map(
     bot: XCoreDiscordBot,
     interaction: Interaction,
@@ -143,6 +213,8 @@ async def perform_remove_map(
         )
     except TimeoutError:
         return "No response from target server (timeout)."
+    bot.container.map_catalog.forget(server)
+    bot.container.map_images.forget(server)
 
     return f"🗑️ `{server}` remove-map `{file_name}`: {result}"
 

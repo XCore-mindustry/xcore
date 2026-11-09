@@ -12,6 +12,7 @@ from xcore_discord_bot.cases.model import CaseKind
 from xcore_discord_bot.cases.msav import validate_msav
 from xcore_discord_bot.registry import LiveServerRegistry
 from xcore_discord_bot.services.map_catalog import MapCatalog
+from xcore_discord_bot.services.map_images import MapImages
 
 
 class Attachment:
@@ -37,6 +38,7 @@ async def map_core(**kwargs):
     bot.container.servers.update_server("mini-pvp", 1, 0, 20, "v1", mode="pvp")
     bot.container.rpc = make_rpc(bot.bus, maps=bot.bus, servers=bot.container.servers)
     bot.container.map_catalog = MapCatalog(bot.container.rpc)
+    bot.container.map_images = MapImages()
     author.bot = False
     author.name = "mapper"
     forum = bot.channels[400]
