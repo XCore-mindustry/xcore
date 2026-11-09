@@ -42,6 +42,7 @@ jobs:
             dev:
               - .github/workflows/ci.yml
               - dev
+              - .dockerignore
               - devtools/**
               - web/Dockerfile
               - plugins/xcore/build.gradle.kts
