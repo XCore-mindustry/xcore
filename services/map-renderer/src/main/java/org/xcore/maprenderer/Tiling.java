@@ -17,9 +17,15 @@ final class Tiling {
     private final List<Placed> placed;
     private final int[] owner;
     private final int width, height;
+    /** StackConveyor state per placed index (MOVE for every other building). */
+    private final byte[] stackState;
+    static final byte MOVE = 0, LOAD = 1, UNLOAD = 2;
 
     /** The result for one building: sprite index, vertical flip and caps. */
     record Blend(int bits, boolean flip, boolean capped, boolean backCapped) {}
+
+    /** A plastanium conveyor: its state (sprite index) and the sides that join (StackConveyorBuild.blendprox). */
+    record Stack(int state, int joined) {}
 
     Tiling(RenderContent content, List<Placed> placed, int width, int height) {
         this.content = content;
@@ -38,6 +44,72 @@ final class Tiling {
                 }
             }
         }
+        // Each state depends on the neighbours' states, as StackConveyorBuild.onProximityUpdate sees
+        // them; settle them in a few passes from "all moving".
+        stackState = new byte[placed.size()];
+        for (int pass = 0; pass < 4; pass++) {
+            boolean changed = false;
+            for (int i = 0; i < placed.size(); i++) {
+                var building = placed.get(i);
+                if (!isStack(building)) continue;
+                byte state = (byte) stack(building).state();
+                changed |= state != stackState[i];
+                stackState[i] = state;
+            }
+            if (!changed) break;
+        }
+    }
+
+    private boolean isStack(Placed building) {
+        int block = building.block();
+        return block >= 0 && block < content.stack.length && content.stack[block];
+    }
+
+    private byte stateOf(Placed building) {
+        int index = owner[building.x() + building.y() * width];
+        return index < 0 ? MOVE : stackState[index];
+    }
+
+    /** Block.rotatedOutput, which a plastanium conveyor answers from its state. */
+    private boolean rotatedOutput(Placed other) {
+        return isStack(other) ? stateOf(other) != UNLOAD : content.rotatedOutput[other.block()];
+    }
+
+    /** StackConveyorBuild.onProximityUpdate: the state, then which sides join in that state. */
+    Stack stack(Placed self) {
+        int r = self.rotation() & 3;
+        boolean router = content.outputRouter[self.block()];
+        boolean front = stackBlends(self, r, 0, MOVE), b1 = stackBlends(self, r, 1, MOVE);
+        boolean back = stackBlends(self, r, 2, MOVE), b3 = stackBlends(self, r, 3, MOVE);
+        boolean straight = !(b1 || b3); // buildBlending case 0
+        byte state = MOVE;
+        Placed behind = nearby(self, r + 2), ahead = nearby(self, r);
+        if (straight && front && (!back || (behind != null && isStack(behind) && stateOf(behind) == UNLOAD))) state = LOAD;
+        if (router && straight && !front && back) state = UNLOAD;
+        if (!router && !(ahead != null && isStack(ahead))) state = UNLOAD;
+        int joined = 0;
+        for (int i = 0; i < 4; i++) {
+            Placed side = nearby(self, r - i);
+            if (stackBlends(self, r, i, state)
+                    && (state != UNLOAD || router || i == 0 || (side != null && isStack(side)))) joined |= 1 << i;
+        }
+        return new Stack(state, joined);
+    }
+
+    private boolean stackBlends(Placed self, int rotation, int direction, byte state) {
+        Placed other = nearby(self, rotation - direction);
+        if (other == null || other.team() != self.team()) return false;
+        int block = other.block();
+        if (state == LOAD) return content.outputsItems[block] && lookingAtEither(self, rotation, other);
+        if (state == UNLOAD && !content.outputRouter[self.block()]) {
+            boolean facing = facesSelf(self, other);
+            return content.acceptsItems[block]
+                    && (!content.noSideBlend[block] || lookingAtEither(self, rotation, other))
+                    && (!(rotatedOutput(other) && facing) || (isStack(other) && facing))
+                    && !(isStack(other) && stateOf(other) == UNLOAD)
+                    && !(isStack(other) && stateOf(other) == MOVE && !facing);
+        }
+        return content.outputsItems[block] && blendsArmored(self, rotation, other, true) && isStack(other);
     }
 
     private Placed at(int x, int y) {
@@ -119,13 +191,13 @@ final class Tiling {
 
     private boolean lookingAtEither(Placed self, int rotation, Placed other) {
         return (self.x() + DX[rotation] == other.x() && self.y() + DY[rotation] == other.y())
-                || !content.rotatedOutput[other.block()]
+                || !rotatedOutput(other)
                 || facesSelf(self, other);
     }
 
     private boolean blendsArmored(Placed self, int rotation, Placed other, boolean thirdCase) {
         if (self.x() + DX[rotation] == other.x() && self.y() + DY[rotation] == other.y()) return true;
-        boolean rotated = content.rotatedOutput[other.block()];
+        boolean rotated = rotatedOutput(other);
         if (!rotated) {
             int[] facing = facing(self, other);
             if (relativeTo(facing[0], facing[1], self.x(), self.y()) == rotation) return true;

@@ -281,6 +281,16 @@ public final class MapRenderer {
         int centreY = (top - building.y()) * s + s / 2 - shift;
         int rotation = content.rotate[block] ? building.rotation() & 3 : 0;
 
+        if (content.tiling[block] == RenderContent.STACK && content.tilingTop[block] != null) {
+            // StackConveyorBuild.drawCached: the sprite of its state, an edge on every side that does not join.
+            var stack = frame.tiling().stack(building);
+            blitCentred(band, sprites.get(content.tilingTop[block][stack.state()]), centreX, centreY, rotation, -1, false);
+            var edge = sprites.get(content.cap[block]);
+            for (int i = 0; i < 4; i++) {
+                if ((stack.joined() & 1 << i) == 0) blitCentred(band, edge, centreX, centreY, (rotation - i) & 3, -1, false);
+            }
+            return;
+        }
         if (content.tiling[block] != RenderContent.NO_TILING && content.tilingTop[block] != null) {
             var blend = frame.tiling().blend(building);
             String[] bottom = content.tilingBottom[block];

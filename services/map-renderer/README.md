@@ -25,14 +25,20 @@ This is the measured prototype. It renders and benchmarks; it does not listen on
   - natural walls, with a quarter of the 2x2 `-large` sprite where four equal walls allow it
     (`StaticWall.drawBase`), and wall ores;
   - conveyors, ducts and conduits joined to their neighbours (`Tiling`, a port of `Autotiler`
-    and each block's `blends`, with conduit and duct caps);
+    and each block's `blends`, with conduit and duct caps); plastanium conveyors by
+    `StackConveyorBuild`'s rules: load/move/unload state from the line around them (settled over
+    a few passes, since each depends on its neighbours' states) and an edge on every side that
+    does not join;
   - other buildings: full icon, rotated, team region tinted;
   - darkness (`World.getWallDarkness` and `borderDarkness`): wall masses go black with their
     distance to open ground, and so do the two tiles at the map border.
 
   Variants are picked as the engine picks them (`Mathf.randomSeed(pos, 0, n - 1)`).
 - Scale: the largest of 32/16/8/4 px per tile whose long side fits `maxSide` (4096). If the PNG
-  is over the byte limit (8 MiB), it is rendered again one scale smaller.
+  is over the byte limit (8 MiB), it is rendered again one scale smaller. Memory per render
+  grows with the image width (a band is `width × 16 tiles × scale`), so `maxSide` 4096 is what
+  the `-Xmx64m` budget is measured for. The bench takes `-DmaxSide` and `-DmaxBytes` to render
+  larger images for inspection, with a larger heap.
 
 ## Running
 
@@ -84,5 +90,4 @@ With a 256 MB budget, the plain JVM at `-Xmx64m` fits with about 90 MB to spare.
 - The reader comes from `:plugins:xcore` with all of its dependencies; it moves to `libs/msav`.
 - No Redis consumer, protocol messages or disk cache yet.
 - Not drawn: items on conveyors and liquids in conduits, bridge and power-node links (their
-  configuration is in building payloads the reader leaves opaque), plastanium conveyors' joints,
-  cliffs, autotiled Erekir floors and walls, and animated water.
+  configuration is in building payloads the reader leaves opaque), cliffs, autotiled Erekir floors and walls, and animated water.

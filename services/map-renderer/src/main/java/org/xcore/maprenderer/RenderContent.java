@@ -19,7 +19,7 @@ public final class RenderContent {
     public static final byte AIR = 0, FLOOR = 1, OVERLAY = 2, STATIC = 3, BUILDING = 4;
     /** Autotiled blocks, by the rules their Autotiler.blends implementation follows. */
     public static final byte NO_TILING = 0, CONVEYOR = 1, ARMORED_CONVEYOR = 2, DUCT = 3, ARMORED_DUCT = 4,
-            CONDUIT = 5, ARMORED_CONDUIT = 6;
+            CONDUIT = 5, ARMORED_CONDUIT = 6, STACK = 7;
 
     private final ContentRegistrySnapshot registry;
     private final String mindustry;
@@ -32,7 +32,7 @@ public final class RenderContent {
     final String[] teamSprite;
     // What neighbours, shadows and darkness need, per block id.
     final boolean[] darkens, shadow, outputsItems, hasItems, hasLiquids, outputsLiquid, rotatedOutput, isDuct,
-            conveyor, liquidJunction;
+            conveyor, liquidJunction, stack, acceptsItems, noSideBlend, outputRouter;
     // Floors: blend id (-1 for other blocks), edge flags, cache layer, the 3x3 edge sheet as [x * 3 + y].
     final int[] blendId, cache;
     final boolean[] edgeIn, edgeOut;
@@ -67,6 +67,10 @@ public final class RenderContent {
         isDuct = new boolean[blocks];
         conveyor = new boolean[blocks];
         liquidJunction = new boolean[blocks];
+        stack = new boolean[blocks];
+        acceptsItems = new boolean[blocks];
+        noSideBlend = new boolean[blocks];
+        outputRouter = new boolean[blocks];
         blendId = new int[blocks];
         cache = new int[blocks];
         edgeIn = new boolean[blocks];
@@ -163,6 +167,10 @@ public final class RenderContent {
             content.isDuct[id] = block.getBoolean("isDuct", false);
             content.conveyor[id] = block.getBoolean("conveyor", false);
             content.liquidJunction[id] = block.getBoolean("liquidJunction", false);
+            content.stack[id] = block.getBoolean("stack", false);
+            content.acceptsItems[id] = block.getBoolean("acceptsItems", false);
+            content.noSideBlend[id] = block.getBoolean("noSideBlend", false);
+            content.outputRouter[id] = block.getBoolean("outputRouter", false);
             content.blendId[id] = block.getInt("blendId", -1);
             content.cache[id] = block.getInt("cache", -1);
             content.edgeIn[id] = block.getBoolean("edgeIn", false);
@@ -176,6 +184,7 @@ public final class RenderContent {
                 case "armoredDuct" -> ARMORED_DUCT;
                 case "conduit" -> CONDUIT;
                 case "armoredConduit" -> ARMORED_CONDUIT;
+                case "stack" -> STACK;
                 default -> NO_TILING;
             };
             content.tilingTop[id] = block.has("top") ? strings(block.get("top")) : null;

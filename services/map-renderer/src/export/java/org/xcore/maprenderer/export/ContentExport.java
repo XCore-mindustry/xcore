@@ -198,6 +198,9 @@ public final class ContentExport {
                 json.set("isDuct", block.isDuct);
                 json.set("conveyor", block instanceof Conveyor);
                 json.set("liquidJunction", block instanceof LiquidJunction);
+                json.set("stack", block instanceof StackConveyor);
+                json.set("acceptsItems", block.acceptsItems);
+                json.set("noSideBlend", block.noSideBlend);
                 if (block instanceof Floor floor && !(block instanceof OverlayFloor)) floorJson(json, floor, atlas, wanted);
                 if (block instanceof StaticWall wall && !wall.autotile && atlas.containsKey(block.name + "-large")) {
                     json.array("large");
@@ -243,8 +246,16 @@ public final class ContentExport {
     private static void tilingJson(JsonWriter json, Block block, Map<String, TextureAtlasData.Region> atlas,
                                    Set<String> wanted) throws IOException {
         String kind;
-        if (block instanceof StackConveyor) return;
-        else if (block instanceof ArmoredConveyor) kind = "armoredConveyor";
+        if (block instanceof StackConveyor stack) {
+            // StackConveyor.drawCached: the sprite of its state (move, load, unload), edges where nothing joins.
+            json.set("tiling", "stack");
+            json.set("outputRouter", stack.outputRouter);
+            json.array("top");
+            for (int i = 0; i < 3; i++) json.value(found(block.name + "-" + i, null, atlas, wanted));
+            json.pop();
+            json.set("cap", found(block.name + "-edge", null, atlas, wanted));
+            return;
+        } else if (block instanceof ArmoredConveyor) kind = "armoredConveyor";
         else if (block instanceof Conveyor) kind = "conveyor";
         else if (block instanceof Duct duct) kind = duct.armored ? "armoredDuct" : "duct";
         else if (block instanceof ArmoredConduit) kind = "armoredConduit";
