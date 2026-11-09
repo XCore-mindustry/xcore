@@ -34,8 +34,14 @@ public final class MapRenderer {
         this.settings = new InspectionSettings(maxFileBytes, maxTiles, Map.of());
     }
 
+    /**
+     * One render. {@code drawNanos} covers drawing and encoding of every attempt;
+     * {@code encodeNanos} is the PNG encoding share of the attempt that was kept.
+     */
     public record Result(byte[] png, int width, int height, int scale, int tilesWide, int tilesHigh,
-                         long decodeNanos, long drawNanos) {}
+                         long decodeNanos, long drawNanos, long encodeNanos) {}
+
+    private record Drawn(byte[] png, long encodeNanos) {}
 
     public static final class TooLarge extends IOException {
         TooLarge(String message) { super(message); }
@@ -55,9 +61,9 @@ public final class MapRenderer {
         for (int scale : SCALES) {
             if ((long) longest * scale > maxSide && scale != SCALES[SCALES.length - 1]) continue;
             try {
-                byte[] png = draw(map, sprites(scale), maxBytes);
-                return new Result(png, width * scale, height * scale, scale, width, height,
-                        decoded - start, System.nanoTime() - decoded);
+                Drawn drawn = draw(map, sprites(scale), maxBytes);
+                return new Result(drawn.png(), width * scale, height * scale, scale, width, height,
+                        decoded - start, System.nanoTime() - decoded, drawn.encodeNanos());
             } catch (Overflow overflow) {
                 // Try the next smaller scale.
             }
@@ -79,7 +85,7 @@ public final class MapRenderer {
     private record Frame(MapSnapshot map, SpritePack sprites, Rand rand, Tiling tiling, Lighting lighting,
                          int width, int height, int s, int[] dirs, int[] blenders) {}
 
-    private byte[] draw(MapSnapshot map, SpritePack sprites, int maxBytes) throws IOException {
+    private Drawn draw(MapSnapshot map, SpritePack sprites, int maxBytes) throws IOException {
         int s = sprites.scale;
         int width = map.metadata().width(), height = map.metadata().height();
         int pixelsWide = width * s;
@@ -111,7 +117,8 @@ public final class MapRenderer {
         }
 
         var png = new Limited(maxBytes);
-        try (var writer = new PngStreamWriter(png, pixelsWide, height * s, 6)) {
+        long encoding = 0;
+        try (var writer = new PngStreamWriter(png, pixelsWide, height * s, Integer.getInteger("pngLevel", 3))) {
             for (int top = height - 1; top >= 0; top -= BAND_TILES) {
                 int bottom = Math.max(0, top - BAND_TILES + 1);
                 int rows = (top - bottom + 1) * s;
@@ -137,12 +144,17 @@ public final class MapRenderer {
                     }
                 }
                 shade(frame, target, top, column, columnFraction, frame.lighting().light, false);
+                long encodeStart = System.nanoTime();
                 for (int row = 0; row < rows; row++) writer.row(band, row * pixelsWide);
+                encoding += System.nanoTime() - encodeStart;
             }
+            long closeStart = System.nanoTime();
+            writer.close();
+            encoding += System.nanoTime() - closeStart;
         } catch (UncheckedOverflow overflow) {
             throw new Overflow();
         }
-        return png.toByteArray();
+        return new Drawn(png.toByteArray(), encoding);
     }
 
     /**

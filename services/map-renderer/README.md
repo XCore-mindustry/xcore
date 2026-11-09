@@ -54,12 +54,27 @@ Pass JVM flags in `JAVA_OPTS`.
 
 ## Measurements (2026-11-09)
 
-Two runs: the first composer (icons only), and the current one with edges, shadows, darkness and
-autotiling. The table below is the first; the current composer peaks at **167 MB** at `-Xmx64m`
-and takes 117 s for the same 339 renders (0.2–1.9 s per map). The extra time is mostly PNG
-encoding: shading and edges make the images 1.5–2× larger, and a few big maps (263) step down a
-scale to stay under 8 MiB.
+### Current composer
 
+The 113 readable maps bundled with v160 (110×400 to 600×600 tiles), 3 rounds, the last one
+reported (JIT warm), `-Xmx64m -XX:+UseSerialGC -Xss512k -XX:MaxMetaspaceSize=48m
+-XX:ReservedCodeCacheSize=32m`, PNG deflate level 3, 4 cores.
+
+| | 1 render at a time | 2 at a time |
+|---|---|---|
+| per map, median / p90 / max | 0.47 / 0.75 / 1.09 s | 0.52 / 0.82 / 1.52 s |
+| decode / draw / PNG encode | 10 % / 45 % / 46 % | same |
+| CPU per render | 0.56 s | 0.58 s |
+| peak RSS | 170 MB | 166 MB |
+
+- Idle after loading content and sprites: 56 MB RSS. JVM start to ready: about 0.2 s; a cold
+  process renders its first 256×256 map in 1.3 s.
+- Drawing runs at about 40 Mpx/s per core and so does encoding at level 3. Level 6 encodes at
+  half that speed for 3 % smaller files; level 1 saves little more than level 3.
+- Output: 79 maps at 8 px per tile, 21 at 4 px, 13 at 16 px; PNG median 3.1 MB, max 7.9 MB.
+- The max includes a second attempt one scale smaller when the first PNG is over 8 MiB.
+
+### First composer (icons only), runtimes compared
 
 The 113 readable maps bundled with v160 (the 114th, `canyon`, is a legacy map that the plugin's
 reader rejects too), 3 rounds, 2 renders at a time, 4 cores. Peak RSS is `VmHWM`.

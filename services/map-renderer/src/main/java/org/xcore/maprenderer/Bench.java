@@ -41,23 +41,26 @@ public final class Bench {
                     var result = renderer.render(new java.io.ByteArrayInputStream(bytes), bytes.length, Integer.getInteger("maxSide", 4096), Integer.getInteger("maxBytes", 8 * 1024 * 1024));
                     String name = map.getFileName().toString().replace(".msav", "");
                     if (save) Files.write(out.resolve(name + ".png"), result.png());
-                    return String.format("%-28s %4dx%-4d tiles  %2d px  %5dx%-5d  %7.1f KB  decode %5.0f ms  draw+encode %6.0f ms",
+                    return String.format("%-28s %4dx%-4d tiles  %2d px  %5dx%-5d  %7.1f KB  decode %5.0f ms  draw+encode %6.0f ms  encode %6.0f ms",
                             name, result.tilesWide(), result.tilesHigh(), result.scale(), result.width(), result.height(),
-                            result.png().length / 1024.0, result.decodeNanos() / 1e6, result.drawNanos() / 1e6);
+                            result.png().length / 1024.0, result.decodeNanos() / 1e6, result.drawNanos() / 1e6,
+                            result.encodeNanos() / 1e6);
                 }));
             }
             for (var result : results) {
                 try {
                     String line = result.get();
-                    if (round == 0) System.out.println(line);
+                    if (round == rounds - 1) System.out.println(line);
                 } catch (java.util.concurrent.ExecutionException error) {
-                    if (round == 0) System.out.println("FAILED " + error.getCause());
+                    if (round == rounds - 1) System.out.println("FAILED " + error.getCause());
                 }
             }
             report("round " + (round + 1));
         }
         pool.shutdown();
-        System.out.printf("total %.1f s for %d renders%n", (System.nanoTime() - started) / 1e9, rounds * maps.size());
+        double cpu = ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getProcessCpuTime() / 1e9;
+        System.out.printf("total %.1f s for %d renders, process CPU %.1f s%n", (System.nanoTime() - started) / 1e9,
+                rounds * maps.size(), cpu);
         report("end");
     }
 
