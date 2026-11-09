@@ -15,6 +15,7 @@ import org.xcore.plugin.config.TomlXcoreConfig;
 import org.xcore.plugin.event.transport.CasesTransportHandler;
 import org.xcore.plugin.event.transport.ChatTransportHandler;
 import org.xcore.plugin.event.transport.DiscordLinkTransportHandler;
+import org.xcore.plugin.event.transport.MapImageTransportHandler;
 import org.xcore.plugin.event.transport.MapTransportHandler;
 import org.xcore.plugin.event.transport.ModerationTransportHandler;
 import org.xcore.plugin.event.transport.RatingTransportHandler;
@@ -56,6 +57,7 @@ public class TransportService {
     private final AtomicBoolean hostResolveInFlight = new AtomicBoolean();
 
     private final CasesTransportHandler casesTransportHandler;
+    private final MapImageTransportHandler mapImageTransportHandler;
 
     @Inject
     public TransportService(ChatTransportHandler chatTransportHandler,
@@ -67,8 +69,10 @@ public class TransportService {
                             NetworkService network,
                             TomlXcoreConfig config,
                             StorageExecutor storageExecutor,
-                            CasesTransportHandler casesTransportHandler) {
+                            CasesTransportHandler casesTransportHandler,
+                            MapImageTransportHandler mapImageTransportHandler) {
         this.casesTransportHandler = casesTransportHandler;
+        this.mapImageTransportHandler = mapImageTransportHandler;
         this.chatTransportHandler = chatTransportHandler;
         this.discordLinkTransportHandler = discordLinkTransportHandler;
         this.moderationTransportHandler = moderationTransportHandler;
@@ -85,7 +89,7 @@ public class TransportService {
                             RatingTransportHandler ratingTransportHandler, SecurityTransportHandler securityTransportHandler,
                             NetworkService network, TomlXcoreConfig config, StorageExecutor storageExecutor) {
         this(chatTransportHandler, discordLinkTransportHandler, moderationTransportHandler, mapTransportHandler,
-                ratingTransportHandler, securityTransportHandler, network, config, storageExecutor, null);
+                ratingTransportHandler, securityTransportHandler, network, config, storageExecutor, null, null);
     }
 
     @PostConstruct
@@ -153,6 +157,7 @@ public class TransportService {
         ratingTransportHandler.registerListeners();
         securityTransportHandler.registerListeners();
         if (casesTransportHandler != null) casesTransportHandler.registerListeners();
+        if (mapImageTransportHandler != null) mapImageTransportHandler.registerListeners();
     }
 
     /**
