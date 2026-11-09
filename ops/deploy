@@ -68,10 +68,14 @@ set -euo pipefail
 sha=$1; shift
 uv=$(command -v uv || echo ~/.local/bin/uv)
 repo=~/services/xcore
+# One deploy at a time: the checkout must not move while uv builds from it.
+mkdir -p ~/services/deployed
+exec 9>~/services/deployed/.lock
+flock 9
 [[ -d $repo ]] || git clone -q https://github.com/XCore-mindustry/xcore.git "$repo"
 git -C "$repo" fetch -q origin
 git -C "$repo" checkout -q --detach "$sha"
-mkdir -p ~/.config/systemd/user ~/services/deployed
+mkdir -p ~/.config/systemd/user
 
 wait_for() { # seconds, command...
   local deadline=$((SECONDS + $1)); shift
