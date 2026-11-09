@@ -60,6 +60,12 @@ public final class MapsProtocolMapper {
 
     public static MapEntryV1 toMapEntry(Map map, String currentGameMode, MapData persistedMap,
                                       org.xcore.plugin.model.MapDiscordUpload upload) {
+        return toMapEntry(map, currentGameMode, persistedMap, upload, null);
+    }
+
+    /** {@code contentHash}: the file's SHA-256 in lower-case hex, or {@code null} while it is not known. */
+    public static MapEntryV1 toMapEntry(Map map, String currentGameMode, MapData persistedMap,
+                                      org.xcore.plugin.model.MapDiscordUpload upload, String contentHash) {
         String fileName = map.file == null || map.file.name() == null || map.file.name().isBlank()
                 ? map.plainName() + ".msav"
                 : map.file.name();
@@ -79,7 +85,8 @@ public final class MapsProtocolMapper {
                 persistedMap == null ? null : persistedMap.popularity,
                 persistedMap == null ? null : persistedMap.interest,
                 persistedMap == null ? currentGameMode : persistedMap.gameMode,
-                safeUpload(upload)
+                safeUpload(upload),
+                contentHash
         );
     }
 

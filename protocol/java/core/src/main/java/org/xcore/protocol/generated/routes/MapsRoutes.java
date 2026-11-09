@@ -146,12 +146,84 @@ public final class MapsRoutes {
             )
     );
 
+    public static final RouteDescriptor MAPS_PREVIEW_REQUEST_V1 = new RouteDescriptor(
+            "maps",
+            "mapsPreviewRequestV1Route",
+            "maps.preview.request",
+            1,
+            MapsMessages.MapsPreviewRequestV1.class,
+            "rpc-request",
+            "xcore:rpc:req:{server}",
+            Map.of("server", "payload.server"),
+            "server",
+            15000,
+            false,
+            false,
+            "maps",
+            new RouteResponseDescriptor(
+                    "maps.preview.response",
+                    1,
+                    MapsMessages.MapsPreviewResponseV1.class,
+                    "xcore:rpc:resp:{requester}",
+                    Map.of("requester", "rpc.requester")
+            )
+    );
+
+    public static final RouteDescriptor MAPS_FILE_REQUEST_V1 = new RouteDescriptor(
+            "maps",
+            "mapsFileRequestV1Route",
+            "maps.file.request",
+            1,
+            MapsMessages.MapsFileRequestV1.class,
+            "rpc-request",
+            "xcore:rpc:req:{server}",
+            Map.of("server", "payload.server"),
+            "server",
+            15000,
+            false,
+            false,
+            "maps",
+            new RouteResponseDescriptor(
+                    "maps.file.response",
+                    1,
+                    MapsMessages.MapsFileResponseV1.class,
+                    "xcore:rpc:resp:{requester}",
+                    Map.of("requester", "rpc.requester")
+            )
+    );
+
+    public static final RouteDescriptor MAPS_RENDER_REQUEST_V1 = new RouteDescriptor(
+            "maps",
+            "mapsRenderRequestV1Route",
+            "maps.render.request",
+            1,
+            MapsMessages.MapsRenderRequestV1.class,
+            "rpc-request",
+            "xcore:rpc:req:map-renderer",
+            Map.of(),
+            "service",
+            60000,
+            false,
+            false,
+            "map-renderer",
+            new RouteResponseDescriptor(
+                    "maps.render.response",
+                    1,
+                    MapsMessages.MapsRenderResponseV1.class,
+                    "xcore:rpc:resp:{requester}",
+                    Map.of("requester", "rpc.requester")
+            )
+    );
+
     public static final Map<MessageKey, RouteDescriptor> ROUTES_BY_MESSAGE = Map.ofEntries(
             entry(key("maps.list.request", 1), MAPS_LIST_REQUEST_V1),
             entry(key("maps.remove.request", 1), MAPS_REMOVE_REQUEST_V1),
             entry(key("maps.load.command", 1), MAPS_LOAD_COMMAND_V1),
             entry(key("maps.upload.request", 1), MAPS_UPLOAD_REQUEST_V1),
-            entry(key("maps.inspect.request", 1), MAPS_INSPECT_REQUEST_V1)
+            entry(key("maps.inspect.request", 1), MAPS_INSPECT_REQUEST_V1),
+            entry(key("maps.preview.request", 1), MAPS_PREVIEW_REQUEST_V1),
+            entry(key("maps.file.request", 1), MAPS_FILE_REQUEST_V1),
+            entry(key("maps.render.request", 1), MAPS_RENDER_REQUEST_V1)
     );
 
     public static final Map<MessageKey, RouteDescriptor> MAPS_ROUTES_BY_MESSAGE = ROUTES_BY_MESSAGE;

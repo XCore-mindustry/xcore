@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.18.0
+
+- Add `MapBlobRefV1`: bytes stored beside a message instead of inside it, as a Redis string `xcore:blob:{sha256}` with `sha256`, `sizeBytes` (at most 16 MiB), `contentType` (`image/png` or `application/octet-stream`), optional `width`/`height` and `expiresAt` in epoch milliseconds. Readers check size and hash before using the bytes. RPC response streams keep thousands of entries, so images and map files never go into them.
+- Add the `maps.preview.request` / `maps.preview.response` v1 RPC on `xcore:rpc:req:{server}`: the thumbnail of one installed map (one pixel per tile, scaled up to at most `maxSide`, default 512), with `status` `ok`/`not_found`/`failed`, the map's `contentHash` and the image blob.
+- Add the `maps.file.request` / `maps.file.response` v1 RPC on `xcore:rpc:req:{server}`: a server publishes one installed map file as a blob, with `status` `ok`/`not_found`/`too_large`/`failed`.
+- Add the `maps.render.request` / `maps.render.response` v1 RPC on `xcore:rpc:req:map-renderer` (target scope `service`, owner `map-renderer`): a detailed render of the map in a file blob, bounded by `maxSide` (default 4096) and `maxBytes` (default 8 MiB). The response carries `status` `ok`/`busy`/`too_large`/`invalid_map`/`download_failed`/`failed`, the image blob, `scale` (pixels per tile), `renderMs` and an optional `reason`.
+- Add optional `contentHash` (SHA-256 of the map file) to `MapEntryV1`. Java's `MapEntryV1` constructor gains a final nullable `String` argument.
+- Deploy the bot before servers send `contentHash` or answer the new RPCs: strict 0.17 readers reject the new field.
+
 ## 0.17.0
 
 - Add the `discord.account.operation.request` / `discord.account.operation.response` v1 RPC: one targeted link or unlink on `xcore:rpc:req:{server}` with a UUID business `operationId`, epoch-millisecond `issuedAt`/`expiresAt`, `code` (required for link) and `expectedLinkedAt` (required for unlink). The response carries `status` `success`/`rejected`/`failed`/`unknown`, an optional `reason` and the stored `linkedAt`.

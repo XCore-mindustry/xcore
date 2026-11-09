@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.xcore.protocol.generated.runtime.ProtocolPayload;
+import org.xcore.protocol.generated.shared.MapBlobRefV1;
 import org.xcore.protocol.generated.shared.MapEntryV1;
 import org.xcore.protocol.generated.shared.MapFileSourceV1;
 import org.xcore.protocol.generated.shared.MapInspectFindingV1;
@@ -14,6 +15,77 @@ import org.xcore.protocol.generated.shared.MapUploadResultV1;
 public final class MapsMessages {
     private MapsMessages() {
         throw new AssertionError("No org.xcore.protocol.generated.messages.maps.MapsMessages instances");
+    }
+
+    public record MapsFileRequestV1(
+            String server,
+            String fileName
+    ) implements ProtocolPayload {
+    public static final String MESSAGE_TYPE = "maps.file.request";
+    public static final int MESSAGE_VERSION = 1;
+
+        public MapsFileRequestV1 {
+            Objects.requireNonNull(server, "server must not be null");
+            if (server.length() < 1) {
+                throw new IllegalArgumentException("server must be at least 1 characters");
+            }
+            Objects.requireNonNull(fileName, "fileName must not be null");
+        }
+
+        @Override
+        public Map<String, Object> toPayload() {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("messageType", MESSAGE_TYPE);
+            payload.put("messageVersion", MESSAGE_VERSION);
+            payload.put("server", server);
+            payload.put("fileName", fileName);
+            return payload;
+        }
+    }
+
+    public record MapsFileResponseV1(
+            String server,
+            String fileName,
+            MapsFileResponseV1Status status,
+            String contentHash,
+            MapBlobRefV1 file
+    ) implements ProtocolPayload {
+    public static final String MESSAGE_TYPE = "maps.file.response";
+    public static final int MESSAGE_VERSION = 1;
+
+        public MapsFileResponseV1 {
+            Objects.requireNonNull(server, "server must not be null");
+            if (server.length() < 1) {
+                throw new IllegalArgumentException("server must be at least 1 characters");
+            }
+            Objects.requireNonNull(fileName, "fileName must not be null");
+            Objects.requireNonNull(status, "status must not be null");
+            if (contentHash != null) {
+                Objects.requireNonNull(contentHash, "contentHash must not be null");
+            }
+            if (file != null) {
+                Objects.requireNonNull(file, "file must not be null");
+            }
+        }
+
+        @Override
+        public Map<String, Object> toPayload() {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("messageType", MESSAGE_TYPE);
+            payload.put("messageVersion", MESSAGE_VERSION);
+            payload.put("server", server);
+            payload.put("fileName", fileName);
+            if (status != null) {
+                payload.put("status", status.toString());
+            }
+            if (contentHash != null) {
+                payload.put("contentHash", contentHash);
+            }
+            if (file != null) {
+                payload.put("file", file.toPayload());
+            }
+            return payload;
+        }
     }
 
     public record MapsInspectRequestV1(
@@ -205,6 +277,86 @@ public final class MapsMessages {
         }
     }
 
+    public record MapsPreviewRequestV1(
+            String server,
+            String fileName,
+            Integer maxSide
+    ) implements ProtocolPayload {
+    public static final String MESSAGE_TYPE = "maps.preview.request";
+    public static final int MESSAGE_VERSION = 1;
+
+        public MapsPreviewRequestV1 {
+            Objects.requireNonNull(server, "server must not be null");
+            if (server.length() < 1) {
+                throw new IllegalArgumentException("server must be at least 1 characters");
+            }
+            Objects.requireNonNull(fileName, "fileName must not be null");
+            if (maxSide != null) {
+                if (maxSide < 64) {
+                    throw new IllegalArgumentException("maxSide must be >= 64");
+                }
+            }
+        }
+
+        @Override
+        public Map<String, Object> toPayload() {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("messageType", MESSAGE_TYPE);
+            payload.put("messageVersion", MESSAGE_VERSION);
+            payload.put("server", server);
+            payload.put("fileName", fileName);
+            if (maxSide != null) {
+                payload.put("maxSide", maxSide);
+            }
+            return payload;
+        }
+    }
+
+    public record MapsPreviewResponseV1(
+            String server,
+            String fileName,
+            MapsPreviewResponseV1Status status,
+            String contentHash,
+            MapBlobRefV1 image
+    ) implements ProtocolPayload {
+    public static final String MESSAGE_TYPE = "maps.preview.response";
+    public static final int MESSAGE_VERSION = 1;
+
+        public MapsPreviewResponseV1 {
+            Objects.requireNonNull(server, "server must not be null");
+            if (server.length() < 1) {
+                throw new IllegalArgumentException("server must be at least 1 characters");
+            }
+            Objects.requireNonNull(fileName, "fileName must not be null");
+            Objects.requireNonNull(status, "status must not be null");
+            if (contentHash != null) {
+                Objects.requireNonNull(contentHash, "contentHash must not be null");
+            }
+            if (image != null) {
+                Objects.requireNonNull(image, "image must not be null");
+            }
+        }
+
+        @Override
+        public Map<String, Object> toPayload() {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("messageType", MESSAGE_TYPE);
+            payload.put("messageVersion", MESSAGE_VERSION);
+            payload.put("server", server);
+            payload.put("fileName", fileName);
+            if (status != null) {
+                payload.put("status", status.toString());
+            }
+            if (contentHash != null) {
+                payload.put("contentHash", contentHash);
+            }
+            if (image != null) {
+                payload.put("image", image.toPayload());
+            }
+            return payload;
+        }
+    }
+
     public record MapsRemoveRequestV1(
             String server,
             String fileName
@@ -256,6 +408,104 @@ public final class MapsMessages {
             payload.put("messageVersion", MESSAGE_VERSION);
             payload.put("server", server);
             payload.put("result", result);
+            return payload;
+        }
+    }
+
+    public record MapsRenderRequestV1(
+            String contentHash,
+            MapBlobRefV1 file,
+            Integer maxSide,
+            Integer maxBytes
+    ) implements ProtocolPayload {
+    public static final String MESSAGE_TYPE = "maps.render.request";
+    public static final int MESSAGE_VERSION = 1;
+
+        public MapsRenderRequestV1 {
+            Objects.requireNonNull(contentHash, "contentHash must not be null");
+            Objects.requireNonNull(file, "file must not be null");
+            if (maxSide != null) {
+                if (maxSide < 256) {
+                    throw new IllegalArgumentException("maxSide must be >= 256");
+                }
+            }
+            if (maxBytes != null) {
+                if (maxBytes < 65536) {
+                    throw new IllegalArgumentException("maxBytes must be >= 65536");
+                }
+            }
+        }
+
+        @Override
+        public Map<String, Object> toPayload() {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("messageType", MESSAGE_TYPE);
+            payload.put("messageVersion", MESSAGE_VERSION);
+            payload.put("contentHash", contentHash);
+            payload.put("file", file.toPayload());
+            if (maxSide != null) {
+                payload.put("maxSide", maxSide);
+            }
+            if (maxBytes != null) {
+                payload.put("maxBytes", maxBytes);
+            }
+            return payload;
+        }
+    }
+
+    public record MapsRenderResponseV1(
+            String contentHash,
+            MapsRenderResponseV1Status status,
+            MapBlobRefV1 image,
+            Integer scale,
+            Integer renderMs,
+            String reason
+    ) implements ProtocolPayload {
+    public static final String MESSAGE_TYPE = "maps.render.response";
+    public static final int MESSAGE_VERSION = 1;
+
+        public MapsRenderResponseV1 {
+            Objects.requireNonNull(contentHash, "contentHash must not be null");
+            Objects.requireNonNull(status, "status must not be null");
+            if (image != null) {
+                Objects.requireNonNull(image, "image must not be null");
+            }
+            if (scale != null) {
+                if (scale < 1) {
+                    throw new IllegalArgumentException("scale must be >= 1");
+                }
+            }
+            if (renderMs != null) {
+                if (renderMs < 0) {
+                    throw new IllegalArgumentException("renderMs must be >= 0");
+                }
+            }
+            if (reason != null) {
+                Objects.requireNonNull(reason, "reason must not be null");
+            }
+        }
+
+        @Override
+        public Map<String, Object> toPayload() {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("messageType", MESSAGE_TYPE);
+            payload.put("messageVersion", MESSAGE_VERSION);
+            payload.put("contentHash", contentHash);
+            if (status != null) {
+                payload.put("status", status.toString());
+            }
+            if (image != null) {
+                payload.put("image", image.toPayload());
+            }
+            if (scale != null) {
+                payload.put("scale", scale);
+            }
+            if (renderMs != null) {
+                payload.put("renderMs", renderMs);
+            }
+            if (reason != null) {
+                payload.put("reason", reason);
+            }
             return payload;
         }
     }

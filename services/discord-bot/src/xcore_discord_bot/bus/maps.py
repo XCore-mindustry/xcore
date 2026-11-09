@@ -116,6 +116,7 @@ class MapsBus:
             "popularity": str(entry.popularity) if entry.popularity is not None else "",
             "interest": str(entry.interest) if entry.interest is not None else "",
             "game_mode": entry.gameMode if entry.gameMode is not None else "",
+            "content_hash": entry.contentHash or "",
             **(
                 {
                     "uploaded_by_discord_id": entry.discordUpload.uploadedBy.discordId,

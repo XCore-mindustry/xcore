@@ -129,7 +129,7 @@ async def cmd_map_details(
         return
 
     images = bot.container.map_images
-    ref = MapRef(server, item.get("file_name", file_name))
+    ref = MapRef(server, item.get("file_name", file_name), item.get("content_hash", ""))
 
     async def picture(kind: MapImageKind) -> tuple[discord.Embed, discord.File] | str:
         try:

@@ -81,14 +81,14 @@ reference:
 ```
 xcore:blob:{sha256}          SET … EX 900   (raw bytes)
 
-MapBlobRefV1 { key, sha256, sizeBytes, contentType, width?, height? }
+MapBlobRefV1 { key, sha256, sizeBytes, contentType, width?, height?, expiresAt }
 ```
 
 The reader checks size and SHA-256 before using the bytes. Keys are content-addressed,
 so two requests for the same map share one blob and a retry costs nothing. Limits: 8 MiB
 per image (Discord's attachment limit is 10 MiB), 4 MiB per `.msav` (the upload limit).
 
-## Protocol (0.18.0, phase 2 and 3)
+## Protocol (0.18.0, done)
 
 All new fields are optional and all new messages are new, so 0.17 readers keep
 working, but the bot must be deployed before servers start sending `contentHash`
@@ -99,7 +99,7 @@ working, but the bot must be deployed before servers start sending `contentHash`
 | `MapEntryV1.contentHash` | — | SHA-256 of the map file; the cache key for both pictures (`MapContentHash` already computes it) |
 | `maps.preview.request` / `.response` | `xcore:rpc:req:{server}` | `{server, fileName, maxSide}` → `{status: ok/not_found/failed, contentHash, image: MapBlobRefV1}` |
 | `maps.file.request` / `.response` | `xcore:rpc:req:{server}` | `{server, fileName}` → `{status, contentHash, file: MapBlobRefV1}` |
-| `maps.render.request` / `.response` | `xcore:rpc:req:map-renderer` | `{contentHash, file: MapBlobRefV1, maxSide}` → `{status: ok/too_large/invalid_map/failed, image: MapBlobRefV1, renderMs}` |
+| `maps.render.request` / `.response` | `xcore:rpc:req:map-renderer` | `{contentHash, file: MapBlobRefV1, maxSide?, maxBytes?}` → `{status: ok/busy/too_large/invalid_map/download_failed/failed, image: MapBlobRefV1, scale, renderMs, reason?}` |
 
 `maps.preview` could later carry several file names, so that a page of `/maps list`
 costs one round trip.

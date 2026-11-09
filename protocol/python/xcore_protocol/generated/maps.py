@@ -10,12 +10,14 @@ from typing import Any, ClassVar
 
 from .shared import (
     DiscordIdentityRefV1,
+    MapBlobRefV1,
     MapDiscordUploadV1,
     MapEntryV1,
     MapFileSourceV1,
     MapInspectFindingV1,
     MapInspectInfoV1,
     MapUploadResultV1,
+    MapBlobRefV1ContentType,
     MapInspectFindingV1Severity,
     MapUploadResultV1Status,
 )
@@ -118,6 +120,114 @@ def _expect_enum(value: Any, field_name: str, enum_type: type[StrEnum]) -> StrEn
 def _expect_instance(value: Any, field_name: str, expected_type: type[Any]) -> None:
     if not isinstance(value, expected_type):
         raise TypeError(f"{field_name} must be a {expected_type.__name__}")
+
+@dataclass(frozen=True, slots=True)
+class MapsFileRequestV1:
+    server: str
+    fileName: str
+
+    MESSAGE_TYPE: ClassVar[str] = 'maps.file.request'
+    MESSAGE_VERSION: ClassVar[int] = 1
+    def __post_init__(self) -> None:
+        _expect_str(self.server, 'server')
+        if len(self.server) < 1:
+            raise ValueError("server is too short")
+        _expect_str(self.fileName, 'fileName')
+        if re.search('^[^/\\\\]+\\.[mM][sS][aA][vV]$', self.fileName) is None:
+            raise ValueError("fileName does not match its pattern")
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "MapsFileRequestV1":
+        mapping = _expect_mapping(payload, "MapsFileRequestV1")
+        _expect_exact_keys(
+            mapping,
+            required=frozenset(('messageType', 'messageVersion', 'server', 'fileName')),
+            allowed=frozenset(('messageType', 'messageVersion', 'server', 'fileName')),
+            model_name="MapsFileRequestV1",
+        )
+        if mapping['messageType'] != cls.MESSAGE_TYPE:
+            raise ValueError('messageType' + " must equal " + repr(cls.MESSAGE_TYPE))
+        if mapping['messageVersion'] != cls.MESSAGE_VERSION:
+            raise ValueError('messageVersion' + " must equal " + repr(cls.MESSAGE_VERSION))
+        return cls(
+            server=_expect_str(mapping['server'], 'server'),
+            fileName=_expect_str(mapping['fileName'], 'fileName'),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            'messageType': self.MESSAGE_TYPE,
+            'messageVersion': self.MESSAGE_VERSION,
+        }
+        payload['server'] = self.server
+        payload['fileName'] = self.fileName
+        return payload
+
+class MapsFileResponseV1Status(StrEnum):
+    OK = 'ok'
+    NOT_FOUND = 'not_found'
+    TOO_LARGE = 'too_large'
+    FAILED = 'failed'
+
+@dataclass(frozen=True, slots=True)
+class MapsFileResponseV1:
+    server: str
+    fileName: str
+    status: MapsFileResponseV1Status
+    contentHash: str | None = None
+    file: MapBlobRefV1 | None = None
+
+    MESSAGE_TYPE: ClassVar[str] = 'maps.file.response'
+    MESSAGE_VERSION: ClassVar[int] = 1
+    def __post_init__(self) -> None:
+        _expect_str(self.server, 'server')
+        if len(self.server) < 1:
+            raise ValueError("server is too short")
+        _expect_str(self.fileName, 'fileName')
+        if re.search('^[^/\\\\]+\\.[mM][sS][aA][vV]$', self.fileName) is None:
+            raise ValueError("fileName does not match its pattern")
+        _expect_instance(self.status, 'status', MapsFileResponseV1Status)
+        if self.contentHash is not None:
+            _expect_str(self.contentHash, 'contentHash')
+            if re.search('^[a-f0-9]{64}$', self.contentHash) is None:
+                raise ValueError("contentHash does not match its pattern")
+        if self.file is not None:
+            _expect_instance(self.file, 'file', MapBlobRefV1)
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "MapsFileResponseV1":
+        mapping = _expect_mapping(payload, "MapsFileResponseV1")
+        _expect_exact_keys(
+            mapping,
+            required=frozenset(('messageType', 'messageVersion', 'server', 'fileName', 'status')),
+            allowed=frozenset(('messageType', 'messageVersion', 'server', 'fileName', 'status', 'contentHash', 'file')),
+            model_name="MapsFileResponseV1",
+        )
+        if mapping['messageType'] != cls.MESSAGE_TYPE:
+            raise ValueError('messageType' + " must equal " + repr(cls.MESSAGE_TYPE))
+        if mapping['messageVersion'] != cls.MESSAGE_VERSION:
+            raise ValueError('messageVersion' + " must equal " + repr(cls.MESSAGE_VERSION))
+        return cls(
+            server=_expect_str(mapping['server'], 'server'),
+            fileName=_expect_str(mapping['fileName'], 'fileName'),
+            status=_expect_enum(mapping['status'], 'status', MapsFileResponseV1Status),
+            contentHash=(_expect_str(mapping['contentHash'], 'contentHash') if 'contentHash' in mapping else None),
+            file=(MapBlobRefV1.from_payload(_expect_mapping(mapping['file'], 'file')) if 'file' in mapping else None),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            'messageType': self.MESSAGE_TYPE,
+            'messageVersion': self.MESSAGE_VERSION,
+        }
+        payload['server'] = self.server
+        payload['fileName'] = self.fileName
+        payload['status'] = str(self.status)
+        if self.contentHash is not None:
+            payload['contentHash'] = self.contentHash
+        if self.file is not None:
+            payload['file'] = self.file.to_payload()
+        return payload
 
 @dataclass(frozen=True, slots=True)
 class MapsInspectRequestV1:
@@ -354,6 +464,121 @@ class MapsLoadCommandV1:
         return payload
 
 @dataclass(frozen=True, slots=True)
+class MapsPreviewRequestV1:
+    server: str
+    fileName: str
+    maxSide: int | None = None
+
+    MESSAGE_TYPE: ClassVar[str] = 'maps.preview.request'
+    MESSAGE_VERSION: ClassVar[int] = 1
+    def __post_init__(self) -> None:
+        _expect_str(self.server, 'server')
+        if len(self.server) < 1:
+            raise ValueError("server is too short")
+        _expect_str(self.fileName, 'fileName')
+        if re.search('^[^/\\\\]+\\.[mM][sS][aA][vV]$', self.fileName) is None:
+            raise ValueError("fileName does not match its pattern")
+        if self.maxSide is not None:
+            _expect_int(self.maxSide, 'maxSide')
+            if self.maxSide < 64:
+                raise ValueError("maxSide must be >= 64")
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "MapsPreviewRequestV1":
+        mapping = _expect_mapping(payload, "MapsPreviewRequestV1")
+        _expect_exact_keys(
+            mapping,
+            required=frozenset(('messageType', 'messageVersion', 'server', 'fileName')),
+            allowed=frozenset(('messageType', 'messageVersion', 'server', 'fileName', 'maxSide')),
+            model_name="MapsPreviewRequestV1",
+        )
+        if mapping['messageType'] != cls.MESSAGE_TYPE:
+            raise ValueError('messageType' + " must equal " + repr(cls.MESSAGE_TYPE))
+        if mapping['messageVersion'] != cls.MESSAGE_VERSION:
+            raise ValueError('messageVersion' + " must equal " + repr(cls.MESSAGE_VERSION))
+        return cls(
+            server=_expect_str(mapping['server'], 'server'),
+            fileName=_expect_str(mapping['fileName'], 'fileName'),
+            maxSide=(_expect_int(mapping['maxSide'], 'maxSide') if 'maxSide' in mapping else None),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            'messageType': self.MESSAGE_TYPE,
+            'messageVersion': self.MESSAGE_VERSION,
+        }
+        payload['server'] = self.server
+        payload['fileName'] = self.fileName
+        if self.maxSide is not None:
+            payload['maxSide'] = self.maxSide
+        return payload
+
+class MapsPreviewResponseV1Status(StrEnum):
+    OK = 'ok'
+    NOT_FOUND = 'not_found'
+    FAILED = 'failed'
+
+@dataclass(frozen=True, slots=True)
+class MapsPreviewResponseV1:
+    server: str
+    fileName: str
+    status: MapsPreviewResponseV1Status
+    contentHash: str | None = None
+    image: MapBlobRefV1 | None = None
+
+    MESSAGE_TYPE: ClassVar[str] = 'maps.preview.response'
+    MESSAGE_VERSION: ClassVar[int] = 1
+    def __post_init__(self) -> None:
+        _expect_str(self.server, 'server')
+        if len(self.server) < 1:
+            raise ValueError("server is too short")
+        _expect_str(self.fileName, 'fileName')
+        if re.search('^[^/\\\\]+\\.[mM][sS][aA][vV]$', self.fileName) is None:
+            raise ValueError("fileName does not match its pattern")
+        _expect_instance(self.status, 'status', MapsPreviewResponseV1Status)
+        if self.contentHash is not None:
+            _expect_str(self.contentHash, 'contentHash')
+            if re.search('^[a-f0-9]{64}$', self.contentHash) is None:
+                raise ValueError("contentHash does not match its pattern")
+        if self.image is not None:
+            _expect_instance(self.image, 'image', MapBlobRefV1)
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "MapsPreviewResponseV1":
+        mapping = _expect_mapping(payload, "MapsPreviewResponseV1")
+        _expect_exact_keys(
+            mapping,
+            required=frozenset(('messageType', 'messageVersion', 'server', 'fileName', 'status')),
+            allowed=frozenset(('messageType', 'messageVersion', 'server', 'fileName', 'status', 'contentHash', 'image')),
+            model_name="MapsPreviewResponseV1",
+        )
+        if mapping['messageType'] != cls.MESSAGE_TYPE:
+            raise ValueError('messageType' + " must equal " + repr(cls.MESSAGE_TYPE))
+        if mapping['messageVersion'] != cls.MESSAGE_VERSION:
+            raise ValueError('messageVersion' + " must equal " + repr(cls.MESSAGE_VERSION))
+        return cls(
+            server=_expect_str(mapping['server'], 'server'),
+            fileName=_expect_str(mapping['fileName'], 'fileName'),
+            status=_expect_enum(mapping['status'], 'status', MapsPreviewResponseV1Status),
+            contentHash=(_expect_str(mapping['contentHash'], 'contentHash') if 'contentHash' in mapping else None),
+            image=(MapBlobRefV1.from_payload(_expect_mapping(mapping['image'], 'image')) if 'image' in mapping else None),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            'messageType': self.MESSAGE_TYPE,
+            'messageVersion': self.MESSAGE_VERSION,
+        }
+        payload['server'] = self.server
+        payload['fileName'] = self.fileName
+        payload['status'] = str(self.status)
+        if self.contentHash is not None:
+            payload['contentHash'] = self.contentHash
+        if self.image is not None:
+            payload['image'] = self.image.to_payload()
+        return payload
+
+@dataclass(frozen=True, slots=True)
 class MapsRemoveRequestV1:
     server: str
     fileName: str
@@ -435,6 +660,138 @@ class MapsRemoveResponseV1:
         }
         payload['server'] = self.server
         payload['result'] = self.result
+        return payload
+
+@dataclass(frozen=True, slots=True)
+class MapsRenderRequestV1:
+    contentHash: str
+    file: MapBlobRefV1
+    maxSide: int | None = None
+    maxBytes: int | None = None
+
+    MESSAGE_TYPE: ClassVar[str] = 'maps.render.request'
+    MESSAGE_VERSION: ClassVar[int] = 1
+    def __post_init__(self) -> None:
+        _expect_str(self.contentHash, 'contentHash')
+        if re.search('^[a-f0-9]{64}$', self.contentHash) is None:
+            raise ValueError("contentHash does not match its pattern")
+        _expect_instance(self.file, 'file', MapBlobRefV1)
+        if self.maxSide is not None:
+            _expect_int(self.maxSide, 'maxSide')
+            if self.maxSide < 256:
+                raise ValueError("maxSide must be >= 256")
+        if self.maxBytes is not None:
+            _expect_int(self.maxBytes, 'maxBytes')
+            if self.maxBytes < 65536:
+                raise ValueError("maxBytes must be >= 65536")
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "MapsRenderRequestV1":
+        mapping = _expect_mapping(payload, "MapsRenderRequestV1")
+        _expect_exact_keys(
+            mapping,
+            required=frozenset(('messageType', 'messageVersion', 'contentHash', 'file')),
+            allowed=frozenset(('messageType', 'messageVersion', 'contentHash', 'file', 'maxSide', 'maxBytes')),
+            model_name="MapsRenderRequestV1",
+        )
+        if mapping['messageType'] != cls.MESSAGE_TYPE:
+            raise ValueError('messageType' + " must equal " + repr(cls.MESSAGE_TYPE))
+        if mapping['messageVersion'] != cls.MESSAGE_VERSION:
+            raise ValueError('messageVersion' + " must equal " + repr(cls.MESSAGE_VERSION))
+        return cls(
+            contentHash=_expect_str(mapping['contentHash'], 'contentHash'),
+            file=MapBlobRefV1.from_payload(_expect_mapping(mapping['file'], 'file')),
+            maxSide=(_expect_int(mapping['maxSide'], 'maxSide') if 'maxSide' in mapping else None),
+            maxBytes=(_expect_int(mapping['maxBytes'], 'maxBytes') if 'maxBytes' in mapping else None),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            'messageType': self.MESSAGE_TYPE,
+            'messageVersion': self.MESSAGE_VERSION,
+        }
+        payload['contentHash'] = self.contentHash
+        payload['file'] = self.file.to_payload()
+        if self.maxSide is not None:
+            payload['maxSide'] = self.maxSide
+        if self.maxBytes is not None:
+            payload['maxBytes'] = self.maxBytes
+        return payload
+
+class MapsRenderResponseV1Status(StrEnum):
+    OK = 'ok'
+    BUSY = 'busy'
+    TOO_LARGE = 'too_large'
+    INVALID_MAP = 'invalid_map'
+    DOWNLOAD_FAILED = 'download_failed'
+    FAILED = 'failed'
+
+@dataclass(frozen=True, slots=True)
+class MapsRenderResponseV1:
+    contentHash: str
+    status: MapsRenderResponseV1Status
+    image: MapBlobRefV1 | None = None
+    scale: int | None = None
+    renderMs: int | None = None
+    reason: str | None = None
+
+    MESSAGE_TYPE: ClassVar[str] = 'maps.render.response'
+    MESSAGE_VERSION: ClassVar[int] = 1
+    def __post_init__(self) -> None:
+        _expect_str(self.contentHash, 'contentHash')
+        if re.search('^[a-f0-9]{64}$', self.contentHash) is None:
+            raise ValueError("contentHash does not match its pattern")
+        _expect_instance(self.status, 'status', MapsRenderResponseV1Status)
+        if self.image is not None:
+            _expect_instance(self.image, 'image', MapBlobRefV1)
+        if self.scale is not None:
+            _expect_int(self.scale, 'scale')
+            if self.scale < 1:
+                raise ValueError("scale must be >= 1")
+        if self.renderMs is not None:
+            _expect_int(self.renderMs, 'renderMs')
+            if self.renderMs < 0:
+                raise ValueError("renderMs must be >= 0")
+        if self.reason is not None:
+            _expect_str(self.reason, 'reason')
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "MapsRenderResponseV1":
+        mapping = _expect_mapping(payload, "MapsRenderResponseV1")
+        _expect_exact_keys(
+            mapping,
+            required=frozenset(('messageType', 'messageVersion', 'contentHash', 'status')),
+            allowed=frozenset(('messageType', 'messageVersion', 'contentHash', 'status', 'image', 'scale', 'renderMs', 'reason')),
+            model_name="MapsRenderResponseV1",
+        )
+        if mapping['messageType'] != cls.MESSAGE_TYPE:
+            raise ValueError('messageType' + " must equal " + repr(cls.MESSAGE_TYPE))
+        if mapping['messageVersion'] != cls.MESSAGE_VERSION:
+            raise ValueError('messageVersion' + " must equal " + repr(cls.MESSAGE_VERSION))
+        return cls(
+            contentHash=_expect_str(mapping['contentHash'], 'contentHash'),
+            status=_expect_enum(mapping['status'], 'status', MapsRenderResponseV1Status),
+            image=(MapBlobRefV1.from_payload(_expect_mapping(mapping['image'], 'image')) if 'image' in mapping else None),
+            scale=(_expect_int(mapping['scale'], 'scale') if 'scale' in mapping else None),
+            renderMs=(_expect_int(mapping['renderMs'], 'renderMs') if 'renderMs' in mapping else None),
+            reason=(_expect_str(mapping['reason'], 'reason') if 'reason' in mapping else None),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            'messageType': self.MESSAGE_TYPE,
+            'messageVersion': self.MESSAGE_VERSION,
+        }
+        payload['contentHash'] = self.contentHash
+        payload['status'] = str(self.status)
+        if self.image is not None:
+            payload['image'] = self.image.to_payload()
+        if self.scale is not None:
+            payload['scale'] = self.scale
+        if self.renderMs is not None:
+            payload['renderMs'] = self.renderMs
+        if self.reason is not None:
+            payload['reason'] = self.reason
         return payload
 
 @dataclass(frozen=True, slots=True)
@@ -528,14 +885,23 @@ class MapsUploadResponseV1:
         return payload
 
 __all__ = [
+    "MapsFileRequestV1",
+    "MapsFileResponseV1",
     "MapsInspectRequestV1",
     "MapsInspectResponseV1",
     "MapsListRequestV1",
     "MapsListResponseV1",
     "MapsLoadCommandV1",
+    "MapsPreviewRequestV1",
+    "MapsPreviewResponseV1",
     "MapsRemoveRequestV1",
     "MapsRemoveResponseV1",
+    "MapsRenderRequestV1",
+    "MapsRenderResponseV1",
     "MapsUploadRequestV1",
     "MapsUploadResponseV1",
+    "MapsFileResponseV1Status",
     "MapsInspectResponseV1Status",
+    "MapsPreviewResponseV1Status",
+    "MapsRenderResponseV1Status",
 ]

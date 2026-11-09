@@ -1,0 +1,7 @@
+{
+  "messageType": "maps.file.response",
+  "messageVersion": 1,
+  "server": "mini-pvp",
+  "fileName": "ancient-caldera.msav",
+  "status": "too_large"
+}

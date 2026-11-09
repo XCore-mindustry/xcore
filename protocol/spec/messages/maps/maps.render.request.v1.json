@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:protocol:messages:maps:maps.render.request:v1",
+  "title": "MapsRenderRequestV1",
+  "description": "Asks the map renderer for a detailed render of the map in `file`. Defaults: `maxSide` 4096, `maxBytes` 8 MiB.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "messageVersion",
+    "contentHash",
+    "file"
+  ],
+  "properties": {
+    "messageType": {
+      "const": "maps.render.request"
+    },
+    "messageVersion": {
+      "const": 1
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "file": {
+      "$ref": "urn:xcore:protocol:shared:types:map-blob-ref:v1"
+    },
+    "maxSide": {
+      "type": "integer",
+      "minimum": 256,
+      "maximum": 4096
+    },
+    "maxBytes": {
+      "type": "integer",
+      "minimum": 65536,
+      "maximum": 16777216
+    }
+  }
+}

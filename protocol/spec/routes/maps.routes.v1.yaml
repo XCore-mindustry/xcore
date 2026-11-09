@@ -80,3 +80,53 @@ messages:
       stream: xcore:rpc:resp:{requester}
       bindings:
         requester: rpc.requester
+  - messageType: maps.preview.request
+    messageVersion: 1
+    kind: rpc-request
+    stream: xcore:rpc:req:{server}
+    bindings:
+      server: payload.server
+    targetScope: server
+    ttlMs: 15000
+    replayable: false
+    idempotentConsumerRecommended: false
+    owner: maps
+    response:
+      messageType: maps.preview.response
+      messageVersion: 1
+      stream: xcore:rpc:resp:{requester}
+      bindings:
+        requester: rpc.requester
+  - messageType: maps.file.request
+    messageVersion: 1
+    kind: rpc-request
+    stream: xcore:rpc:req:{server}
+    bindings:
+      server: payload.server
+    targetScope: server
+    ttlMs: 15000
+    replayable: false
+    idempotentConsumerRecommended: false
+    owner: maps
+    response:
+      messageType: maps.file.response
+      messageVersion: 1
+      stream: xcore:rpc:resp:{requester}
+      bindings:
+        requester: rpc.requester
+  - messageType: maps.render.request
+    messageVersion: 1
+    kind: rpc-request
+    stream: xcore:rpc:req:map-renderer
+    bindings: {}
+    targetScope: service
+    ttlMs: 60000
+    replayable: false
+    idempotentConsumerRecommended: false
+    owner: map-renderer
+    response:
+      messageType: maps.render.response
+      messageVersion: 1
+      stream: xcore:rpc:resp:{requester}
+      bindings:
+        requester: rpc.requester

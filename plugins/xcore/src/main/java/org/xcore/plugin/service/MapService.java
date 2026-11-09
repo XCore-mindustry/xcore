@@ -458,6 +458,20 @@ public class MapService {
         return map == null || map.file == null ? null : uploads.get(map.file.name());
     }
 
+    /**
+     * The SHA-256 of the map's file as the identity catalog last hashed it, lower-case hex, or
+     * {@code null} before the catalog has hashed it or without a catalog.
+     */
+    public String contentHashFor(Map map) {
+        var catalog = identityCatalog;
+        if (map == null || map.file == null || catalog == null) return null;
+        String fileName = map.file.name();
+        for (var entry : catalog.snapshot().entries()) {
+            if (entry.fileName().equals(fileName) && entry.hash() != null) return entry.hash().asHex();
+        }
+        return null;
+    }
+
     public void announceMapCreator(Map map) {
         var upload = discordUploadFor(map);
         if (upload == null || upload.creatorDiscordId == null) return;

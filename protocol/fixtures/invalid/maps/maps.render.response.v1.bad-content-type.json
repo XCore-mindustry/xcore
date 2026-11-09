@@ -1,0 +1,16 @@
+{
+  "messageType": "maps.render.response",
+  "messageVersion": 1,
+  "contentHash": "3f0afdf1fc2e7ac82be5d20217e52bdcb3d423a7caf50b28c124ef81b156d16a",
+  "status": "ok",
+  "image": {
+    "key": "xcore:blob:9b1c2a4e1f0d3c5b7a6e8d9f0a1b2c3d4e5f60718293a4b5c6d7e8f9012345ab",
+    "sha256": "9b1c2a4e1f0d3c5b7a6e8d9f0a1b2c3d4e5f60718293a4b5c6d7e8f9012345ab",
+    "sizeBytes": 2833104,
+    "contentType": "image/gif",
+    "width": 4096,
+    "height": 4096,
+    "expiresAt": 1794000900000
+  },
+  "scale": 16
+}

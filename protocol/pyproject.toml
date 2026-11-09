@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xcore-protocol"
-version = "0.17.1"
+version = "0.18.0"
 license = "MPL-2.0"
 description = "Canonical cross-service protocol for the XCore ecosystem"
 readme = "README.md"
