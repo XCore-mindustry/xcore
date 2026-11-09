@@ -1,9 +1,40 @@
-# map-renderer (prototype)
+# map-renderer
 
 Draws a Mindustry map with block sprites, for the **Detailed render** button of `/map` in the
 Discord bot. Design and status: [`services/discord-bot/docs/map-images.md`](../discord-bot/docs/map-images.md).
 
-This is the measured prototype. It renders and benchmarks; it does not listen on Redis yet.
+## The service
+
+`RenderServer` answers `maps.render` RPCs (protocol 0.18) from `xcore:rpc:req:map-renderer`, in
+the bus's RPC envelope, as a consumer group:
+
+1. read the map file blob the request points at (`MapBlobRefV1`) and check its size and SHA-256;
+2. take the render from the disk cache, keyed by map hash, `maxSide`, `maxBytes` and renderer
+   version (`RENDERER_REVISION` plus a hash of `content.json`), or draw it;
+3. publish the PNG as a blob (`xcore:blob:{sha256}`, 15 minutes) and answer with its reference,
+   the scale and the render time.
+
+At most `MAP_RENDERER_CONCURRENCY` maps are drawn at once with `MAP_RENDERER_QUEUE` waiting;
+beyond that the answer is `busy`. Requests past their `expires_at` are dropped. Answers are
+`ok`, `busy`, `too_large`, `invalid_map`, `download_failed` (blob gone or not matching) or
+`failed`; a request of another type is rejected in the envelope (`REJECTED`).
+
+It talks to Redis with its own small RESP2 client (`Resp`): seven commands, no client library,
+no event loop.
+
+| Variable | Default | |
+|---|---|---|
+| `MAP_RENDERER_REDIS_URL` (or `REDIS_URL`) | `redis://127.0.0.1:6379` | `redis://[[user]:password@]host[:port][/db]`, no TLS |
+| `MAP_RENDERER_DATA` | `render-data` | `content.json` and `sprites.pack`; the distribution ships them |
+| `MAP_RENDERER_CACHE` | `cache` | rendered PNGs |
+| `MAP_RENDERER_CACHE_MB` | `1024` | least recently used renders go first |
+| `MAP_RENDERER_HTTP` | `127.0.0.1:9471` | `/ready` (200 once Redis is connected) and `/metrics` (Prometheus) |
+| `MAP_RENDERER_CONCURRENCY` / `MAP_RENDERER_QUEUE` | `2` / `4` | |
+| `MAP_RENDERER_GROUP` / `MAP_RENDERER_CONSUMER` | `xcore:cg:map-renderer` / host-pid | |
+
+The start script runs it with `-Xmx64m -XX:+UseSerialGC -Xss512k -XX:MaxMetaspaceSize=48m
+-XX:ReservedCodeCacheSize=32m`. Under load (all 114 bundled maps sent at once over Redis, two
+renders at a time) it answered in 30 s, 0.49 s median render, with a peak RSS of 169 MB.
 
 ## How it works
 
@@ -44,9 +75,10 @@ This is the measured prototype. It renders and benchmarks; it does not listen on
 
 ```sh
 ./gradlew :services:map-renderer:installDist          # also downloads the client and exports
-build/install/map-renderer/bin/map-renderer \
-  services/map-renderer/build/render-data out/ 2 3 maps/*.msav
-# args: render data, output dir, concurrent renders, rounds, maps
+cd services/map-renderer/build/install/map-renderer
+bin/map-renderer                                       # the service, see the table above
+java -Xmx64m -cp "lib/*" org.xcore.maprenderer.Bench render-data out/ 2 3 maps/*.msav
+# bench args: render data, output dir, concurrent renders, rounds, maps
 ```
 
 `-PmindustryClientJar=<path>` uses a local `Mindustry.jar` instead of downloading it.
@@ -125,6 +157,5 @@ With a 256 MB budget, the plain JVM at `-Xmx64m` fits with about 90 MB to spare.
 
 ## Known gaps (to be closed before production)
 
-- No Redis consumer, protocol messages or disk cache yet.
 - Not drawn: items on conveyors and liquids in conduits, bridge and power-node links (their
   configuration is in building payloads the reader leaves opaque), cliffs, autotiled Erekir floors and walls, and animated water.

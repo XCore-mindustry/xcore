@@ -34,9 +34,11 @@ dependencies {
     "exportImplementation"(libs.mindustry.core)
     "exportImplementation"(libs.arc.core)
 
-    // The map reader, and Arc for its JSON parser and the engine's random generator.
+    // The map reader, Arc for its JSON parser and the engine's random generator, and the
+    // generated protocol records for maps.render.
     implementation(project(":libs:msav"))
     implementation(libs.arc.core)
+    implementation(project(":protocol"))
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
@@ -44,7 +46,12 @@ dependencies {
 }
 
 application {
-    mainClass.set("org.xcore.maprenderer.Bench")
+    // The service. The bench runs from the same classpath:
+    //   java -cp "lib/*" org.xcore.maprenderer.Bench <render-data> <out> <concurrency> <rounds> <maps...>
+    mainClass.set("org.xcore.maprenderer.service.RenderServer")
+    applicationDefaultJvmArgs = listOf(
+        "-Xmx64m", "-XX:+UseSerialGC", "-Xss512k", "-XX:MaxMetaspaceSize=48m", "-XX:ReservedCodeCacheSize=32m",
+    )
 }
 
 // The client release of the same Mindustry version: its atlas is the only source of sprites.
@@ -89,6 +96,16 @@ val exportContent = tasks.register<JavaExec>("exportContent") {
 
 tasks.named<JavaExec>("run") {
     dependsOn(exportContent)
+    environment("MAP_RENDERER_DATA", renderData.get().asFile.absolutePath)
+}
+
+// The distribution carries the exported data next to bin/ and lib/.
+distributions {
+    main {
+        contents {
+            from(exportContent) { into("render-data") }
+        }
+    }
 }
 
 tasks.test {
