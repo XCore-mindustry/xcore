@@ -1,8 +1,10 @@
 # Map images: thumbnails in `/maps`, detailed renders in `/map`
 
-Status: **phases 1 and 2 done; phase 3 prototyped and measured.** `/map` shows the
-server's thumbnail and `/maps list` opens map cards. `services/map-renderer` draws
-detailed renders but does not answer `maps.render` yet.
+Status: **phases 1–3 built, not yet deployed.** `/map` shows the server's thumbnail,
+`/maps list` opens map cards, and the **Detailed render** button goes through
+`maps.file` and the map renderer service. Anyone may press it, at most once every 30 s
+per person for a new render (`RenderCooldown`); a render already in the bot's cache is
+shown again without waiting.
 
 ## What the player sees
 

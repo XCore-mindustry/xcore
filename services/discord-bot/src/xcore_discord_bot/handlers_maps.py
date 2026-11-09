@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import logging
+import math
 import secrets
 from typing import TYPE_CHECKING, Any
 
@@ -14,7 +15,7 @@ from .map_card import find_map, map_card
 from .map_list import map_list_page_items, map_list_pages, map_text
 from .moderation_views import MapRemoveConfirmView
 from .server_views import MapDetailsView, MapOption, MapsListView
-from .services.map_images import MapImageKind, MapRef
+from .services.map_images import MapImageKind, MapRef, RendererBusy
 from .staff_actions import (
     Actor,
     InvalidMapUpload,
@@ -161,6 +162,31 @@ def map_option(index: int, item: dict[str, str], locale: str) -> MapOption:
     return name, str(index), f"{author} • {item.get('file_name', '')}"
 
 
+async def _card_picture(
+    bot: XCoreDiscordBot,
+    server: str,
+    item: dict[str, str],
+    locale: str,
+    ref: MapRef,
+    kind: MapImageKind,
+) -> tuple[discord.Embed, discord.File] | str:
+    """The card with this picture of the map, or why there is none."""
+    try:
+        image = await bot.container.map_images.get(ref, kind)
+    except TimeoutError:
+        return t(locale, "maps-card-render-timeout")
+    except RendererBusy:
+        return t(locale, "maps-card-render-busy")
+    except Exception:
+        logger.exception("Could not draw %s of %s on %s", kind, ref.file_name, server)
+        image = None
+    if image is None:
+        return t(locale, "maps-card-render-failed")
+    name = image.attachment_name(ref, kind)
+    file = discord.File(io.BytesIO(image.png), filename=name)
+    return map_card(server, item, locale, image_name=name), file
+
+
 async def send_map_card(
     bot: XCoreDiscordBot,
     interaction: Interaction,
@@ -175,20 +201,7 @@ async def send_map_card(
     ref = MapRef(server, item.get("file_name", ""), item.get("content_hash", ""))
 
     async def picture(kind: MapImageKind) -> tuple[discord.Embed, discord.File] | str:
-        try:
-            image = await images.get(ref, kind)
-        except TimeoutError:
-            return t(locale, "maps-card-render-timeout")
-        except Exception:
-            logger.exception(
-                "Could not draw %s of %s on %s", kind, ref.file_name, server
-            )
-            image = None
-        if image is None:
-            return t(locale, "maps-card-render-failed")
-        name = image.attachment_name(ref, kind)
-        file = discord.File(io.BytesIO(image.png), filename=name)
-        return map_card(server, item, locale, image_name=name), file
+        return await _card_picture(bot, server, item, locale, ref, kind)
 
     thumbnail = await picture(MapImageKind.THUMBNAIL)
     view: MapDetailsView | None = None
@@ -196,12 +209,20 @@ async def send_map_card(
         "allowed_mentions": discord.AllowedMentions.none(),
         "ephemeral": ephemeral,
     }
+    cooldown = bot.container.render_cooldown
+    requester = interaction.user.id
+
+    async def render() -> tuple[discord.Embed, discord.File] | str:
+        # Only a new render costs the wait; one already drawn is shown again at once.
+        if images.cached(ref, MapImageKind.DETAILED) is None:
+            wait = cooldown.remaining(requester)
+            if wait > 0:
+                return t(locale, "maps-card-render-cooldown", seconds=math.ceil(wait))
+            cooldown.start(requester)
+        return await picture(MapImageKind.DETAILED)
+
     if images.supports(MapImageKind.DETAILED):
-        view = MapDetailsView(
-            requester_id=interaction.user.id,
-            render=lambda: picture(MapImageKind.DETAILED),
-            locale=locale,
-        )
+        view = MapDetailsView(requester_id=requester, render=render, locale=locale)
         kwargs["view"] = view
     if isinstance(thumbnail, str):
         kwargs["embed"] = map_card(server, item, locale)

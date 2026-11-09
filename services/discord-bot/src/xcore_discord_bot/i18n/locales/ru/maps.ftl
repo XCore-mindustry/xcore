@@ -109,4 +109,6 @@ maps-card-footer = Сервер: { $server }
 maps-card-render-button = Детальный рендер
 maps-card-render-not-yours = Отрисовать карту может только тот, кто её открыл.
 maps-card-render-timeout = Рендерер не ответил вовремя. Попробуйте позже.
+maps-card-render-busy = Рендерер занят другими картами. Попробуйте через минуту.
+maps-card-render-cooldown = Новый рендер можно запустить через { $seconds } с.
 maps-card-render-failed = Не удалось отрисовать эту карту.

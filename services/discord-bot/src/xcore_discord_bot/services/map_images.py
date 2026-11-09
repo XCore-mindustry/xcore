@@ -119,6 +119,13 @@ class MapImages:
             self._cache.popitem(last=False)
         return image
 
+    def cached(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
+        """The picture if it is in the cache and still fresh; never asks the source."""
+        cached = self._cache.get(self._key(ref, kind))
+        if cached is None or time.monotonic() - cached[0] >= CACHE_TTL_SECONDS:
+            return None
+        return cached[1]
+
     def forget(self, server: str) -> None:
         """Drops the server's pictures cached by name, e.g. after an upload or removal."""
         for key in [k for k in self._cache if k[0] == "name" and k[1] == server]:
@@ -184,3 +191,120 @@ class ServerThumbnails:
             logger.warning("Thumbnail blob %s unavailable", image.key, exc_info=True)
             return None
         return MapImage(png=png, width=image.width or 0, height=image.height or 0)
+
+
+class RendererBusy(RuntimeError):
+    """The map renderer is drawing as many maps as it takes; try again shortly."""
+
+
+class RenderRpc(Protocol):
+    """What :class:`RendererImages` needs from the RPC client."""
+
+    async def map_file(
+        self, *, server: str, file_name: str, timeout_ms: int
+    ) -> Any: ...
+
+    async def render_map(
+        self, *, content_hash: str, file: Any, timeout_ms: int
+    ) -> Any: ...
+
+    async def read_blob(self, ref: Any) -> bytes: ...
+
+
+class RendererImages:
+    """Detailed renders from the map renderer service.
+
+    The game server publishes the map file (``maps.file``), the renderer draws it
+    (``maps.render``) and leaves the PNG in Redis. Either side not answering raises
+    :class:`TimeoutError`; a busy renderer raises :class:`RendererBusy`; anything else
+    that leaves no picture is ``None``.
+    """
+
+    RENDER_TIMEOUT_MS = 60_000
+
+    def __init__(self, rpc: RenderRpc, timeout_ms: int) -> None:
+        self._rpc = rpc
+        self._timeout_ms = timeout_ms
+
+    def supports(self, kind: MapImageKind) -> bool:
+        return kind is MapImageKind.DETAILED
+
+    async def fetch(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
+        if kind is not MapImageKind.DETAILED:
+            return None
+        published = await self._rpc.map_file(
+            server=ref.server, file_name=ref.file_name, timeout_ms=self._timeout_ms
+        )
+        if published.status.value != "ok" or published.file is None:
+            logger.info(
+                "No file of %s on %s: %s", ref.file_name, ref.server, published.status
+            )
+            return None
+        render = await self._rpc.render_map(
+            content_hash=published.contentHash or published.file.sha256,
+            file=published.file,
+            timeout_ms=self.RENDER_TIMEOUT_MS,
+        )
+        if render.status.value == "busy":
+            raise RendererBusy(render.reason or "busy")
+        if render.status.value != "ok" or render.image is None:
+            logger.info(
+                "Render of %s on %s: %s %s",
+                ref.file_name,
+                ref.server,
+                render.status,
+                render.reason or "",
+            )
+            return None
+        try:
+            png = await self._rpc.read_blob(render.image)
+        except Exception:
+            logger.warning(
+                "Render blob %s unavailable", render.image.key, exc_info=True
+            )
+            return None
+        return MapImage(
+            png=png, width=render.image.width or 0, height=render.image.height or 0
+        )
+
+
+class RoutedImages:
+    """One source per kind of picture."""
+
+    def __init__(self, *sources: MapImageSource) -> None:
+        self._sources = sources
+
+    def _for(self, kind: MapImageKind) -> MapImageSource | None:
+        return next((s for s in self._sources if s.supports(kind)), None)
+
+    def supports(self, kind: MapImageKind) -> bool:
+        return self._for(kind) is not None
+
+    async def fetch(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
+        source = self._for(kind)
+        return None if source is None else await source.fetch(ref, kind)
+
+
+class RenderCooldown:
+    """At most one new detailed render per person every :data:`SECONDS`."""
+
+    SECONDS = 30.0
+
+    def __init__(self, clock: Any = time.monotonic) -> None:
+        self._clock = clock
+        self._started: dict[int, float] = {}
+
+    def remaining(self, user_id: int) -> float:
+        started = self._started.get(user_id)
+        if started is None:
+            return 0.0
+        return max(0.0, self.SECONDS - (self._clock() - started))
+
+    def start(self, user_id: int) -> None:
+        now = self._clock()
+        self._started[user_id] = now
+        # Forget people whose wait is long over, so the map stays small.
+        if len(self._started) > 1024:
+            self._started = {
+                u: t for u, t in self._started.items() if now - t < self.SECONDS
+            }

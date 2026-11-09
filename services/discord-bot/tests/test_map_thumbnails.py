@@ -10,10 +10,14 @@ import pytest
 from backends import GameServer, real_bot
 from bot_fakes import make_settings
 from xcore_protocol.generated.maps import (
+    MapsFileRequestV1,
+    MapsFileResponseV1,
     MapsListRequestV1,
     MapsListResponseV1,
     MapsPreviewRequestV1,
     MapsPreviewResponseV1,
+    MapsRenderRequestV1,
+    MapsRenderResponseV1,
 )
 from xcore_protocol.generated.shared import MapBlobRefV1
 
@@ -23,6 +27,9 @@ from xcore_discord_bot.handlers_maps import cmd_map_details, cmd_maps
 from xcore_discord_bot.services.map_images import (
     MapImageKind,
     MapRef,
+    RenderCooldown,
+    RendererBusy,
+    RendererImages,
     ServerThumbnails,
 )
 
@@ -194,3 +201,122 @@ async def test_list_menu_opens_the_card_for_the_person_only() -> None:
     assert card["ephemeral"] is True
     assert card["embed"].title == "Arena"
     assert card["file"].fp.read() == PNG
+
+
+FILE = b"MSAV-bytes" * 100
+FILE_SHA = hashlib.sha256(FILE).hexdigest()
+FILE_REQUEST = MapsFileRequestV1.MESSAGE_TYPE
+RENDER_REQUEST = MapsRenderRequestV1.MESSAGE_TYPE
+
+
+def _file_ref() -> dict[str, Any]:
+    return {
+        "key": f"xcore:blob:{FILE_SHA}",
+        "sha256": FILE_SHA,
+        "sizeBytes": len(FILE),
+        "contentType": "application/octet-stream",
+        "expiresAt": 1_900_000_000_000,
+    }
+
+
+async def _render_bot(
+    render: dict[str, Any] | None,
+) -> tuple[XCoreDiscordBot, GameServer]:
+    """``mini-pvp`` publishes the map file; the renderer answers with ``render``."""
+    bot, game = await _bot(
+        {"status": "ok", "contentHash": FILE_HASH, "image": _image()}
+    )
+    await bot.bus.redis.set(f"xcore:blob:{SHA}", PNG)
+    game.answers[FILE_REQUEST] = lambda payload: {
+        "messageType": MapsFileResponseV1.MESSAGE_TYPE,
+        "messageVersion": 1,
+        "server": payload["server"],
+        "fileName": payload["fileName"],
+        "status": "ok",
+        "contentHash": FILE_SHA,
+        "file": _file_ref(),
+    }
+    renderer = GameServer(bot, name="map-renderer")
+    renderer.answers[RENDER_REQUEST] = lambda payload: (
+        None
+        if render is None
+        else {
+            "messageType": MapsRenderResponseV1.MESSAGE_TYPE,
+            "messageVersion": 1,
+            "contentHash": payload["contentHash"],
+            **render,
+        }
+    )
+    return bot, renderer
+
+
+async def test_detailed_render_goes_through_the_map_file_and_the_renderer() -> None:
+    bot, renderer = await _render_bot(
+        {"status": "ok", "image": _image(), "scale": 8, "renderMs": 420}
+    )
+    source = RendererImages(bot.container.rpc, timeout_ms=50)
+
+    image = await source.fetch(MapRef("mini-pvp", "arena.msav"), MapImageKind.DETAILED)
+
+    assert image is not None and image.png == PNG
+    [request] = renderer.sent(RENDER_REQUEST)
+    assert request["contentHash"] == FILE_SHA
+    assert request["file"]["key"] == f"xcore:blob:{FILE_SHA}"
+    assert not source.supports(MapImageKind.THUMBNAIL)
+
+
+async def test_busy_renderer_is_reported() -> None:
+    bot, _ = await _render_bot({"status": "busy", "reason": "two renders running"})
+    source = RendererImages(bot.container.rpc, timeout_ms=50)
+
+    with pytest.raises(RendererBusy):
+        await source.fetch(MapRef("mini-pvp", "arena.msav"), MapImageKind.DETAILED)
+
+
+@pytest.mark.parametrize(
+    "status", ["invalid_map", "too_large", "download_failed", "failed"]
+)
+async def test_failed_render_has_no_picture(status: str) -> None:
+    bot, _ = await _render_bot({"status": status})
+    source = RendererImages(bot.container.rpc, timeout_ms=50)
+
+    assert (
+        await source.fetch(MapRef("mini-pvp", "arena.msav"), MapImageKind.DETAILED)
+        is None
+    )
+
+
+def test_cooldown_is_thirty_seconds_per_person() -> None:
+    now = [100.0]
+    cooldown = RenderCooldown(clock=lambda: now[0])
+
+    assert cooldown.remaining(1) == 0
+    cooldown.start(1)
+    now[0] += 10
+    assert cooldown.remaining(1) == 20
+    assert cooldown.remaining(2) == 0
+    now[0] += 20
+    assert cooldown.remaining(1) == 0
+
+
+async def test_render_button_waits_between_new_renders_but_not_for_cached_ones() -> (
+    None
+):
+    bot, renderer = await _render_bot(
+        {"status": "ok", "image": _image(), "scale": 8, "renderMs": 420}
+    )
+    first = _Interaction()
+    await cmd_map_details(bot, first, "mini-pvp", "arena.msav")
+    view = first.followup.messages[0]["view"]
+
+    drawn = await view._render()
+    again = await view._render()  # already drawn: no wait, no second render
+    bot.container.map_images.forget("mini-pvp")
+    bot.container.map_images._cache.clear()
+    waited = await view._render()
+
+    assert not isinstance(drawn, str) and not isinstance(again, str)
+    assert len(renderer.sent(RENDER_REQUEST)) == 1
+    assert isinstance(waited, str) and waited.startswith(
+        "You can start a new render in"
+    )

@@ -139,6 +139,7 @@ def test_map_card_shows_details_without_colors() -> None:
 
 async def test_map_details_without_images_sends_card_only() -> None:
     bot = await _bot([ARENA])
+    bot.container.map_images = MapImages()  # no source draws anything
     interaction = _Interaction()
 
     await cmd_map_details(bot, interaction, "mini-pvp", "Arena.msav")

@@ -19,8 +19,10 @@ Standalone Discord bot for XCore transport migration.
     visible only to the person who opened it
   - `/map <server> <map>` → the card of one map: author, size, mode, rating, Discord attribution,
     and its thumbnail (`maps.preview`: the server draws it and leaves the PNG in Redis as a blob).
-    The **Detailed render** button appears once the map renderer is wired in
-    (see [docs/map-images.md](docs/map-images.md))
+    The **Detailed render** button asks the server for the map file (`maps.file`) and the
+    map renderer for a render (`maps.render`, [services/map-renderer](../map-renderer)). Anyone
+    can press it, once every 30 s per person for a new render; one already drawn is shown again
+    at once (see [docs/map-images.md](docs/map-images.md))
   - `/maps remove <server> <map>` → `maps.remove`
   - `/maps review` → starts the review of a post in the maps forum
   - `/maps upload <server> <file1> [file2] [file3] [creator] [creator1] [creator2] [creator3]` → per-file confirmed upload results; individual creators override the shared default

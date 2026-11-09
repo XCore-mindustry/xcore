@@ -7,8 +7,10 @@ from typing import TypeVar
 
 from xcore_protocol.generated.cases import CasesEvidenceResponseV1
 from xcore_protocol.generated.maps import (
+    MapsFileResponseV1,
     MapsInspectResponseV1,
     MapsPreviewResponseV1,
+    MapsRenderResponseV1,
     MapsUploadResponseV1,
 )
 from xcore_protocol.generated.rating import (
@@ -325,6 +327,23 @@ class MindustryRpcClient:
                 max_side=max_side,
                 timeout_ms=timeout_ms,
             )
+        )
+
+    async def map_file(
+        self, *, server: str, file_name: str, timeout_ms: int
+    ) -> MapsFileResponseV1:
+        return await retry_read_rpc(
+            lambda: self._maps.rpc_maps_file(
+                server=server, file_name=file_name, timeout_ms=timeout_ms
+            )
+        )
+
+    async def render_map(
+        self, *, content_hash: str, file: MapBlobRefV1, timeout_ms: int
+    ) -> MapsRenderResponseV1:
+        # Not retried: a render that timed out may still be running.
+        return await self._maps.rpc_maps_render(
+            content_hash=content_hash, file=file, timeout_ms=timeout_ms
         )
 
     async def read_blob(self, ref: MapBlobRefV1) -> bytes:

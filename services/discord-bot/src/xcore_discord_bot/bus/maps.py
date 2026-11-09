@@ -8,6 +8,8 @@ from typing import Any, cast
 
 from redis.client import NEVER_DECODE
 from xcore_protocol.generated.maps import (
+    MapsFileRequestV1,
+    MapsFileResponseV1,
     MapsInspectResponseV1,
     MapsListRequestV1,
     MapsListResponseV1,
@@ -15,6 +17,8 @@ from xcore_protocol.generated.maps import (
     MapsPreviewResponseV1,
     MapsRemoveRequestV1,
     MapsRemoveResponseV1,
+    MapsRenderRequestV1,
+    MapsRenderResponseV1,
     MapsUploadRequestV1,
     MapsUploadResponseV1,
 )
@@ -29,6 +33,8 @@ from ..protocol_outbound import (
 from .transport import RedisTransport
 
 MAP_INSPECT_TTL_MS = 60_000
+# The map renderer listens on xcore:rpc:req:map-renderer, as if it were a server of that name.
+RENDERER = "map-renderer"
 # The protocol's ceiling for one blob.
 MAX_BLOB_BYTES = 16 * 1024 * 1024
 
@@ -127,6 +133,40 @@ class MapsBus:
         )
         if response.server != server or response.fileName != file_name:
             raise ValueError("Map preview response does not match the request")
+        return response
+
+    async def rpc_maps_file(
+        self, *, server: str, file_name: str, timeout_ms: int
+    ) -> MapsFileResponseV1:
+        request = MapsFileRequestV1(server=server, fileName=file_name)
+        body = await self._transport.rpc_request(
+            server=server,
+            rpc_type=request.MESSAGE_TYPE,
+            payload=request.to_payload(),
+            timeout_ms=timeout_ms,
+        )
+        response = MapsFileResponseV1.from_payload(
+            json.loads(body.get("payload_json", "{}"))
+        )
+        if response.server != server or response.fileName != file_name:
+            raise ValueError("Map file response does not match the request")
+        return response
+
+    async def rpc_maps_render(
+        self, *, content_hash: str, file: MapBlobRefV1, timeout_ms: int
+    ) -> MapsRenderResponseV1:
+        request = MapsRenderRequestV1(contentHash=content_hash, file=file)
+        body = await self._transport.rpc_request(
+            server=RENDERER,
+            rpc_type=request.MESSAGE_TYPE,
+            payload=request.to_payload(),
+            timeout_ms=timeout_ms,
+        )
+        response = MapsRenderResponseV1.from_payload(
+            json.loads(body.get("payload_json", "{}"))
+        )
+        if response.contentHash != content_hash:
+            raise ValueError("Map render response does not match the request")
         return response
 
     async def read_blob(self, ref: MapBlobRefV1) -> bytes:
