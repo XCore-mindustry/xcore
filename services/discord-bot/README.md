@@ -15,9 +15,11 @@ Standalone Discord bot for XCore transport migration.
 - Game chat → Discord bridge:
   - consumes `xcore:evt:chat:message` via consumer group
 - Slash commands over streams:
-  - `/maps list <server> [creator]` → `maps.list`
-  - `/map <server> <map>` → the card of one map: author, size, mode, rating, Discord attribution;
-    the thumbnail and the **Detailed render** button appear once a `MapImageSource` can draw them
+  - `/maps list <server> [creator]` → `maps.list`; a menu under each page opens a map's card,
+    visible only to the person who opened it
+  - `/map <server> <map>` → the card of one map: author, size, mode, rating, Discord attribution,
+    and its thumbnail (`maps.preview`: the server draws it and leaves the PNG in Redis as a blob).
+    The **Detailed render** button appears once the map renderer is wired in
     (see [docs/map-images.md](docs/map-images.md))
   - `/maps remove <server> <map>` → `maps.remove`
   - `/maps review` → starts the review of a post in the maps forum

@@ -1,8 +1,8 @@
 # Map images: thumbnails in `/maps`, detailed renders in `/map`
 
-Status: **phase 1 merged; phase 3 prototyped and measured.** The bot has the commands,
-the card and the seam for images. `services/map-renderer` draws detailed renders but is
-not wired to the bot yet.
+Status: **phases 1 and 2 done; phase 3 prototyped and measured.** `/map` shows the
+server's thumbnail and `/maps list` opens map cards. `services/map-renderer` draws
+detailed renders but does not answer `maps.render` yet.
 
 ## What the player sees
 
@@ -245,10 +245,12 @@ compiler's native memory. `native-image` draws byte-identical images about 20 % 
 
 1. **Done here.** `/maps` group, `/map <server> <map>` card, `MapImages` seam with
    `NoMapImages`, tests.
-2. **Thumbnails.** Protocol 0.18 (`MapBlobRefV1`, `contentHash`, `maps.preview`).
-   Plugin handler around `MapPreviewService`'s existing PNG path plus integer upscale.
-   `ServerThumbnails` in the bot. A select menu on `/maps list` pages that opens a
-   map's card.
+2. **Thumbnails (done).** Protocol 0.18 (`MapBlobRefV1`, `contentHash`, `maps.preview`,
+   `maps.file`, `maps.render`). The plugin's `MapImageService` draws the preview with
+   `DetachedMapPreview`, scales it by a whole number and publishes it with `MapBlobStore`;
+   it also publishes map files for the renderer. The bot's `ServerThumbnails` reads the
+   blob (`NEVER_DECODE`, size and SHA-256 checked). A menu on `/maps list` pages opens a
+   map's card, ephemeral.
 3. **Detailed renders.**
    a. **done in the prototype:** `exportContent` (content table + sprite pack);
    b. **done:** the measured prototype and the language decision (Java);

@@ -33,7 +33,7 @@ from .rating_store import RatingStore
 from .registry import LiveServerRegistry
 from .rpc.mindustry_rpc import MindustryRpcClient
 from .services.map_catalog import MapCatalog
-from .services.map_images import MapImages
+from .services.map_images import MapImages, ServerThumbnails
 from .services.player_service import PlayerService
 from .services.rating_service import RatingService
 from .settings import Settings
@@ -59,7 +59,7 @@ class ServiceContainer:
     # The live game servers, as their heartbeats report them.
     servers: LiveServerRegistry
     map_catalog: MapCatalog
-    # Thumbnails and detailed renders of maps; none are drawn yet (docs/map-images.md).
+    # Thumbnails from the game servers; detailed renders come later (docs/map-images.md).
     map_images: MapImages
     players: PlayerService
     punishments: PunishmentStore
@@ -146,7 +146,7 @@ class ServiceContainer:
             rpc=rpc,
             servers=servers,
             map_catalog=MapCatalog(rpc),
-            map_images=MapImages(),
+            map_images=MapImages(ServerThumbnails(rpc, settings.rpc_timeout_ms)),
             players=players,
             punishments=punishments,
             audit=audit,

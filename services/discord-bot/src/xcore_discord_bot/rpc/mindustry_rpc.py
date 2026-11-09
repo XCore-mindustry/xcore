@@ -6,7 +6,11 @@ from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
 from xcore_protocol.generated.cases import CasesEvidenceResponseV1
-from xcore_protocol.generated.maps import MapsInspectResponseV1, MapsUploadResponseV1
+from xcore_protocol.generated.maps import (
+    MapsInspectResponseV1,
+    MapsPreviewResponseV1,
+    MapsUploadResponseV1,
+)
 from xcore_protocol.generated.rating import (
     RatingAccountsMergeResponseV1,
     RatingPrizeGrantUpdateResponseV1,
@@ -25,7 +29,7 @@ from xcore_protocol.generated.sentinel import (
     SentinelSubnetRulesListResponseV1,
     SentinelSubnetRulesResponseV1,
 )
-from xcore_protocol.generated.shared import SeasonPrizeV1
+from xcore_protocol.generated.shared import MapBlobRefV1, SeasonPrizeV1
 
 from ..bus.cases import CasesBus
 from ..bus.maps import MapsBus
@@ -310,6 +314,21 @@ class MindustryRpcClient:
         return await retry_read_rpc(
             lambda: self._maps.rpc_maps_list(server=server, timeout_ms=timeout_ms)
         )
+
+    async def preview_map(
+        self, *, server: str, file_name: str, max_side: int | None, timeout_ms: int
+    ) -> MapsPreviewResponseV1:
+        return await retry_read_rpc(
+            lambda: self._maps.rpc_maps_preview(
+                server=server,
+                file_name=file_name,
+                max_side=max_side,
+                timeout_ms=timeout_ms,
+            )
+        )
+
+    async def read_blob(self, ref: MapBlobRefV1) -> bytes:
+        return await self._maps.read_blob(ref)
 
     async def remove_map(self, *, server: str, file_name: str, timeout_ms: int) -> str:
         return await self._maps.rpc_remove_map(

@@ -13,7 +13,7 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -129,3 +129,58 @@ class MapImages:
         if ref.content_hash:
             return ("hash", ref.content_hash, kind.value)
         return ("name", ref.server, ref.file_name, kind.value)
+
+
+class ThumbnailRpc(Protocol):
+    """What :class:`ServerThumbnails` needs from the RPC client."""
+
+    async def preview_map(
+        self, *, server: str, file_name: str, max_side: int | None, timeout_ms: int
+    ) -> Any: ...
+
+    async def read_blob(self, ref: Any) -> bytes: ...
+
+
+class ServerThumbnails:
+    """Thumbnails from the game server that has the map (``maps.preview``).
+
+    The server draws one pixel per tile, scaled to :data:`THUMBNAIL_SIDE`, and leaves the PNG
+    in Redis; this reads and checks it. A server that does not answer raises
+    :class:`TimeoutError`; a map it does not have, a failed draw or a missing blob is ``None``.
+    """
+
+    THUMBNAIL_SIDE = 512
+
+    def __init__(self, rpc: ThumbnailRpc, timeout_ms: int) -> None:
+        self._rpc = rpc
+        self._timeout_ms = timeout_ms
+
+    def supports(self, kind: MapImageKind) -> bool:
+        return kind is MapImageKind.THUMBNAIL
+
+    async def fetch(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
+        if kind is not MapImageKind.THUMBNAIL:
+            return None
+        try:
+            response = await self._rpc.preview_map(
+                server=ref.server,
+                file_name=ref.file_name,
+                max_side=self.THUMBNAIL_SIDE,
+                timeout_ms=self._timeout_ms,
+            )
+        except TimeoutError:
+            raise
+        except Exception:
+            logger.warning(
+                "Thumbnail of %s on %s failed", ref.file_name, ref.server, exc_info=True
+            )
+            return None
+        if response.status.value != "ok" or response.image is None:
+            return None
+        image = response.image
+        try:
+            png = await self._rpc.read_blob(image)
+        except Exception:
+            logger.warning("Thumbnail blob %s unavailable", image.key, exc_info=True)
+            return None
+        return MapImage(png=png, width=image.width or 0, height=image.height or 0)

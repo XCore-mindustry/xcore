@@ -1,19 +1,24 @@
-"""Maps: listing, uploading, removing and inspecting maps on a server."""
+"""Maps: listing, uploading, removing and inspecting maps on a server, and their pictures."""
 
 from __future__ import annotations
 
+import hashlib
 import json
+from typing import Any, cast
 
+from redis.client import NEVER_DECODE
 from xcore_protocol.generated.maps import (
     MapsInspectResponseV1,
     MapsListRequestV1,
     MapsListResponseV1,
+    MapsPreviewRequestV1,
+    MapsPreviewResponseV1,
     MapsRemoveRequestV1,
     MapsRemoveResponseV1,
     MapsUploadRequestV1,
     MapsUploadResponseV1,
 )
-from xcore_protocol.generated.shared import MapEntryV1
+from xcore_protocol.generated.shared import MapBlobRefV1, MapEntryV1
 
 from ..protocol_outbound import (
     build_maps_inspect_request,
@@ -24,6 +29,12 @@ from ..protocol_outbound import (
 from .transport import RedisTransport
 
 MAP_INSPECT_TTL_MS = 60_000
+# The protocol's ceiling for one blob.
+MAX_BLOB_BYTES = 16 * 1024 * 1024
+
+
+class BlobUnavailable(RuntimeError):
+    """A referenced blob expired, never arrived, or does not match its reference."""
 
 
 class MapsBus:
@@ -98,6 +109,39 @@ class MapsBus:
         if response.server != server:
             raise ValueError("Map inspection response does not match request server")
         return response
+
+    async def rpc_maps_preview(
+        self, *, server: str, file_name: str, max_side: int | None, timeout_ms: int
+    ) -> MapsPreviewResponseV1:
+        request = MapsPreviewRequestV1(
+            server=server, fileName=file_name, maxSide=max_side
+        )
+        body = await self._transport.rpc_request(
+            server=server,
+            rpc_type=request.MESSAGE_TYPE,
+            payload=request.to_payload(),
+            timeout_ms=timeout_ms,
+        )
+        response = MapsPreviewResponseV1.from_payload(
+            json.loads(body.get("payload_json", "{}"))
+        )
+        if response.server != server or response.fileName != file_name:
+            raise ValueError("Map preview response does not match the request")
+        return response
+
+    async def read_blob(self, ref: MapBlobRefV1) -> bytes:
+        """The bytes a reference points at, checked against its size and SHA-256."""
+        if not 0 < ref.sizeBytes <= MAX_BLOB_BYTES:
+            raise BlobUnavailable(f"blob size {ref.sizeBytes} out of range")
+        # The bus decodes replies as text; a blob is binary.
+        data = await cast(Any, self._transport.redis).execute_command(
+            "GET", ref.key, **{NEVER_DECODE: True}
+        )
+        if data is None:
+            raise BlobUnavailable(f"blob {ref.key} is gone")
+        if len(data) != ref.sizeBytes or hashlib.sha256(data).hexdigest() != ref.sha256:
+            raise BlobUnavailable(f"blob {ref.key} does not match its reference")
+        return bytes(data)
 
     @staticmethod
     def _normalize_map_entry_v1(entry: MapEntryV1) -> dict[str, str]:

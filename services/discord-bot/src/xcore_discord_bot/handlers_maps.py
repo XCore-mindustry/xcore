@@ -11,9 +11,9 @@ from discord import Interaction
 from .command_helpers import claim_mutation, reply_locale
 from .i18n import t
 from .map_card import find_map, map_card
-from .map_list import map_list_pages, map_text
+from .map_list import map_list_page_items, map_list_pages, map_text
 from .moderation_views import MapRemoveConfirmView
-from .server_views import MapDetailsView, MapsListView
+from .server_views import MapDetailsView, MapOption, MapsListView
 from .services.map_images import MapImageKind, MapRef
 from .staff_actions import (
     Actor,
@@ -24,6 +24,7 @@ from .staff_actions import (
     perform_map_upload,
     prepare_map_upload,
 )
+from .utils.mindustry_colors import strip_mindustry_colors
 
 if TYPE_CHECKING:
     from .bot import XCoreDiscordBot
@@ -64,9 +65,15 @@ async def cmd_maps(
 
     default_sort_mode = "reputation"
 
-    async def fetch_page(page: int, sort_mode: str) -> tuple[discord.Embed, bool]:
+    async def fetch_page(
+        page: int, sort_mode: str
+    ) -> tuple[discord.Embed, bool, list[MapOption]]:
         pages = map_list_pages(maps, sort_mode, locale)
         chunk = pages[page]
+        options = [
+            map_option(maps.index(item), item, locale)
+            for item in map_list_page_items(maps, sort_mode, locale)[page]
+        ]
         embed = discord.Embed(
             title=t(locale, "maps-list-title", server=server),
             description="\n".join(chunk),
@@ -84,9 +91,22 @@ async def cmd_maps(
         if any(item.get("uploaded_by_discord_id") for item in maps):
             footer += " • " + t(locale, "maps-list-legend")
         embed.set_footer(text=footer)
-        return embed, page + 1 < len(pages)
+        return embed, page + 1 < len(pages), options
 
-    first_embed, has_next = await fetch_page(0, default_sort_mode)
+    async def open_map(opened: Interaction, value: str) -> None:
+        opener_locale = reply_locale(bot, opened)
+        await opened.response.defer(ephemeral=True, thinking=True)
+        index = int(value) if value.isdigit() else -1
+        if not 0 <= index < len(maps):
+            await opened.followup.send(
+                t(opener_locale, "maps-list-open-gone"), ephemeral=True
+            )
+            return
+        await send_map_card(
+            bot, opened, server, maps[index], opener_locale, ephemeral=True
+        )
+
+    first_embed, has_next, first_options = await fetch_page(0, default_sort_mode)
     view = MapsListView(
         page=0,
         has_prev=False,
@@ -94,6 +114,8 @@ async def cmd_maps(
         sort_mode=default_sort_mode,
         fetch_page=fetch_page,
         locale=locale,
+        options=first_options,
+        open_map=open_map,
     )
     sent = await interaction.followup.send(embed=first_embed, view=view)
     view.bot_message = sent
@@ -128,8 +150,29 @@ async def cmd_map_details(
         )
         return
 
+    await send_map_card(bot, interaction, server, item, locale)
+
+
+def map_option(index: int, item: dict[str, str], locale: str) -> MapOption:
+    """The map as an entry of the open menu; the value is its index in the listed maps."""
+    unknown = t(locale, "maps-list-unknown")
+    name = strip_mindustry_colors(item.get("name", "")).strip() or unknown
+    author = strip_mindustry_colors(item.get("author", "")).strip() or unknown
+    return name, str(index), f"{author} • {item.get('file_name', '')}"
+
+
+async def send_map_card(
+    bot: XCoreDiscordBot,
+    interaction: Interaction,
+    server: str,
+    item: dict[str, str],
+    locale: str,
+    *,
+    ephemeral: bool = False,
+) -> None:
+    """Sends the card of a listed map as a follow-up of a deferred interaction."""
     images = bot.container.map_images
-    ref = MapRef(server, item.get("file_name", file_name), item.get("content_hash", ""))
+    ref = MapRef(server, item.get("file_name", ""), item.get("content_hash", ""))
 
     async def picture(kind: MapImageKind) -> tuple[discord.Embed, discord.File] | str:
         try:
@@ -149,7 +192,10 @@ async def cmd_map_details(
 
     thumbnail = await picture(MapImageKind.THUMBNAIL)
     view: MapDetailsView | None = None
-    kwargs: dict[str, Any] = {"allowed_mentions": discord.AllowedMentions.none()}
+    kwargs: dict[str, Any] = {
+        "allowed_mentions": discord.AllowedMentions.none(),
+        "ephemeral": ephemeral,
+    }
     if images.supports(MapImageKind.DETAILED):
         view = MapDetailsView(
             requester_id=interaction.user.id,
