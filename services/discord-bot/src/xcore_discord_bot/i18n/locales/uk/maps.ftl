@@ -107,7 +107,6 @@ maps-card-discord = Додана через Discord
 maps-card-file = Файл
 maps-card-footer = Сервер: { $server }
 maps-card-render-button = Детальний рендер
-maps-card-render-not-yours = Відмалювати мапу може лише той, хто її відкрив.
 maps-card-render-timeout = Рендерер не відповів вчасно. Спробуйте пізніше.
 maps-card-render-busy = Рендерер зайнятий іншими мапами. Спробуйте за хвилину.
 maps-card-render-cooldown = Новий рендер можна запустити через { $seconds } с.

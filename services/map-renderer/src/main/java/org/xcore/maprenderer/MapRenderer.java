@@ -59,7 +59,7 @@ public final class MapRenderer {
         int width = map.metadata().width(), height = map.metadata().height();
         int longest = Math.max(width, height);
         for (int scale : SCALES) {
-            if ((long) longest * scale > maxSide && scale != SCALES[SCALES.length - 1]) continue;
+            if ((long) longest * scale > maxSide) continue;
             try {
                 Drawn drawn = draw(map, sprites(scale), maxBytes);
                 return new Result(drawn.png(), width * scale, height * scale, scale, width, height,
@@ -68,7 +68,7 @@ public final class MapRenderer {
                 // Try the next smaller scale.
             }
         }
-        throw new TooLarge("Map does not fit in " + maxBytes + " bytes at any scale");
+        throw new TooLarge("Map does not fit in " + maxSide + " px and " + maxBytes + " bytes at any scale");
     }
 
     private SpritePack sprites(int scale) throws IOException {

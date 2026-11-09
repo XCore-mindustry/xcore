@@ -10,7 +10,7 @@ the bus's RPC envelope, as a consumer group:
 
 1. read the map file blob the request points at (`MapBlobRefV1`) and check its size and SHA-256;
 2. take the render from the disk cache, keyed by map hash, `maxSide`, `maxBytes` and renderer
-   version (`RENDERER_REVISION` plus a hash of `content.json`), or draw it;
+   version (`RENDERER_REVISION` plus a hash of `content.json` and `sprites.pack`), or draw it;
 3. publish the PNG as a blob (`xcore:blob:{sha256}`, 15 minutes) and answer with its reference,
    the scale and the render time.
 

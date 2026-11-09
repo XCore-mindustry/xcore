@@ -2,9 +2,10 @@
 
 Status: **phases 1–3 built, not yet deployed.** `/map` shows the server's thumbnail,
 `/maps list` opens map cards, and the **Detailed render** button goes through
-`maps.file` and the map renderer service. Anyone may press it, at most once every 30 s
-per person for a new render (`RenderCooldown`); a render already in the bot's cache is
-shown again without waiting.
+`maps.file` and the map renderer service. Anyone who sees the card may press it, at most
+once every 30 s per presser for a new render (`RenderCooldown`); a render already in the
+bot's cache is shown again without waiting, and a render that comes back `busy` or failed
+gives the wait back (a timed-out one keeps it: the renderer may still be drawing).
 
 ## What the player sees
 
@@ -110,7 +111,8 @@ costs one round trip.
 
 - `services/map_images.py`: `MapImageKind` (`thumbnail`, `detailed`), `MapRef`
   (server, file, optional content hash), `MapImage` (PNG + size), the
-  `MapImageSource` protocol and `MapImages`, an LRU of 64 pictures for 15 minutes. It
+  `MapImageSource` protocol and `MapImages`, an LRU of at most 64 pictures and 64 MB for
+  15 minutes. It
   is keyed by content hash when known, otherwise by server and file name, and dropped
   when a map is uploaded or removed. `NoMapImages` is the source until phase 2.
 - `map_card.py`: the embed of one map. `handlers_maps.cmd_map_details` lists the
@@ -212,8 +214,8 @@ steps down to 4 px for it.
   generated `xcore-protocol-java` models.
 - Two renders at a time (a semaphore); a third request waits up to its TTL, then gets
   `busy`. Results are cached on disk by `(contentHash, rendererVersion, maxSide)`, with
-  an LRU of 1 GB. `rendererVersion` combines the service version and the content table
-  hash.
+  an LRU of 1 GB. `rendererVersion` combines the service version and the hash of the
+  render data (`content.json` and `sprites.pack`).
 - Health: a `/ready` HTTP probe like the gateway's; render count, time and peak RSS for
   Prometheus.
 - Deploy: `ops/deploy map-renderer` and `ops/systemd/xcore-map-renderer.service`, with

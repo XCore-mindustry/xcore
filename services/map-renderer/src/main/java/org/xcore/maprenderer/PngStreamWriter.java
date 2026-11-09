@@ -20,6 +20,7 @@ public final class PngStreamWriter implements AutoCloseable {
     private final DeflaterOutputStream idat;
     private final byte[] row;
     private int rowsLeft;
+    private boolean closed;
 
     public PngStreamWriter(OutputStream out, int width, int height, int level) throws IOException {
         this.out = out;
@@ -57,6 +58,9 @@ public final class PngStreamWriter implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
+        // Closing twice (explicitly, then by try-with-resources) must not write a second IEND.
+        if (closed) return;
+        closed = true;
         try {
             if (rowsLeft != 0) throw new IllegalStateException(rowsLeft + " rows missing");
             idat.finish();

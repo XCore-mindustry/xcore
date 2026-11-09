@@ -74,7 +74,7 @@ public final class RenderServer implements AutoCloseable {
         this.config = config;
         var content = RenderContent.load(config.data().resolve("content.json"));
         var renderer = new MapRenderer(content, config.data().resolve("sprites.pack"), 16 * 1024 * 1024, 1_000_000);
-        String version = RENDERER_REVISION + "-" + RenderHandler.sha256(Files.readAllBytes(config.data().resolve("content.json"))).substring(0, 12);
+        String version = RENDERER_REVISION + "-" + dataHash(config.data()).substring(0, 12);
         handler = new RenderHandler(renderer, new RenderCache(config.cache(), config.cacheBytes()), new RedisBlobs(),
                 version, metrics, Clock.systemUTC());
         workers = new ThreadPoolExecutor(config.concurrency(), config.concurrency(), 1, TimeUnit.MINUTES,
@@ -286,5 +286,21 @@ public final class RenderServer implements AutoCloseable {
 
     private static void log(String line) {
         System.out.println(line);
+    }
+
+    /** Names the render data: new content or new sprites must not reuse renders cached on disk. */
+    static String dataHash(java.nio.file.Path data) throws IOException {
+        try {
+            var digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[64 * 1024];
+            for (String name : new String[]{"content.json", "sprites.pack"}) {
+                try (var in = Files.newInputStream(data.resolve(name))) {
+                    for (int read; (read = in.read(buffer)) > 0; ) digest.update(buffer, 0, read);
+                }
+            }
+            return java.util.HexFormat.of().formatHex(digest.digest());
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
     }
 }

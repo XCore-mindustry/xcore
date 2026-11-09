@@ -42,6 +42,8 @@ import java.util.function.Supplier;
 @Singleton
 public class MapImageService {
     public static final int DEFAULT_PREVIEW_SIDE = 512;
+    static final int MIN_PREVIEW_SIDE = 64;
+    static final int MAX_PREVIEW_SIDE = 4096;
     private static final int CACHE_ENTRIES = 32;
     private static final Duration REUSE_MARGIN = Duration.ofMinutes(2);
 
@@ -68,16 +70,35 @@ public class MapImageService {
         this.secrets = secrets;
     }
 
-    private record Found(Fi file, DetachedMapPreview colours) {}
+    /** The map to draw, or {@code cached} when the catalog's hash already names a fresh preview. */
+    private record Found(Fi file, DetachedMapPreview colours, String hash, MapBlobRefV1 cached) {}
 
     public CompletionStage<MapsPreviewResponseV1> preview(MapsPreviewRequestV1 request) {
-        int side = request.maxSide() == null ? DEFAULT_PREVIEW_SIDE : request.maxSide();
+        // The generated model checks only the minimum; the schema's maximum bounds the Pixmap.
+        int side = request.maxSide() == null ? DEFAULT_PREVIEW_SIDE
+                : Math.clamp(request.maxSide(), MIN_PREVIEW_SIDE, MAX_PREVIEW_SIDE);
         return onMain(() -> {
             Map map = maps.findMapByFileName(request.fileName());
-            return map == null || map.file == null ? null : new Found(map.file, DetachedMapPreview.capture());
+            if (map == null || map.file == null) return null;
+            // A preview drawn for the bytes the catalog hashed is answered without capturing
+            // colours on the game thread or reading and hashing the file again.
+            String hash = maps.contentHashFor(map);
+            MapBlobRefV1 cached = hash == null ? null : cachedPreview(hash, side);
+            return cached != null ? new Found(map.file, null, hash, cached)
+                    : new Found(map.file, DetachedMapPreview.capture(), null, null);
         }).thenCompose(found -> found == null
                 ? CompletableFuture.completedFuture(preview(request, MapsPreviewResponseV1Status.NOT_FOUND, null, null))
+                : found.cached() != null
+                ? CompletableFuture.completedFuture(preview(request, MapsPreviewResponseV1Status.OK, found.hash(), found.cached()))
                 : async.supply(() -> drawPreview(request, found, side)).future());
+    }
+
+    private MapBlobRefV1 cachedPreview(String hash, int side) {
+        MapBlobRefV1 cached;
+        synchronized (previews) {
+            cached = previews.get(hash + ":" + side);
+        }
+        return cached != null && blobs.fresh(REUSE_MARGIN).test(cached) ? cached : null;
     }
 
     public CompletionStage<MapsFileResponseV1> file(MapsFileRequestV1 request) {
@@ -94,13 +115,8 @@ public class MapImageService {
             byte[] bytes = found.file().readBytes();
             String hash = MapBlobStore.sha256(bytes);
             String key = hash + ":" + side;
-            MapBlobRefV1 cached;
-            synchronized (previews) {
-                cached = previews.get(key);
-            }
-            if (cached != null && blobs.fresh(REUSE_MARGIN).test(cached)) {
-                return preview(request, MapsPreviewResponseV1Status.OK, hash, cached);
-            }
+            MapBlobRefV1 cached = cachedPreview(hash, side);
+            if (cached != null) return preview(request, MapsPreviewResponseV1Status.OK, hash, cached);
             Pixmap tiles = null, scaled = null;
             byte[] png;
             int width, height;

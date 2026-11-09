@@ -90,8 +90,12 @@ class RenderServerTest {
     }
 
     private String request(byte[] map, String sha) throws IOException {
+        return request(map, sha, sha);
+    }
+
+    private String request(byte[] map, String contentHash, String sha) throws IOException {
         String correlation = UUID.randomUUID().toString();
-        String payload = "{\"messageType\":\"maps.render.request\",\"messageVersion\":1,\"contentHash\":\"" + sha
+        String payload = "{\"messageType\":\"maps.render.request\",\"messageVersion\":1,\"contentHash\":\"" + contentHash
                 + "\",\"file\":{\"key\":\"xcore:blob:" + sha + "\",\"sha256\":\"" + sha + "\",\"sizeBytes\":" + map.length
                 + ",\"contentType\":\"application/octet-stream\",\"expiresAt\":" + (System.currentTimeMillis() + 60_000)
                 + "},\"maxSide\":1024}";
@@ -149,6 +153,19 @@ class RenderServerTest {
         var payload = new JsonReader().parse(response(request(map, RenderHandler.sha256(map))).get("payload_json"));
 
         assertEquals("download_failed", payload.getString("status"));
+        assertTrue(!payload.has("image"));
+    }
+
+    @Test
+    void aContentHashThatIsNotADigestIsRefused() throws Exception {
+        byte[] map = bundled("groundZero");
+        String sha = RenderHandler.sha256(map);
+        client.command("SET", "xcore:blob:" + sha, map, "EX", 60);
+
+        // The hash names files in the disk cache, so it must never be a path.
+        var payload = new JsonReader().parse(response(request(map, "../../etc/passwd", sha)).get("payload_json"));
+
+        assertEquals("failed", payload.getString("status"));
         assertTrue(!payload.has("image"));
     }
 

@@ -25,7 +25,11 @@ final class RenderHandler {
     static final int DEFAULT_MAX_SIDE = 4096;
     static final int DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
     static final Duration BLOB_TTL = Duration.ofMinutes(15);
+    static final int MIN_MAX_SIDE = 256;
+    static final int MIN_MAX_BYTES = 64 * 1024;
+    static final int MAX_MAX_BYTES = 16 * 1024 * 1024;
     private static final String BLOB_PREFIX = "xcore:blob:";
+    private static final java.util.regex.Pattern SHA256 = java.util.regex.Pattern.compile("[0-9a-f]{64}");
 
     /** The two blob operations the handler needs. */
     interface Blobs {
@@ -69,9 +73,16 @@ final class RenderHandler {
 
     MapsRenderResponseV1 handle(MapsRenderRequestV1 request) {
         long started = System.nanoTime();
-        int maxSide = request.maxSide() == null ? DEFAULT_MAX_SIDE : Math.min(request.maxSide(), DEFAULT_MAX_SIDE);
-        int maxBytes = request.maxBytes() == null ? DEFAULT_MAX_BYTES : request.maxBytes();
+        // The generated model checks only the lower bounds; the schema's upper bounds and the hash
+        // pattern are enforced here, since the hash also names files in the disk cache.
+        int maxSide = request.maxSide() == null ? DEFAULT_MAX_SIDE
+                : Math.clamp(request.maxSide(), MIN_MAX_SIDE, DEFAULT_MAX_SIDE);
+        int maxBytes = request.maxBytes() == null ? DEFAULT_MAX_BYTES
+                : Math.clamp(request.maxBytes(), MIN_MAX_BYTES, MAX_MAX_BYTES);
         String hash = request.contentHash();
+        if (hash == null || !SHA256.matcher(hash).matches()) {
+            return failed(hash, MapsRenderResponseV1Status.FAILED, "contentHash is not a SHA-256 hex digest");
+        }
         String key = RenderCache.key(hash, maxSide, maxBytes, version);
         try {
             var cached = cache.get(key);

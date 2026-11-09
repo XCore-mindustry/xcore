@@ -309,14 +309,66 @@ async def test_render_button_waits_between_new_renders_but_not_for_cached_ones()
     await cmd_map_details(bot, first, "mini-pvp", "arena.msav")
     view = first.followup.messages[0]["view"]
 
-    drawn = await view._render()
-    again = await view._render()  # already drawn: no wait, no second render
-    bot.container.map_images.forget("mini-pvp")
-    bot.container.map_images._cache.clear()
-    waited = await view._render()
+    drawn = await view._render(7)
+    again = await view._render(7)  # already drawn: no wait, no second render
+    bot.container.map_images.clear()
+    waited = await view._render(7)
+    other = await view._render(8)  # anyone may press; the wait is per presser
 
     assert not isinstance(drawn, str) and not isinstance(again, str)
-    assert len(renderer.sent(RENDER_REQUEST)) == 1
+    assert not isinstance(other, str)
+    assert len(renderer.sent(RENDER_REQUEST)) == 2
     assert isinstance(waited, str) and waited.startswith(
         "You can start a new render in"
     )
+
+
+@pytest.mark.parametrize("render", [{"status": "busy"}, {"status": "failed"}])
+async def test_render_that_draws_nothing_costs_no_wait(render: dict[str, Any]) -> None:
+    bot, renderer = await _render_bot(render)
+    card = _Interaction()
+    await cmd_map_details(bot, card, "mini-pvp", "arena.msav")
+    view = card.followup.messages[0]["view"]
+
+    first = await view._render(7)
+    second = await view._render(7)
+
+    assert isinstance(first, str) and isinstance(second, str)
+    assert not second.startswith("You can start a new render in")
+    assert len(renderer.sent(RENDER_REQUEST)) == 2
+
+
+async def test_timed_out_render_keeps_the_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(RendererImages, "RENDER_TIMEOUT_MS", 50)
+    bot, _ = await _render_bot(None)
+    card = _Interaction()
+    await cmd_map_details(bot, card, "mini-pvp", "arena.msav")
+    view = card.followup.messages[0]["view"]
+
+    await view._render(7)
+    waited = await view._render(7)
+
+    assert isinstance(waited, str) and waited.startswith(
+        "You can start a new render in"
+    )
+
+
+async def test_cache_is_bounded_by_bytes() -> None:
+    from xcore_discord_bot.services import map_images
+
+    class _Source:
+        def supports(self, kind: MapImageKind) -> bool:
+            return True
+
+        async def fetch(self, ref: MapRef, kind: MapImageKind) -> Any:
+            return map_images.MapImage(png=b"x" * 4 * 1024 * 1024, width=1, height=1)
+
+    images = map_images.MapImages(_Source())
+    for index in range(20):
+        await images.get(MapRef("s", f"{index}.msav"), MapImageKind.DETAILED)
+
+    assert images._bytes <= map_images.CACHE_BYTES
+    assert images.cached(MapRef("s", "19.msav"), MapImageKind.DETAILED) is not None
+    assert images.cached(MapRef("s", "0.msav"), MapImageKind.DETAILED) is None

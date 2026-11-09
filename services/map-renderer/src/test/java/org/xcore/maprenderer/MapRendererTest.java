@@ -63,6 +63,32 @@ class MapRendererTest {
     }
 
     @Test
+    void aMaxSideBelowTheSmallestScaleIsTooLarge() throws IOException {
+        byte[] map = bundled("groundZero");
+        // 256 tiles at the smallest scale (4) is 1024 px, over the requested 512.
+        assertThrows(MapRenderer.TooLarge.class,
+                () -> renderer.render(new ByteArrayInputStream(map), map.length, 512, 8 * 1024 * 1024));
+    }
+
+    @Test
+    void aRenderEndsWithExactlyOneIend() throws IOException {
+        byte[] map = bundled("groundZero");
+        byte[] png = renderer.render(new ByteArrayInputStream(map), map.length, 1024, 8 * 1024 * 1024).png();
+
+        // ImageIO stops at the first IEND, so check the chunk layout itself.
+        int iends = 0;
+        for (int at = 8; at + 8 <= png.length; ) {
+            int length = java.nio.ByteBuffer.wrap(png, at, 4).getInt();
+            if (new String(png, at + 4, 4, java.nio.charset.StandardCharsets.US_ASCII).equals("IEND")) iends++;
+            at += 12 + length;
+            if (at == png.length) break;
+            assertTrue(at < png.length, "chunk runs past the end");
+        }
+        assertEquals(1, iends);
+        assertEquals("IEND", new String(png, png.length - 8, 4, java.nio.charset.StandardCharsets.US_ASCII));
+    }
+
+    @Test
     void aByteLimitMakesTheRendererStepDown() throws IOException {
         byte[] map = bundled("groundZero");
         var full = renderer.render(new ByteArrayInputStream(map), map.length, 4096, 8 * 1024 * 1024);

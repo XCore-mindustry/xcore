@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -102,6 +103,30 @@ class MapImageServiceTest {
 
         assertThat(second.image()).isEqualTo(first.image());
         assertThat(writes).hasValue(1);
+    }
+
+    @Test
+    void aPreviewForTheCatalogHashIsAnsweredWithoutReadingTheFile() throws Exception {
+        String hash = MapBlobStore.sha256(Files.readAllBytes(file));
+        when(maps.contentHashFor(any())).thenReturn(hash);
+        var request = new MapsPreviewRequestV1("survival", "arena.msav", null);
+        var first = service.preview(request).toCompletableFuture().get(10, TimeUnit.SECONDS);
+        Files.delete(file);
+
+        var second = service.preview(request).toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+        assertThat(second.status()).isEqualTo(MapsPreviewResponseV1Status.OK);
+        assertThat(second.image()).isEqualTo(first.image());
+        assertThat(second.contentHash()).isEqualTo(hash);
+    }
+
+    @Test
+    void aMaxSideAboveTheSchemaIsCapped() throws Exception {
+        var response = service.preview(new MapsPreviewRequestV1("survival", "arena.msav", 1_000_000))
+                .toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+        assertThat(response.status()).isEqualTo(MapsPreviewResponseV1Status.OK);
+        assertThat(response.image().width()).isLessThanOrEqualTo(MapImageService.MAX_PREVIEW_SIDE);
     }
 
     @Test

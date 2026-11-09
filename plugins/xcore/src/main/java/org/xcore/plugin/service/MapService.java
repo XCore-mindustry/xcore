@@ -463,13 +463,22 @@ public class MapService {
      * {@code null} before the catalog has hashed it or without a catalog.
      */
     public String contentHashFor(Map map) {
+        return map == null || map.file == null ? null : contentHashes().get(map.file.name());
+    }
+
+    /**
+     * Every hashed map's SHA-256 by file name, from one catalog snapshot, so a whole listing
+     * looks each map up once instead of scanning the catalog per map.
+     */
+    public java.util.Map<String, String> contentHashes() {
         var catalog = identityCatalog;
-        if (map == null || map.file == null || catalog == null) return null;
-        String fileName = map.file.name();
-        for (var entry : catalog.snapshot().entries()) {
-            if (entry.fileName().equals(fileName) && entry.hash() != null) return entry.hash().asHex();
+        if (catalog == null) return java.util.Map.of();
+        var entries = catalog.snapshot().entries();
+        java.util.Map<String, String> hashes = new java.util.HashMap<>(entries.size() * 2);
+        for (var entry : entries) {
+            if (entry.hash() != null) hashes.putIfAbsent(entry.fileName(), entry.hash().asHex());
         }
-        return null;
+        return hashes;
     }
 
     public void announceMapCreator(Map map) {

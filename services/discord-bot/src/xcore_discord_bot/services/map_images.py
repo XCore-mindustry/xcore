@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 # Discord rejects attachments above this size on servers without boosts.
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 CACHE_ENTRIES = 64
+# Detailed renders run to megabytes, so the cache is bounded by size as well as by count.
+CACHE_BYTES = 64 * 1024 * 1024
 CACHE_TTL_SECONDS = 15 * 60
 
 
@@ -88,6 +90,7 @@ class MapImages:
         self._cache: OrderedDict[tuple[str, ...], tuple[float, MapImage]] = (
             OrderedDict()
         )
+        self._bytes = 0
 
     def supports(self, kind: MapImageKind) -> bool:
         return self._source.supports(kind)
@@ -113,11 +116,17 @@ class MapImages:
                 len(image.png),
             )
             return None
+        self._drop(key)
         self._cache[key] = (now, image)
-        self._cache.move_to_end(key)
-        while len(self._cache) > CACHE_ENTRIES:
-            self._cache.popitem(last=False)
+        self._bytes += len(image.png)
+        while len(self._cache) > CACHE_ENTRIES or self._bytes > CACHE_BYTES:
+            self._drop(next(iter(self._cache)))
         return image
+
+    def _drop(self, key: tuple[str, ...]) -> None:
+        entry = self._cache.pop(key, None)
+        if entry is not None:
+            self._bytes -= len(entry[1].png)
 
     def cached(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
         """The picture if it is in the cache and still fresh; never asks the source."""
@@ -126,10 +135,14 @@ class MapImages:
             return None
         return cached[1]
 
+    def clear(self) -> None:
+        self._cache.clear()
+        self._bytes = 0
+
     def forget(self, server: str) -> None:
         """Drops the server's pictures cached by name, e.g. after an upload or removal."""
         for key in [k for k in self._cache if k[0] == "name" and k[1] == server]:
-            del self._cache[key]
+            self._drop(key)
 
     @staticmethod
     def _key(ref: MapRef, kind: MapImageKind) -> tuple[str, ...]:
@@ -299,6 +312,10 @@ class RenderCooldown:
         if started is None:
             return 0.0
         return max(0.0, self.SECONDS - (self._clock() - started))
+
+    def cancel(self, user_id: int) -> None:
+        """Gives back the wait of a render that drew nothing."""
+        self._started.pop(user_id, None)
 
     def start(self, user_id: int) -> None:
         now = self._clock()

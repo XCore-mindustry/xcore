@@ -12,7 +12,7 @@ from discord import Interaction
 from .command_helpers import claim_mutation, reply_locale
 from .i18n import t
 from .map_card import find_map, map_card
-from .map_list import map_list_page_items, map_list_pages, map_text
+from .map_list import map_list_page_items, map_list_row, map_text
 from .moderation_views import MapRemoveConfirmView
 from .server_views import MapDetailsView, MapOption, MapsListView
 from .services.map_images import MapImageKind, MapRef, RendererBusy
@@ -65,16 +65,20 @@ async def cmd_maps(
         return
 
     default_sort_mode = "reputation"
+    # Paging only re-reads these: each sort is laid out once, and the menu's values are
+    # positions in ``maps``, looked up by identity rather than by searching the list.
+    positions = {id(item): index for index, item in enumerate(maps)}
+    layouts: dict[str, list[list[dict[str, str]]]] = {}
 
     async def fetch_page(
         page: int, sort_mode: str
     ) -> tuple[discord.Embed, bool, list[MapOption]]:
-        pages = map_list_pages(maps, sort_mode, locale)
-        chunk = pages[page]
-        options = [
-            map_option(maps.index(item), item, locale)
-            for item in map_list_page_items(maps, sort_mode, locale)[page]
-        ]
+        if sort_mode not in layouts:
+            layouts[sort_mode] = map_list_page_items(maps, sort_mode, locale)
+        pages = layouts[sort_mode]
+        items = pages[page]
+        chunk = [map_list_row(item, locale) for item in items]
+        options = [map_option(positions[id(item)], item, locale) for item in items]
         embed = discord.Embed(
             title=t(locale, "maps-list-title", server=server),
             description="\n".join(chunk),
@@ -170,21 +174,26 @@ async def _card_picture(
     ref: MapRef,
     kind: MapImageKind,
 ) -> tuple[discord.Embed, discord.File] | str:
-    """The card with this picture of the map, or why there is none."""
+    """The card with this picture of the map, or the message key of why there is none."""
     try:
         image = await bot.container.map_images.get(ref, kind)
     except TimeoutError:
-        return t(locale, "maps-card-render-timeout")
+        return RENDER_TIMEOUT
     except RendererBusy:
-        return t(locale, "maps-card-render-busy")
+        return RENDER_BUSY
     except Exception:
         logger.exception("Could not draw %s of %s on %s", kind, ref.file_name, server)
         image = None
     if image is None:
-        return t(locale, "maps-card-render-failed")
+        return RENDER_FAILED
     name = image.attachment_name(ref, kind)
     file = discord.File(io.BytesIO(image.png), filename=name)
     return map_card(server, item, locale, image_name=name), file
+
+
+RENDER_TIMEOUT = "maps-card-render-timeout"
+RENDER_BUSY = "maps-card-render-busy"
+RENDER_FAILED = "maps-card-render-failed"
 
 
 async def send_map_card(
@@ -210,19 +219,26 @@ async def send_map_card(
         "ephemeral": ephemeral,
     }
     cooldown = bot.container.render_cooldown
-    requester = interaction.user.id
 
-    async def render() -> tuple[discord.Embed, discord.File] | str:
+    async def render(presser: int) -> tuple[discord.Embed, discord.File] | str:
         # Only a new render costs the wait; one already drawn is shown again at once.
-        if images.cached(ref, MapImageKind.DETAILED) is None:
-            wait = cooldown.remaining(requester)
-            if wait > 0:
-                return t(locale, "maps-card-render-cooldown", seconds=math.ceil(wait))
-            cooldown.start(requester)
-        return await picture(MapImageKind.DETAILED)
+        if images.cached(ref, MapImageKind.DETAILED) is not None:
+            drawn = await picture(MapImageKind.DETAILED)
+            return t(locale, drawn) if isinstance(drawn, str) else drawn
+        wait = cooldown.remaining(presser)
+        if wait > 0:
+            return t(locale, "maps-card-render-cooldown", seconds=math.ceil(wait))
+        # Started before the render, so pressing again meanwhile waits too.
+        cooldown.start(presser)
+        drawn = await picture(MapImageKind.DETAILED)
+        if drawn in (RENDER_BUSY, RENDER_FAILED):
+            # Nothing was drawn for this person: a busy or failed render costs no wait. A
+            # timed-out one may still be drawing, so it keeps the wait.
+            cooldown.cancel(presser)
+        return t(locale, drawn) if isinstance(drawn, str) else drawn
 
     if images.supports(MapImageKind.DETAILED):
-        view = MapDetailsView(requester_id=requester, render=render, locale=locale)
+        view = MapDetailsView(render=render, locale=locale)
         kwargs["view"] = view
     if isinstance(thumbnail, str):
         kwargs["embed"] = map_card(server, item, locale)

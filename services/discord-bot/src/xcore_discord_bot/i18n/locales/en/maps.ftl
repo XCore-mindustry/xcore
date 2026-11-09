@@ -107,7 +107,6 @@ maps-card-discord = Added via Discord
 maps-card-file = File
 maps-card-footer = Server: { $server }
 maps-card-render-button = Detailed render
-maps-card-render-not-yours = Only the person who opened this map can render it.
 maps-card-render-timeout = The renderer did not answer in time. Try again later.
 maps-card-render-busy = The renderer is busy with other maps. Try again in a minute.
 maps-card-render-cooldown = You can start a new render in { $seconds } s.

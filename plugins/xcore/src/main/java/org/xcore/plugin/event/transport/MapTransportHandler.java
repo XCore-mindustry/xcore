@@ -130,11 +130,12 @@ public class MapTransportHandler {
 
             String currentGameMode = state.rules.mode().name();
             var customMaps = maps.customMaps();
+            var hashes = mapService.contentHashes();
             List<MapIdentity> snapshot = new ArrayList<>(customMaps.size);
             for (int i = 0; i < customMaps.size; i++) {
                 Map map = customMaps.get(i);
                 snapshot.add(new MapIdentity(map, map.file.name(), map.plainName(), map.author(), mapService.discordUploadFor(map),
-                        mapService.contentHashFor(map)));
+                        hashes.get(map.file.name())));
             }
 
             async.supply(() -> {

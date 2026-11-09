@@ -230,20 +230,19 @@ class MapsListView(discord.ui.View):
 class MapDetailsView(discord.ui.View):
     """The /map card's button that swaps the thumbnail for the detailed render.
 
-    ``render`` draws the picture and returns the new card and file, or a message for the
-    person who pressed the button when it could not.
+    Anyone who sees the card may press it. ``render`` gets the id of whoever pressed it, draws
+    the picture and returns the new card and file, or a message for that person when it could
+    not (including when their render cooldown has not run out).
     """
 
     def __init__(
         self,
         *,
-        requester_id: int,
-        render: Callable[[], Awaitable[tuple[discord.Embed, discord.File] | str]],
+        render: Callable[[int], Awaitable[tuple[discord.Embed, discord.File] | str]],
         locale: str = DEFAULT,
     ) -> None:
         # The render can take a while; the interaction token outlives it (15 minutes).
         super().__init__(timeout=600)
-        self._requester_id = requester_id
         self._render = render
         self._locale = locale
         self.bot_message: discord.Message | None = None
@@ -253,14 +252,9 @@ class MapDetailsView(discord.ui.View):
     async def _render_btn(
         self, interaction: Interaction, button: discord.ui.Button
     ) -> None:
-        if interaction.user.id != self._requester_id:
-            await interaction.response.send_message(
-                t(self._locale, "maps-card-render-not-yours"), ephemeral=True
-            )
-            return
         button.disabled = True
         await interaction.response.edit_message(view=self)
-        result = await self._render()
+        result = await self._render(interaction.user.id)
         if isinstance(result, str):
             button.disabled = False
             await interaction.edit_original_response(view=self)
