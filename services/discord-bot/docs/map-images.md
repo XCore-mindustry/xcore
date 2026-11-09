@@ -35,12 +35,16 @@ The two pictures are different on purpose:
             └──────┬───────────────────────┬────────┘
    maps.preview    │                       │  maps.render
    maps.file       ▼                       ▼
-   ┌──────── game server (XCore) ───┐   ┌──── map-renderer (JVM) ────┐
-   │ DetachedMapPreview: 1 px/tile  │   │ msav decoder (libs/msav)   │
-   │ publishes .msav bytes as blob  │   │ sprite atlas from client   │
-   └────────────────────────────────┘   │ Pixmap compositor          │
+   ┌──────── game server (XCore) ───┐   ┌─── map-renderer ───────────┐
+   │ DetachedMapPreview: 1 px/tile  │   │ msav reader                │
+   │ publishes .msav bytes as blob  │   │ content table + sprite pack│
+   └────────────────────────────────┘   │ banded compositor → PNG    │
                  │                       └────────────┬───────────────┘
                  └──────── Redis: blobs with TTL ─────┘
+
+   build time (Gradle, Java, Mindustry v160)
+   ├─ content-export → content.json + sprites.pack  ──► shipped with the renderer
+   └─ msav golden    → expected snapshots per map   ──► renderer's parity tests
 ```
 
 **Thumbnails on the game server.** It owns the map files, the decoder and the colour
@@ -56,14 +60,16 @@ server:
   release of the same Mindustry version (`sprites/sprites.aatls` and its page PNGs).
 - A render allocates tens of MB of pixels and keeps a core busy for up to seconds.
   That must not share a heap and CPU budget with the game tick.
-- The services run on the same host as the game servers (see `ops/README.md`), so the
-  renderer gets a systemd unit with `Nice=10`, `CPUQuota=100%`, `MemoryMax=1G`, and
-  renders at most two maps at once.
+- The services run on the same host as the game servers (see `ops/README.md`), and the
+  host has little memory to spare. The memory goes to three things, whatever the
+  language: Mindustry's content loaded at run time, the client's atlas pages (about
+  64 MB each once decoded) and a canvas for the whole map (64 MB at 4096²). The design
+  below removes all three with build steps and banded drawing. The renderer then
+  renders at most two maps at once, with `Nice=10`, `CPUQuota=100%` and a `MemoryMax`
+  set from the measured peak.
 
-**Not in the bot.** Decoding `.msav` in Python means a second decoder next to the
-Java one that is pinned against the engine by `EngineCoreOracleTest`, plus block
-sizes, rotations and sprite names that only exist in Mindustry's content classes.
-The bot keeps its bounded header check (`cases/msav.py`) and nothing more.
+**Not in the bot.** That would be a third decoder, in a process that also serves
+Discord. The bot keeps its bounded header check (`cases/msav.py`) and nothing more.
 
 ## Moving bytes: blobs, not stream entries
 
@@ -122,42 +128,131 @@ costs one round trip.
 
 ## The renderer (phase 3)
 
-**Decoder.** Move `DetachedMsavReader`, `ContentRegistrySnapshot`, `MapSnapshot` and
-`InspectionSettings` from `plugins/xcore/.../service/map/inspect` into `libs/msav`
-(Mindustry `compileOnly`), used by the plugin and the renderer. `MapSnapshot` gains
-what a render needs and inspection ignores: the building centre index, rotation and
-team per building (the reader already parses `rotation` in the shared building base),
-and the variant seed per tile.
+**Language: open, to be decided by a measured prototype.** The candidates are Java (on
+the JVM with small-heap flags, or compiled with GraalVM `native-image`) and Rust. Both
+use the same design. Mindustry's content data and the sprite atlas are not loaded at
+run time but produced by a Gradle build step, and the image is drawn in bands. This
+section describes that shared part, then where the two languages differ.
 
-**Content.** At start-up, without a GPU: `Vars.content = new ContentLoader()`,
-`createBaseContent()`, `init()` per content. Block sizes, `rotate`, `variants`,
-`teamRegion` names and `mapColor` come from there. The Mindustry version is pinned to
-the servers' version (v160), and the renderer refuses maps whose content header names
-blocks it does not know (`unknown-content`, as in inspection).
+### 1. Content table, generated from Mindustry
 
-**Sprites.** Read `sprites.aatls` with Arc's `TextureAtlasData`, load each page PNG as
-a `Pixmap` (the plugin already uses Arc's native Pixmap off the GL thread), and cut
-regions into `PixmapRegion`s on first use. No `Texture`, no `SpriteBatch`, no GL
-context. The client jar is downloaded at build time and its checksum pinned. It is
-never committed.
+A Gradle task, `:tools:map-content-export` (Java, Mindustry `v160` from
+`gradle/libs.versions.toml`), loads content headlessly (`new ContentLoader()`,
+`createBaseContent()`, `init()`) and writes `content.json`:
 
-**Drawing,** into one `Pixmap` of `width·s × height·s`, where
-`s = clamp(⌊maxSide / max(width, height)⌋, 1, 32)`, with each 32 px sprite
-box-filtered down to `s` once and cached per block and scale:
+- per block id and name: `size`, `rotate`, `variants`, `isFloor`, `isOverlay`,
+  `wallOre`, `synthetic`, `solid`, `mapColor` (with `MapColorPalette`'s fallbacks), the
+  sprite names it draws with (`{name}{1..variants}`, the full icon, the `-team` region);
+- per team id: colour;
+- the Mindustry version and a hash of the whole table.
 
-1. floor: `{floor}{1 + hash(x, y) % variants}`; edge blending between floors is phase 4;
-2. ore overlay: `{ore}{variant}`;
-3. static wall: `{wall}{variant}`; `wallOre` draws on top;
-4. buildings, at the centre with the engine's offset (`-(size - 1) / 2`): the block's
-   full icon, rotated by `rotation · 90°` for `rotate` blocks, then the `-team` region
-   multiplied by the team colour if the block has one. Conveyor and conduit
-   autotiling is phase 4; until then they use their icons;
-5. encode PNG. If it exceeds 8 MiB, render again at `0.75 · maxSide`.
+The renderer bundles this table and resolves the names of a map's
+content header through it, as `ContentRegistrySnapshot` does. A name it does not know
+makes the map `unknown_content`. A Mindustry bump (the `mindustry` version in
+`gradle/libs.versions.toml`) re-runs the export, and CI fails if the committed table differs from a fresh
+one, so the table cannot fall behind the servers.
 
-Budget: a 300×300 map at 13 px per tile is a 3900 px square, about 60 MB of pixels.
-That is about 270k sprite blits, well under a second on one core. The renderer keeps
-results on disk by `(contentHash, rendererVersion, maxSide)` with an LRU of 1 GB;
-`rendererVersion` changes when the drawing changes or Mindustry is updated.
+### 2. Sprite pack, cut once instead of loading the atlas
+
+The client's atlas pages are up to 4096×4096, about 64 MB each once decoded, and
+holding them is exactly the memory we are avoiding. The same Gradle task reads
+`sprites.aatls` from the pinned client release (downloaded, checksum verified, never
+committed), keeps only the regions in `content.json`, and writes `sprites.pack`:
+
+- each region pre-scaled with a box filter to 32, 16 and 8 px per tile (floors, ores and
+  walls are 1×1; buildings are `size × size`);
+- stored as one zstd-compressed blob with an index of offsets, so the renderer can
+  decompress only the scale it uses into one buffer. That is about 10–15 MB for 32 px
+  and a quarter of that for 16 px.
+
+The pack is a release asset of the renderer, rebuilt with the table.
+
+### 3. The reader: shared in Java, pinned by goldens in Rust
+
+- **Java:** `DetachedMsavReader`, `MapSnapshot` and `InspectionSettings` move from
+  `plugins/xcore/.../service/map/inspect` into `libs/msav`. `ContentRegistrySnapshot`
+  becomes an interface: the plugin fills it from `Vars.content`, the renderer from
+  `content.json`. One decoder serves both, and `EngineCoreOracleTest` keeps checking
+  it against the engine. `MapSnapshot` gains building centres with rotation and team.
+- **Rust:** a render-only reader for save versions 4–13. Modern building chunks are
+  length-prefixed and start with the shared base (revision, health, rotation, team),
+  so it takes rotation and team and skips the rest by length. Versions 1–3 are
+  `unsupported_version`. Parity is automated: a Gradle task, `exportMsavGolden`, runs
+  the Java reader over the bundled maps and wire fixtures and writes golden snapshots
+  (dimensions, hashes of the tile arrays, building centres). The Rust tests must match
+  them or reject the same files, and CI fails when the goldens are stale.
+
+### Drawing, in bands
+
+Scale `s = clamp(⌊maxSide / max(width, height)⌋, 8, 32)`, rounded down to 8, 16 or 32,
+the scales in the pack. `maxSide` is 4096 by default. The image is drawn in bands of
+16 tile rows and handed to a streaming PNG encoder band by band, top row first: one
+`IDAT` deflate stream over the filtered rows in Java (`java.util.zip.Deflater`), the
+`png` crate's `StreamWriter` in Rust. Only one band is ever in memory: for a
+4096 px wide image at 16 rows × 16 px, that is 4 MB, whatever the map's height.
+Per tile, bottom to top:
+
+1. floor: variant `1 + hash(x, y) % variants`; edge blending between floors is phase 4;
+2. ore overlay, then static wall (`wallOre` on top of the wall);
+3. buildings whose footprint (`-(size - 1) / 2` from the centre, as the engine places
+   it) crosses the band: full icon, rotated by `rotation · 90°` for `rotate` blocks,
+   then the `-team` region multiplied by the team colour. Conveyor and conduit
+   autotiling is phase 4.
+
+If the encoded PNG exceeds 8 MiB, the renderer drops to the next smaller scale and
+renders again.
+
+### Service shape
+
+- `services/map-renderer`, one process. It links no Mindustry code at run time: the
+  table and the pack are its only Mindustry inputs.
+- It consumes `xcore:rpc:req:map-renderer` with a consumer group and answers on the
+  requester's response stream, using the same envelope as `RedisTransport`. In Java the
+  generated `xcore-protocol-java` models are used as they are. In Rust, serde structs are
+  checked against the fixtures in `protocol/spec/fixtures/`.
+- Two renders at a time (a semaphore); a third request waits up to its TTL, then gets
+  `busy`. Results are cached on disk by `(contentHash, rendererVersion, maxSide)`, with
+  an LRU of 1 GB. `rendererVersion` combines the service version and the content table
+  hash.
+- Health: a `/ready` HTTP probe like the gateway's; render count, time and peak RSS for
+  Prometheus.
+- Deploy: `ops/deploy map-renderer` and `ops/systemd/xcore-map-renderer.service`.
+  The server needs no build toolchain: it gets a jar (JVM), a native binary from
+  `native-image`, or a static musl binary (Rust).
+
+### Memory budget (estimates, to be replaced by measurements)
+
+The working set is the same in both languages:
+
+| | |
+|---|---|
+| content table | < 1 MB |
+| sprites at the scale in use | 4–15 MB |
+| per render: decoded map (≤ 360 000 tiles) + `.msav` bytes | ≤ 10 MB |
+| per render: one band + encoder buffers | ≤ 8 MB |
+| **two concurrent renders** | **≈ 50 MB** |
+
+What the runtime adds on top:
+
+| Runtime | Expected peak RSS |
+|---|---|
+| Rust | ≈ 60 MB |
+| Java, GraalVM `native-image` | ≈ 40–70 MB |
+| Java, JVM with `-Xmx96m -XX:+UseSerialGC -Xss256k`, capped metaspace, CDS | ≈ 130–180 MB |
+
+Speed should not decide it: the work is tight loops over `int[]`/`u32` buffers, which
+the JIT and `native-image` handle within a small factor of Rust, and a 300×300 map
+should render in under a second either way.
+
+### Deciding
+
+The prototype comes first: the build step plus a renderer that draws three bundled maps
+(small, 300×300 and the largest), written in Java. It is measured on the JVM with the
+flags above and as a `native-image`: peak RSS during two concurrent renders, render
+time and image size. If either Java build fits the host's budget, Java stays: one
+decoder, no fourth language in the repository. If neither does, the renderer moves to
+Rust, and the content export, the pack and the golden snapshots from the prototype
+carry over unchanged.
 
 ## Phases
 
@@ -167,9 +262,16 @@ results on disk by `(contentHash, rendererVersion, maxSide)` with an LRU of 1 GB
    Plugin handler around `MapPreviewService`'s existing PNG path plus integer upscale.
    `ServerThumbnails` in the bot. A select menu on `/maps list` pages that opens a
    map's card.
-3. **Detailed renders.** `libs/msav` extraction, `services/map-renderer`,
-   `maps.file`, `maps.render`, `RendererImages`, `ops/systemd/xcore-map-renderer.service`
-   and `ops/deploy map-renderer`.
+3. **Detailed renders.**
+   a. `:tools:map-content-export` (content table + sprite pack) with its CI freshness
+      check;
+   b. the measured prototype, and the language decision (see *Deciding*);
+   c. the reader (`libs/msav`, or the Rust reader against goldens) and the compositor,
+      checked by snapshot tests on a few bundled maps (perceptual diff, so a changed
+      filter does not fail on single pixels);
+   d. the service around it, `maps.file`, `maps.render` and `RendererImages` in the
+      bot;
+   e. CI release, `ops/systemd/xcore-map-renderer.service`, `ops/deploy map-renderer`.
 4. **Polish.** Floor edge blending, conveyor autotiling, a gallery view in `/maps list`
    (up to four embeds sharing one `url` show as one image grid), the same renders on
    map pages of the website.
@@ -182,12 +284,14 @@ results on disk by `(contentHash, rendererVersion, maxSide)` with an LRU of 1 GB
   unpacked sprites. It draws schematics at 32 px per tile through an AWT-backed
   `SpriteBatch`, with rotation by affine transform and team colour by multiply. Maps
   are drawn only as a 1 px-per-tile colour image, as our thumbnail is. It shows that
-  sprite drawing without a GPU works; our renderer draws into Arc `Pixmap`s instead of AWT.
+  sprite drawing without a GPU works. We do the same with a sprite pack cut at build time.
 - [mindus](https://docs.rs/crate/mindus/latest) and the bot
   [plent](https://git.bendn.org/plent/tree/src/bot/map.rs) (Rust, GPL-3.0). They render
   whole maps with sprites in the style of the reference picture and lower the sprite
   scale for large maps (a quarter or an eighth of the 32 px sprite, by map size). This
   is the closest match to the goal and the reason for the scale rule above. Its
-  licence is the reason we take neither code nor binaries from it.
+  licence (GPL-3.0; this repository is MPL-2.0) is the reason we take neither code nor
+  binaries from it: our reader, table and compositor are written from Mindustry's own
+  sources and our Java reader.
 - Our own `DetachedMapPreview` and `MapColorPalette` in the plugin. These draw the
   thumbnail and are what phase 2 exposes.
