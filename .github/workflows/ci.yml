@@ -58,6 +58,7 @@ jobs:
               - *shared
               - libs/**
               - plugins/**
+              - services/map-renderer/**
               - protocol/**
             menus:
               - *shared

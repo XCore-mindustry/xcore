@@ -9,11 +9,18 @@ public final class MapSnapshot {
     private final ContentRegistrySnapshot registry;
     private final int[] floors, overlays, blocks, teams;
     private final List<Core> cores;
+    private final List<Placed> buildings;
     private final List<String> unknownContent;
     private final boolean tilesAvailable;
 
     public MapSnapshot(Metadata metadata, ContentRegistrySnapshot registry, int[] floors, int[] overlays,
                        int[] blocks, int[] teams, List<Core> cores, List<String> unknownContent, boolean tilesAvailable) {
+        this(metadata, registry, floors, overlays, blocks, teams, cores, List.of(), unknownContent, tilesAvailable);
+    }
+
+    public MapSnapshot(Metadata metadata, ContentRegistrySnapshot registry, int[] floors, int[] overlays,
+                       int[] blocks, int[] teams, List<Core> cores, List<Placed> buildings, List<String> unknownContent,
+                       boolean tilesAvailable) {
         this.metadata = metadata;
         this.registry = registry;
         int expected = tilesAvailable ? Math.multiplyExact(metadata.width(), metadata.height()) : 0;
@@ -24,6 +31,7 @@ public final class MapSnapshot {
         this.blocks = blocks.clone();
         this.teams = teams.clone();
         this.cores = List.copyOf(cores);
+        this.buildings = List.copyOf(buildings);
         this.unknownContent = List.copyOf(unknownContent);
         this.tilesAvailable = tilesAvailable;
     }
@@ -37,6 +45,8 @@ public final class MapSnapshot {
     public int block(int index) { return blocks[index]; }
     public int team(int index) { return teams[index]; }
     public List<Core> cores() { return cores; }
+    /** Every placed building and multiblock centre, in file order, as the engine keeps it. */
+    public List<Placed> buildings() { return buildings; }
     public List<String> unknownContent() { return unknownContent; }
 
     public Map<String, Integer> coresByTeam() {
@@ -54,6 +64,8 @@ public final class MapSnapshot {
     }
 
     public record Core(int x, int y, int size, int team) {}
+    /** A building or multiblock centre; {@code rotation} is 0..3 counter-clockwise from +x, 0 without an entity. */
+    public record Placed(int x, int y, int block, int team, int rotation) {}
     public record Metadata(String name, String author, String description, int width, int height, int saveVersion,
                            Integer build, MapRules rules, List<String> mods, String sha256, int sizeBytes,
                            int dataPatches) {

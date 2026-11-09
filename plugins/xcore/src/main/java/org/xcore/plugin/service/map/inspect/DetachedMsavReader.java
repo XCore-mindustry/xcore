@@ -59,8 +59,9 @@ public final class DetachedMsavReader {
             int count = width * height;
             int[] floors = new int[count], overlays = new int[count], blocks = new int[count], teams = new int[count];
             var cores = new ArrayList<MapSnapshot.Core>();
+            var placed = new ArrayList<MapSnapshot.Placed>();
             readFloors(map.data, mapping, registry, unknown, floors, overlays);
-            readBlocks(map, version, mapping, registry, unknown, blocks, teams, cores, width);
+            readBlocks(map, version, mapping, registry, unknown, blocks, teams, cores, placed, width);
             map.end();
             // These engine regions may contain arbitrary mod/entity data. Verify their framing and consume
             // them through the inflation budget, without executing deserializers or allocating their lengths.
@@ -70,7 +71,7 @@ public final class DetachedMsavReader {
             if (input.read() != -1) throw new IOException("Unexpected data after save regions");
             if (!zlib.finished() || zlib.getRemaining() != 0 || compressed.read() != -1)
                 throw new IOException("Unexpected data after zlib stream");
-            return new MapSnapshot(metadata, registry, floors, overlays, blocks, teams, cores, List.copyOf(unknown), true);
+            return new MapSnapshot(metadata, registry, floors, overlays, blocks, teams, cores, placed, List.copyOf(unknown), true);
         } catch (IllegalArgumentException | IllegalStateException ex) {
             throw new IOException("Invalid map metadata or content", ex);
         } finally { zlib.end(); }
@@ -245,7 +246,8 @@ public final class DetachedMsavReader {
     }
 
     private static void readBlocks(Region map, int version, ContentRegistrySnapshot.Entry[] mapping,
-                                   ContentRegistrySnapshot registry, Set<String> unknown, int[] blocks, int[] teams, List<MapSnapshot.Core> cores, int width) throws IOException {
+                                   ContentRegistrySnapshot registry, Set<String> unknown, int[] blocks, int[] teams, List<MapSnapshot.Core> cores,
+                                   List<MapSnapshot.Placed> placed, int width) throws IOException {
         // Keep wire parts separate from effective blocks: parts before a center do not place anything,
         // while later ordinary records (including air RLE) remove a previously placed multiblock.
         boolean[] parts = new boolean[blocks.length];
@@ -253,7 +255,7 @@ public final class DetachedMsavReader {
         for (int i = 0; i < blocks.length;) {
             var block = block(map.data, mapping);
             if (block != null && block.floor() && !block.name().equals("air")) unknown.add("incompatible block:" + block.name());
-            int run = 1, team = 0;
+            int run = 1, team = 0, rotation = 0;
             boolean center = true;
             if (version <= 3) {
                 if (block == null) throw new IOException("Unknown legacy block has ambiguous building format");
@@ -263,6 +265,7 @@ public final class DetachedMsavReader {
                     payload.data.readUnsignedShort(); // legacy health
                     int packed = payload.data.readUnsignedByte();
                     team = packed >>> 4;
+                    rotation = packed & 0xf;
                     if (team == 8) team = payload.data.readUnsignedByte();
                     readModules(payload, block.modules(), true);
                     readBoolean(payload.data, "consume");
@@ -278,7 +281,11 @@ public final class DetachedMsavReader {
                     if (center) {
                         var payload = version <= 9 ? shortRegion(map) : nestedRegion(map);
                         // Removed/unknown blocks have opaque chunks, exactly as the native reader skips them.
-                        if (block != null && block.building()) team = readBuildingBase(payload, block);
+                        if (block != null && block.building()) {
+                            int base = readBuildingBase(payload, block);
+                            team = base & 0xff;
+                            rotation = base >>> 8;
+                        }
                         payload.discard();
                     } else parts[i] = true;
                 } else if (oldData || newData) {
@@ -289,14 +296,17 @@ public final class DetachedMsavReader {
             Arrays.fill(blocks, i, i + run, block == null ? -1 : block.id());
             if (center && block != null && (block.building() || block.size() > 1)) {
                 // Entity-free native buildings are placed with the engine's derelict default team.
-                for (int j = i; j < i + run; j++) centers.add(new Building(j, block, team));
+                for (int j = i; j < i + run; j++) centers.add(new Building(j, block, team, rotation % 4));
             }
             i += run;
         }
         var air = registry.resolve(ContentRegistrySnapshot.BLOCK_TYPE, "air");
         reconcileBuildings(version, blocks, teams, parts, centers, cores, width, air == null ? -2 : air.id());
+        for (Building center : centers) placed.add(new MapSnapshot.Placed(center.index % width, center.index / width,
+                center.block.id(), center.team, center.rotation));
     }
 
+    /** Reads the shared base; returns {@code team | rotation << 8}. */
     private static int readBuildingBase(Region payload, ContentRegistrySnapshot.Entry block) throws IOException {
         payload.data.readUnsignedByte(); // subclass revision
         if (!Float.isFinite(payload.data.readFloat())) throw new IOException("Invalid building health");
@@ -318,7 +328,7 @@ public final class DetachedMsavReader {
         if (version <= 2) readBoolean(payload.data, "consume");
         if (version >= 3) payload.skip(2); // efficiency and optionalEfficiency
         if (version == 4) payload.skip(8); // visibleFlags
-        return team;
+        return team | (rotation & 0x7f) << 8;
     }
 
     private static void readModules(Region payload, int modules, boolean legacy) throws IOException {
@@ -343,7 +353,7 @@ public final class DetachedMsavReader {
         return value == 1;
     }
 
-    private record Building(int index, ContentRegistrySnapshot.Entry block, int team) {}
+    private record Building(int index, ContentRegistrySnapshot.Entry block, int team, int rotation) {}
 
     private static void reconcileBuildings(int version, int[] blocks, int[] teams, boolean[] parts, List<Building> centers,
                                            List<MapSnapshot.Core> cores, int width, int airId) throws IOException {

@@ -20,4 +20,5 @@ include(
     ":plugins:xcore",
     ":plugins:tilelogger",
     ":plugins:tilelogger:native",
+    ":services:map-renderer",
 )

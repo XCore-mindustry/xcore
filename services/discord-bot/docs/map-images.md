@@ -1,7 +1,8 @@
 # Map images: thumbnails in `/maps`, detailed renders in `/map`
 
-Status: **design, phase 1 merged.** The bot has the commands, the card and the seam
-for images; nothing draws a picture yet.
+Status: **phase 1 merged; phase 3 prototyped and measured.** The bot has the commands,
+the card and the seam for images. `services/map-renderer` draws detailed renders but is
+not wired to the bot yet.
 
 ## What the player sees
 
@@ -42,9 +43,8 @@ The two pictures are different on purpose:
                  │                       └────────────┬───────────────┘
                  └──────── Redis: blobs with TTL ─────┘
 
-   build time (Gradle, Java, Mindustry v160)
-   ├─ content-export → content.json + sprites.pack  ──► shipped with the renderer
-   └─ msav golden    → expected snapshots per map   ──► renderer's parity tests
+   build time (Gradle, Mindustry v160 + client atlas)
+   └─ exportContent → content.json + sprites.pack  ──► shipped with the renderer
 ```
 
 **Thumbnails on the game server.** It owns the map files, the decoder and the colour
@@ -128,67 +128,62 @@ costs one round trip.
 
 ## The renderer (phase 3)
 
-**Language: open, to be decided by a measured prototype.** The candidates are Java (on
-the JVM with small-heap flags, or compiled with GraalVM `native-image`) and Rust. Both
-use the same design. Mindustry's content data and the sprite atlas are not loaded at
-run time but produced by a Gradle build step, and the image is drawn in bands. This
-section describes that shared part, then where the two languages differ.
+**Java, decided by a measured prototype** (`services/map-renderer`, see its README and
+*Measurements* below). Rust was considered for memory. The prototype showed that the
+memory goes to the design, not to the language: loading content at run time, whole atlas
+pages and a full-map canvas. Without those three, the JVM peaks at 162 MB at `-Xmx64m`
+and a `native-image` build at 87 MB, within the 256 MB budget. Java keeps one `.msav`
+decoder for the plugin and the renderer and adds no new language to the repository.
 
 ### 1. Content table, generated from Mindustry
 
-A Gradle task, `:tools:map-content-export` (Java, Mindustry `v160` from
-`gradle/libs.versions.toml`), loads content headlessly (`new ContentLoader()`,
+The Gradle task `:services:map-renderer:exportContent` (source set `export`, Mindustry
+`v160` from `gradle/libs.versions.toml`) loads content headlessly (`new ContentLoader()`,
 `createBaseContent()`, `init()`) and writes `content.json`:
 
-- per block id and name: `size`, `rotate`, `variants`, `isFloor`, `isOverlay`,
-  `wallOre`, `synthetic`, `solid`, `mapColor` (with `MapColorPalette`'s fallbacks), the
-  sprite names it draws with (`{name}{1..variants}`, the full icon, the `-team` region);
-- per team id: colour;
-- the Mindustry version and a hash of the whole table.
+- every mappable content name and id per type, the block flags the reader needs,
+  save-file aliases, teams and default rules: exactly what
+  `ContentRegistrySnapshot.capture()` copies in the plugin;
+- per block: its layer (floor, overlay, static, building), `size`, whether its sprite
+  rotates (`rotate && rotateDraw`), `wallOre`, the colour from `block_colors.png`, and
+  the sprite names the engine draws with (`{name}{1..variants}` as in `Floor.load`, else
+  the full icon as in `loadIcon`, plus the `-team` region);
+- per team: colour.
 
-The renderer bundles this table and resolves the names of a map's
-content header through it, as `ContentRegistrySnapshot` does. A name it does not know
-makes the map `unknown_content`. A Mindustry bump (the `mindustry` version in
-`gradle/libs.versions.toml`) re-runs the export, and CI fails if the committed table differs from a fresh
-one, so the table cannot fall behind the servers.
+The renderer resolves a map's content header through this table, as the plugin does.
+The table is a build output, not a committed file: a Mindustry bump in
+`gradle/libs.versions.toml` regenerates it, so it cannot fall behind the servers.
 
 ### 2. Sprite pack, cut once instead of loading the atlas
 
 The client's atlas pages are up to 4096×4096, about 64 MB each once decoded, and
 holding them is exactly the memory we are avoiding. The same Gradle task reads
 `sprites.aatls` from the pinned client release (downloaded, checksum verified, never
-committed), keeps only the regions in `content.json`, and writes `sprites.pack`:
+committed), keeps only the regions in `content.json` (616 of 5161), puts back the
+whitespace the packer stripped, and writes `sprites.pack`:
 
-- each region pre-scaled with a box filter to 32, 16 and 8 px per tile (floors, ores and
-  walls are 1×1; buildings are `size × size`);
-- stored as one zstd-compressed blob with an index of offsets, so the renderer can
-  decompress only the scale it uses into one buffer. That is about 10–15 MB for 32 px
-  and a quarter of that for 16 px.
+- each region box-filtered (premultiplied alpha) to 32, 16, 8 and 4 px per tile;
+- one deflated section per scale, so the renderer inflates only the scale it draws at.
+  The whole pack is 1.2 MB.
 
-The pack is a release asset of the renderer, rebuilt with the table.
+The pack is a build output of the renderer, rebuilt with the table.
 
-### 3. The reader: shared in Java, pinned by goldens in Rust
+### 3. The reader, shared with the plugin
 
-- **Java:** `DetachedMsavReader`, `MapSnapshot` and `InspectionSettings` move from
-  `plugins/xcore/.../service/map/inspect` into `libs/msav`. `ContentRegistrySnapshot`
-  becomes an interface: the plugin fills it from `Vars.content`, the renderer from
-  `content.json`. One decoder serves both, and `EngineCoreOracleTest` keeps checking
-  it against the engine. `MapSnapshot` gains building centres with rotation and team.
-- **Rust:** a render-only reader for save versions 4–13. Modern building chunks are
-  length-prefixed and start with the shared base (revision, health, rotation, team),
-  so it takes rotation and team and skips the rest by length. Versions 1–3 are
-  `unsupported_version`. Parity is automated: a Gradle task, `exportMsavGolden`, runs
-  the Java reader over the bundled maps and wire fixtures and writes golden snapshots
-  (dimensions, hashes of the tile arrays, building centres). The Rust tests must match
-  them or reject the same files, and CI fails when the goldens are stale.
+`DetachedMsavReader`, `MapSnapshot`, `MapRules` and the value part of
+`ContentRegistrySnapshot` move from `plugins/xcore/.../service/map/inspect` into
+`libs/msav`. The registry's `capture()` from `Vars.content` stays in the plugin. The
+renderer builds the same record from `content.json`. One decoder serves both, and
+`EngineCoreOracleTest` keeps checking it against the engine. `MapSnapshot.buildings()`
+now lists every placed building and multiblock centre with its team and rotation. The
+prototype still takes the reader from `:plugins:xcore` directly.
 
 ### Drawing, in bands
 
-Scale `s = clamp(⌊maxSide / max(width, height)⌋, 8, 32)`, rounded down to 8, 16 or 32,
-the scales in the pack. `maxSide` is 4096 by default. The image is drawn in bands of
-16 tile rows and handed to a streaming PNG encoder band by band, top row first: one
-`IDAT` deflate stream over the filtered rows in Java (`java.util.zip.Deflater`), the
-`png` crate's `StreamWriter` in Rust. Only one band is ever in memory: for a
+Scale `s`: the largest of 32, 16, 8 and 4 px per tile whose long side fits `maxSide`
+(4096 by default). The image is drawn in bands of 16 tile rows and handed to a streaming
+PNG encoder band by band, top row first: RGB, the Sub filter, one `IDAT` deflate stream
+(`java.util.zip.Deflater`) cut into 64 KB chunks. Only one band is ever in memory: for a
 4096 px wide image at 16 rows × 16 px, that is 4 MB, whatever the map's height.
 Per tile, bottom to top:
 
@@ -200,59 +195,46 @@ Per tile, bottom to top:
    autotiling is phase 4.
 
 If the encoded PNG exceeds 8 MiB, the renderer drops to the next smaller scale and
-renders again.
+renders again. On the bundled maps that never happened: the largest PNG is 7 MB
+(map 263, 480×480 at 8 px).
 
 ### Service shape
 
 - `services/map-renderer`, one process. It links no Mindustry code at run time: the
   table and the pack are its only Mindustry inputs.
 - It consumes `xcore:rpc:req:map-renderer` with a consumer group and answers on the
-  requester's response stream, using the same envelope as `RedisTransport`. In Java the
-  generated `xcore-protocol-java` models are used as they are. In Rust, serde structs are
-  checked against the fixtures in `protocol/spec/fixtures/`.
+  requester's response stream, using the same envelope as `RedisTransport` and the
+  generated `xcore-protocol-java` models.
 - Two renders at a time (a semaphore); a third request waits up to its TTL, then gets
   `busy`. Results are cached on disk by `(contentHash, rendererVersion, maxSide)`, with
   an LRU of 1 GB. `rendererVersion` combines the service version and the content table
   hash.
 - Health: a `/ready` HTTP probe like the gateway's; render count, time and peak RSS for
   Prometheus.
-- Deploy: `ops/deploy map-renderer` and `ops/systemd/xcore-map-renderer.service`.
-  The server needs no build toolchain: it gets a jar (JVM), a native binary from
-  `native-image`, or a static musl binary (Rust).
+- Deploy: `ops/deploy map-renderer` and `ops/systemd/xcore-map-renderer.service`, with
+  `-Xmx64m -XX:+UseSerialGC -Xss512k -XX:MaxMetaspaceSize=48m
+  -XX:ReservedCodeCacheSize=32m` and `MemoryMax=256M`. The host already has Java 25 for
+  the game servers. If the budget shrinks, the same code is built with `native-image`
+  and shipped as one binary.
 
-### Memory budget (estimates, to be replaced by measurements)
+### Measurements
 
-The working set is the same in both languages:
+From the prototype, 2026-11-09: the 113 readable maps bundled with v160, three rounds,
+two renders at a time, 4 cores. Peak RSS is the kernel's `VmHWM` for the process.
 
-| | |
-|---|---|
-| content table | < 1 MB |
-| sprites at the scale in use | 4–15 MB |
-| per render: decoded map (≤ 360 000 tiles) + `.msav` bytes | ≤ 10 MB |
-| per render: one band + encoder buffers | ≤ 8 MB |
-| **two concurrent renders** | **≈ 50 MB** |
+| Runtime and flags | Peak RSS | 339 renders |
+|---|---|---|
+| JVM, `-Xmx128m -XX:+UseSerialGC` | 223 MB | 80 s |
+| JVM, `-Xmx96m`, Serial GC, small stacks, metaspace and code cache | 191 MB | 79 s |
+| JVM, same with `-Xmx64m` | **162 MB** | 78 s |
+| JVM, `-Xmx64m`, C1 only (`-XX:TieredStopAtLevel=1`) | 116 MB | 98 s |
+| GraalVM `native-image`, `-Xmx64m` | 87 MB | 95 s |
+| GraalVM `native-image`, `-Xmx48m` | 79 MB | 100 s |
 
-What the runtime adds on top:
-
-| Runtime | Expected peak RSS |
-|---|---|
-| Rust | ≈ 60 MB |
-| Java, GraalVM `native-image` | ≈ 40–70 MB |
-| Java, JVM with `-Xmx96m -XX:+UseSerialGC -Xss256k`, capped metaspace, CDS | ≈ 130–180 MB |
-
-Speed should not decide it: the work is tight loops over `int[]`/`u32` buffers, which
-the JIT and `native-image` handle within a small factor of Rust, and a 300×300 map
-should render in under a second either way.
-
-### Deciding
-
-The prototype comes first: the build step plus a renderer that draws three bundled maps
-(small, 300×300 and the largest), written in Java. It is measured on the JVM with the
-flags above and as a `native-image`: peak RSS during two concurrent renders, render
-time and image size. If either Java build fits the host's budget, Java stays: one
-decoder, no fourth language in the repository. If neither does, the renderer moves to
-Rust, and the content export, the pack and the golden snapshots from the prototype
-carry over unchanged.
+One render takes 0.1–0.8 s on the JVM, a 512×512 map included. Content and sprites
+cost 13 MB of RSS once loaded. Of the JVM's 162 MB, Native Memory Tracking accounts for
+93 MB (64 MB heap, 14 MB shared classes, 5 MB code). Most of the rest is the C2
+compiler's native memory. `native-image` draws byte-identical images about 20 % slower.
 
 ## Phases
 
@@ -263,12 +245,10 @@ carry over unchanged.
    `ServerThumbnails` in the bot. A select menu on `/maps list` pages that opens a
    map's card.
 3. **Detailed renders.**
-   a. `:tools:map-content-export` (content table + sprite pack) with its CI freshness
-      check;
-   b. the measured prototype, and the language decision (see *Deciding*);
-   c. the reader (`libs/msav`, or the Rust reader against goldens) and the compositor,
-      checked by snapshot tests on a few bundled maps (perceptual diff, so a changed
-      filter does not fail on single pixels);
+   a. **done in the prototype:** `exportContent` (content table + sprite pack);
+   b. **done:** the measured prototype and the language decision (Java);
+   c. `libs/msav`, and snapshot tests of the compositor on a few bundled maps
+      (perceptual diff, so a changed filter does not fail on single pixels);
    d. the service around it, `maps.file`, `maps.render` and `RendererImages` in the
       bot;
    e. CI release, `ops/systemd/xcore-map-renderer.service`, `ops/deploy map-renderer`.
