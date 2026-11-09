@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.6.0] - 2026-11-09
+
+### Added
+- Map images for Discord. The server answers `maps.preview` with the vote-menu thumbnail scaled so its long side is 512 px (at most 4096), and `maps.file` with the map file itself. Both are put into Redis as `xcore:blob:{sha256}` for 15 minutes and the reply only carries the key, size and hash. At most four requests run at a time; the rest are refused as busy.
+- `maps.list` entries carry the map's `contentHash`, so the bot can cache pictures by map content (protocol 0.18).
+
+### Changed
+- The detached `.msav` reader moved to the `libs/msav` library, which the map renderer uses too. Map inspection works as before.
+
 ## [5.5.1] - 2026-11-08
 
 ### Changed
