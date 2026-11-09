@@ -23,6 +23,7 @@ from ...services.map_images import (
     MapRef,
     RendererBusy,
     RendererUnavailable,
+    RenderStyle,
 )
 from ...staff_actions import (
     Actor,
@@ -53,6 +54,8 @@ logger = logging.getLogger(__name__)
 
 BADGE_WINDOW = timedelta(days=30)
 # A busy renderer is asked again a few times; reviewers can always open the file in game.
+# Reviewers judge spawns and talk about places on the map: both layers are on.
+REVIEW_STYLE = RenderStyle(grid=True, spawns=True)
 PREVIEW_ATTEMPTS = 3
 PREVIEW_RETRY_SECONDS = 20.0
 # Renders on their way into a thread, by (thread, file hash): kept so the task is not
@@ -463,7 +466,7 @@ async def _render_patiently(images, ref, data):
     """The render, asking a busy renderer again; ``None`` when it stays busy."""
     for attempt in range(PREVIEW_ATTEMPTS):
         try:
-            return await images.render_file(ref, data)
+            return await images.render_file(ref, data, REVIEW_STYLE)
         except RendererBusy:
             if attempt + 1 < PREVIEW_ATTEMPTS:
                 await asyncio.sleep(PREVIEW_RETRY_SECONDS)
@@ -492,7 +495,9 @@ async def _post_preview(service, thread, case, data, local, filename) -> None:
             content,
             file=discord.File(
                 io.BytesIO(image.png),
-                filename=image.attachment_name(ref, MapImageKind.DETAILED),
+                filename=image.attachment_name(
+                    ref, MapImageKind.DETAILED, REVIEW_STYLE
+                ),
             ),
             allowed_mentions=discord.AllowedMentions.none(),
         )

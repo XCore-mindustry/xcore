@@ -348,14 +348,14 @@ class MindustryRpcClient:
         content_hash: str,
         file: MapBlobRefV1,
         timeout_ms: int,
-        darkness: bool | None = None,
+        layers: dict[str, bool] | None = None,
     ) -> MapsRenderResponseV1:
         # Not retried: a render that timed out may still be running.
         return await self._maps.rpc_maps_render(
             content_hash=content_hash,
             file=file,
             timeout_ms=timeout_ms,
-            darkness=darkness,
+            layers=layers,
         )
 
     async def read_blob(self, ref: MapBlobRefV1) -> bytes:

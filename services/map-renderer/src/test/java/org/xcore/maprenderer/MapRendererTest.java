@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -92,9 +93,10 @@ class MapRendererTest {
     void withoutDarknessWallsAreBrighterAndShadowsStay() throws IOException {
         byte[] map = bundled("groundZero");
         var dark = ImageIO.read(new ByteArrayInputStream(
-                renderer.render(new ByteArrayInputStream(map), map.length, 1024, 8 * 1024 * 1024, true).png()));
+                renderer.render(new ByteArrayInputStream(map), map.length, 1024, 8 * 1024 * 1024, RenderOptions.GAME).png()));
         var light = ImageIO.read(new ByteArrayInputStream(
-                renderer.render(new ByteArrayInputStream(map), map.length, 1024, 8 * 1024 * 1024, false).png()));
+                renderer.render(new ByteArrayInputStream(map), map.length, 1024, 8 * 1024 * 1024,
+                        new RenderOptions(false, true, false, false, false)).png()));
 
         long darkSum = 0, lightSum = 0, darker = 0;
         for (int y = 0; y < dark.getHeight(); y++) {
@@ -108,6 +110,39 @@ class MapRendererTest {
         // Darkness only ever darkens: nothing gets darker without it, and walls get lighter.
         assertEquals(0, darker);
         assertTrue(lightSum > darkSum);
+    }
+
+    @Test
+    void eachLayerChangesThePictureAndTerrainOnlyDropsTheBuildings() throws IOException {
+        byte[] map = bundled("groundZero");
+        var game = image(map, RenderOptions.GAME);
+        for (var options : java.util.List.of(
+                new RenderOptions(true, false, false, false, false),
+                new RenderOptions(true, true, true, false, false),
+                new RenderOptions(true, true, false, true, false),
+                new RenderOptions(true, true, false, false, true))) {
+            var other = image(map, options);
+            assertEquals(game.getWidth(), other.getWidth());
+            assertTrue(differing(game, other) > 1000, options + " changes too little");
+        }
+        // The grid's 0,0 label sits on the bottom-left corner: white pixels there.
+        var grid = image(map, new RenderOptions(true, true, false, true, false));
+        int white = 0;
+        for (int y = grid.getHeight() - 20; y < grid.getHeight(); y++)
+            for (int x = 0; x < 20; x++) if ((grid.getRGB(x, y) & 0xffffff) == 0xffffff) white++;
+        assertTrue(white > 5, "no 0,0 label");
+    }
+
+    private static BufferedImage image(byte[] map, RenderOptions options) throws IOException {
+        return ImageIO.read(new ByteArrayInputStream(
+                renderer.render(new ByteArrayInputStream(map), map.length, 1024, 8 * 1024 * 1024, options).png()));
+    }
+
+    private static int differing(BufferedImage a, BufferedImage b) {
+        int count = 0;
+        for (int y = 0; y < a.getHeight(); y++)
+            for (int x = 0; x < a.getWidth(); x++) if (a.getRGB(x, y) != b.getRGB(x, y)) count++;
+        return count;
     }
 
     private static int luma(int rgb) {

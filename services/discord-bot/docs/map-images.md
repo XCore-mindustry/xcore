@@ -13,7 +13,7 @@ gives the wait back (a timed-out one keeps it: the renderer may still be drawing
 | Command | Shows | Picture |
 |---|---|---|
 | `/maps list <server> [creator]` | the server's maps, 15 per page, sortable | phase 2: a thumbnail per map, on request |
-| `/map <server> <map>` | one map: author, size, mode, rating, activity, Discord attribution, review post, file | a thumbnail right away; the **Detailed render** button swaps it for a render with block sprites, without the game's darkness over static walls; then the same button switches that darkness on and off |
+| `/map <server> <map>` | one map: author, size, mode, rating, activity, Discord attribution, review post, file | a thumbnail right away; the **Detailed render** button swaps it for a render with block sprites, without the game's darkness over static walls; then a **Render layers** menu turns buildings, wall darkness, ores, the coordinate grid and spawns with drop zones on and off |
 | `/maps upload`, `/maps remove`, `/maps review` | map management (map reviewers) | — |
 
 `/map` used to be the management group. Discord does not let one name be a group and
@@ -124,10 +124,12 @@ costs one round trip.
 - Renderer presence: the renderer keeps `xcore:service:map-renderer` (30 s TTL, refreshed
   every 10 s, deleted on shutdown). While it is missing the card has no **Detailed
   render** button, and a press answers "not running" at once instead of after 60 s.
-- Darkness: `maps.render.request.darkness` (default true in the protocol) turns the game's
-  darkness over static walls and outside the map on or off; block shadows stay either way.
-  The bot asks without it (`MapImageKind.DETAILED`) unless the card's switch asks for
-  `DETAILED_DARK`; both are cached separately, in the bot and in the renderer.
+- Layers (`RenderStyle`, the flags of `maps.render.request`): `buildings` (off: the
+  terrain only), `darkness` (the game's darkness over static walls; off by default in the
+  bot, since it hides the walls), `ores` (everything but ores dimmed and greyed), `grid`
+  (a line every 10 tiles, coordinates every 50, y up as in game) and `spawns` (enemy
+  spawns with the rules' drop zone). Each combination is cached on its own, in the bot
+  and in the renderer.
 - `map_card.py`: the embed of one map. `handlers_maps.send_map_card` asks for the
   thumbnail, links the map forum post where this file was reviewed (`CaseStore.by_map_file`,
   by SHA-256: a map accepted through the forum is installed byte for byte), and adds
@@ -136,13 +138,13 @@ costs one round trip.
 ### Map review forum
 
 When a post in the map forum (`DISCORD_MAPS_FORUM_ID`) gets a file and the bot's own
-checks pass, `cases/flows/maps.py` posts the render of that file under the review card:
+checks pass, `cases/flows/maps.py` posts the render of that file under the review card,
+with the coordinate grid and the spawns' drop zones on (`REVIEW_STYLE`):
 "Render of this map, file `<sha>`" with the PNG. It runs in the background so the
 inspection and the card do not wait for it, once per file (a recheck or a restart finds
 the posted message), and only while the renderer is up. A busy renderer is asked again
 twice, 20 s apart; any other failure leaves the review as it was. The render lands in the
-renderer's disk cache under the file's hash, so after **Accept** the same map's
-**Detailed render** in `/map` is answered from the cache.
+renderer's disk cache under the file's hash and style.
 
 ## The renderer (phase 3)
 

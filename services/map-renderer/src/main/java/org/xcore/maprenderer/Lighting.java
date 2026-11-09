@@ -21,7 +21,7 @@ final class Lighting {
     /** Brightness after darkness, 255 = untouched. */
     final byte[] light;
 
-    Lighting(RenderContent content, MapSnapshot map) {
+    Lighting(RenderContent content, MapSnapshot map, boolean buildings) {
         width = map.metadata().width();
         height = map.metadata().height();
         int count = width * height;
@@ -33,7 +33,9 @@ final class Lighting {
         for (int i = 0; i < count; i++) {
             int block = map.block(i);
             boolean known = block >= 0 && block < content.layer.length;
-            if (known && content.shadow[block]) shadow[i] = (byte) 255;
+            if (known && content.shadow[block] && (buildings || content.layer[block] != RenderContent.BUILDING)) {
+                shadow[i] = (byte) 255;
+            }
             distance[i] = (byte) (known && content.darkens[block] ? cap : 0);
         }
         for (int y = 0; y < height; y++) {

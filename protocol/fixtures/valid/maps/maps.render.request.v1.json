@@ -11,5 +11,9 @@
   },
   "maxSide": 4096,
   "maxBytes": 8388608,
-  "darkness": false
+  "darkness": false,
+  "buildings": true,
+  "ores": false,
+  "grid": true,
+  "spawns": true
 }

@@ -78,7 +78,9 @@ class _Source:
     async def available(self, kind: MapImageKind) -> bool:
         return self.supports(kind)
 
-    async def fetch(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
+    async def fetch(
+        self, ref: MapRef, kind: MapImageKind, style: object = None
+    ) -> MapImage | None:
         self.calls.append((ref, kind))
         return MapImage(png=b"\x89PNG" + kind.value.encode(), width=4, height=4)
 

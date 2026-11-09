@@ -167,10 +167,11 @@ class MapsBus:
         content_hash: str,
         file: MapBlobRefV1,
         timeout_ms: int,
-        darkness: bool | None = None,
+        layers: dict[str, bool] | None = None,
     ) -> MapsRenderResponseV1:
+        """``layers`` are the request's flags (``darkness``, ``buildings``, ...)."""
         request = MapsRenderRequestV1(
-            contentHash=content_hash, file=file, darkness=darkness
+            contentHash=content_hash, file=file, **(layers or {})
         )
         body = await self._transport.rpc_request(
             server=RENDERER,

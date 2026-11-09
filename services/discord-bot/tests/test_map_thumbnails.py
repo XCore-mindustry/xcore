@@ -33,6 +33,7 @@ from xcore_discord_bot.services.map_images import (
     RendererBusy,
     RendererImages,
     RendererUnavailable,
+    RenderStyle,
     ServerThumbnails,
 )
 
@@ -313,14 +314,14 @@ async def test_render_button_waits_between_new_renders_but_not_for_cached_ones()
     await cmd_map_details(bot, first, "mini-pvp", "arena.msav")
     view = first.followup.messages[0]["view"]
 
-    drawn = await view._render(7, MapImageKind.DETAILED)
+    drawn = await view._render(7, RenderStyle())
     again = await view._render(
-        7, MapImageKind.DETAILED
+        7, RenderStyle()
     )  # already drawn: no wait, no second render
     bot.container.map_images.clear()
-    waited = await view._render(7, MapImageKind.DETAILED)
+    waited = await view._render(7, RenderStyle())
     other = await view._render(
-        8, MapImageKind.DETAILED
+        8, RenderStyle()
     )  # anyone may press; the wait is per presser
 
     assert not isinstance(drawn, str) and not isinstance(again, str)
@@ -338,8 +339,8 @@ async def test_render_that_draws_nothing_costs_no_wait(render: dict[str, Any]) -
     await cmd_map_details(bot, card, "mini-pvp", "arena.msav")
     view = card.followup.messages[0]["view"]
 
-    first = await view._render(7, MapImageKind.DETAILED)
-    second = await view._render(7, MapImageKind.DETAILED)
+    first = await view._render(7, RenderStyle())
+    second = await view._render(7, RenderStyle())
 
     assert isinstance(first, str) and isinstance(second, str)
     assert not second.startswith("You can start a new render in")
@@ -355,8 +356,8 @@ async def test_timed_out_render_keeps_the_wait(
     await cmd_map_details(bot, card, "mini-pvp", "arena.msav")
     view = card.followup.messages[0]["view"]
 
-    await view._render(7, MapImageKind.DETAILED)
-    waited = await view._render(7, MapImageKind.DETAILED)
+    await view._render(7, RenderStyle())
+    waited = await view._render(7, RenderStyle())
 
     assert isinstance(waited, str) and waited.startswith(
         "You can start a new render in"
@@ -373,7 +374,7 @@ async def test_cache_is_bounded_by_bytes() -> None:
         async def available(self, kind: MapImageKind) -> bool:
             return True
 
-        async def fetch(self, ref: MapRef, kind: MapImageKind) -> Any:
+        async def fetch(self, ref: MapRef, kind: MapImageKind, style: Any) -> Any:
             return map_images.MapImage(png=b"x" * 4 * 1024 * 1024, width=1, height=1)
 
     images = map_images.MapImages(_Source())
@@ -430,7 +431,7 @@ async def test_a_render_already_running_for_someone_else_costs_no_wait() -> None
     bot.container.render_cooldown.start(8)  # 8 just rendered another map
 
     first, second = await asyncio.gather(
-        view._render(7, MapImageKind.DETAILED), view._render(8, MapImageKind.DETAILED)
+        view._render(7, RenderStyle()), view._render(8, RenderStyle())
     )
 
     assert not isinstance(first, str) and not isinstance(second, str)
@@ -458,7 +459,7 @@ class _Press:
         self.edits.append(kwargs)
 
 
-async def test_the_button_renders_without_darkness_then_switches_it() -> None:
+async def test_the_button_renders_then_the_menu_switches_layers() -> None:
     bot, renderer = await _render_bot(
         {"status": "ok", "image": _image(), "scale": 8, "renderMs": 420}
     )
@@ -472,14 +473,50 @@ async def test_the_button_renders_without_darkness_then_switches_it() -> None:
     await button.callback(first)  # type: ignore[arg-type]
     assert first.edits[-1]["view"] is view
     assert first.edits[-1]["attachments"][0].filename == "arena-detailed.png"
-    assert button.label == "🌑 Show wall darkness" and not button.disabled
+    [menu] = view.children
+    assert isinstance(menu, discord.ui.Select)
+    assert [o.value for o in menu.options if o.default] == ["buildings"]
+    assert len(menu.options) == 5 and menu.max_values == 5
 
     second = _Press(user=SimpleNamespace(id=10))
-    await button.callback(second)  # type: ignore[arg-type]
-    assert second.edits[-1]["attachments"][0].filename == "arena-detailed-dark.png"
-    assert button.label == "☀️ Hide wall darkness"
+    menu._values = ["buildings", "darkness", "grid", "spawns"]
+    await menu.callback(second)  # type: ignore[arg-type]
+    assert second.edits[-1]["attachments"][0].filename == "arena-detailed-bdgs.png"
+    [menu] = view.children
+    assert {o.value for o in menu.options if o.default} == {
+        "buildings",
+        "darkness",
+        "grid",
+        "spawns",
+    }
 
     third = _Press(user=SimpleNamespace(id=10))
-    await button.callback(third)  # back to the cached render: no wait, no request
+    menu._values = ["buildings"]
+    await menu.callback(third)  # back to the cached render: no wait, no request
     assert third.edits[-1]["attachments"][0].filename == "arena-detailed.png"
-    assert [r.get("darkness") for r in renderer.sent(RENDER_REQUEST)] == [False, True]
+    requests = renderer.sent(RENDER_REQUEST)
+    assert [
+        {k: r[k] for k in ("buildings", "darkness", "ores", "grid", "spawns")}
+        for r in requests
+    ] == [
+        {
+            "buildings": True,
+            "darkness": False,
+            "ores": False,
+            "grid": False,
+            "spawns": False,
+        },
+        {
+            "buildings": True,
+            "darkness": True,
+            "ores": False,
+            "grid": True,
+            "spawns": True,
+        },
+    ]
+
+
+def test_render_style_names() -> None:
+    assert RenderStyle().key() == ""
+    assert RenderStyle.of(["ores"]).key() == "o"
+    assert RenderStyle.of([]) == RenderStyle(buildings=False)

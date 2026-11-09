@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:xcore:protocol:messages:maps:maps.render.request:v1",
   "title": "MapsRenderRequestV1",
-  "description": "Asks the map renderer for a detailed render of the map in `file`. Defaults: `maxSide` 4096, `maxBytes` 8 MiB, `darkness` true (static walls darken towards their inside and the map edge, as in game).",
+  "description": "Asks the map renderer for a detailed render of the map in `file`. Defaults: `maxSide` 4096, `maxBytes` 8 MiB, and the map as the game shows it: `darkness` and `buildings` true, `ores`, `grid` and `spawns` false.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -37,7 +37,23 @@
     },
     "darkness": {
       "type": "boolean",
-      "description": "Draw the game's darkness over static walls and outside the map. Default true."
+      "description": "The game's darkness over static walls and outside the map. Default true."
+    },
+    "buildings": {
+      "type": "boolean",
+      "description": "Buildings and their shadows; false draws the terrain only. Default true."
+    },
+    "ores": {
+      "type": "boolean",
+      "description": "Ores stand out: tiles without one are dimmed and greyed. Default false."
+    },
+    "grid": {
+      "type": "boolean",
+      "description": "A line every 10 tiles and a brighter one every 50, labelled with its tile coordinates (y up, as in game). Default false."
+    },
+    "spawns": {
+      "type": "boolean",
+      "description": "Enemy spawns with their drop zones (the rules' dropZoneRadius). Default false."
     }
   }
 }

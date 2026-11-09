@@ -18,10 +18,12 @@ from .map_list import map_list_page_items, map_list_row, map_text
 from .moderation_views import MapRemoveConfirmView
 from .server_views import MapDetailsView, MapOption, MapsListView
 from .services.map_images import (
+    PLAIN,
     MapImageKind,
     MapRef,
     RendererBusy,
     RendererUnavailable,
+    RenderStyle,
 )
 from .staff_actions import (
     Actor,
@@ -178,10 +180,11 @@ async def _card_picture(
     card: Callable[..., discord.Embed],
     ref: MapRef,
     kind: MapImageKind,
+    style: RenderStyle = PLAIN,
 ) -> tuple[discord.Embed, discord.File] | str:
     """The card with this picture of the map, or the message key of why there is none."""
     try:
-        image = await bot.container.map_images.get(ref, kind)
+        image = await bot.container.map_images.get(ref, kind, style)
     except TimeoutError:
         return RENDER_TIMEOUT
     except RendererBusy:
@@ -195,7 +198,7 @@ async def _card_picture(
         image = None
     if image is None:
         return RENDER_FAILED
-    name = image.attachment_name(ref, kind)
+    name = image.attachment_name(ref, kind, style)
     file = discord.File(io.BytesIO(image.png), filename=name)
     return card(image_name=name), file
 
@@ -246,8 +249,10 @@ async def send_map_card(
         review_thread_id=await _review_thread(bot, ref.content_hash),
     )
 
-    async def picture(kind: MapImageKind) -> tuple[discord.Embed, discord.File] | str:
-        return await _card_picture(bot, card, ref, kind)
+    async def picture(
+        kind: MapImageKind, style: RenderStyle = PLAIN
+    ) -> tuple[discord.Embed, discord.File] | str:
+        return await _card_picture(bot, card, ref, kind, style)
 
     thumbnail = await picture(MapImageKind.THUMBNAIL)
     view: MapDetailsView | None = None
@@ -258,28 +263,30 @@ async def send_map_card(
     cooldown = bot.container.render_cooldown
 
     async def render(
-        presser: int, kind: MapImageKind
+        presser: int, style: RenderStyle
     ) -> tuple[discord.Embed, discord.File] | str:
+        kind = MapImageKind.DETAILED
         # Only a new render costs the wait; one already drawn, or being drawn for someone
         # else, is shown without it.
-        if images.cached(ref, kind) is not None or images.drawing(ref, kind):
-            drawn = await picture(kind)
+        if images.cached(ref, kind, style) is not None or images.drawing(
+            ref, kind, style
+        ):
+            drawn = await picture(kind, style)
             return t(locale, drawn) if isinstance(drawn, str) else drawn
         wait = cooldown.remaining(presser)
         if wait > 0:
             return t(locale, "maps-card-render-cooldown", seconds=math.ceil(wait))
         # Started before the render, so pressing again meanwhile waits too.
         cooldown.start(presser)
-        drawn = await picture(kind)
+        drawn = await picture(kind, style)
         if isinstance(drawn, str) and drawn in REFUNDED:
             cooldown.cancel(presser)
         return t(locale, drawn) if isinstance(drawn, str) else drawn
 
-    # No button while the renderer is down, unless a render is still cached.
-    if any(
-        images.cached(ref, kind) is not None
-        for kind in (MapImageKind.DETAILED, MapImageKind.DETAILED_DARK)
-    ) or await images.available(MapImageKind.DETAILED):
+    # No button while the renderer is down, unless the default render is still cached.
+    if images.cached(ref, MapImageKind.DETAILED) is not None or await images.available(
+        MapImageKind.DETAILED
+    ):
         view = MapDetailsView(render=render, locale=locale)
         kwargs["view"] = view
     if isinstance(thumbnail, str):

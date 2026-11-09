@@ -3,6 +3,7 @@ package org.xcore.maprenderer.service;
 import arc.util.serialization.JsonReader;
 import arc.util.serialization.JsonValue;
 import org.xcore.maprenderer.MapRenderer;
+import org.xcore.maprenderer.RenderOptions;
 import org.xcore.protocol.generated.messages.maps.MapsMessages.MapsRenderRequestV1;
 import org.xcore.protocol.generated.messages.maps.MapsMessages.MapsRenderResponseV1;
 import org.xcore.protocol.generated.messages.maps.MapsRenderResponseV1Status;
@@ -69,7 +70,12 @@ final class RenderHandler {
         return new MapsRenderRequestV1(value.getString("contentHash"), blob,
                 value.has("maxSide") ? value.getInt("maxSide") : null,
                 value.has("maxBytes") ? value.getInt("maxBytes") : null,
-                value.has("darkness") ? value.getBoolean("darkness") : null);
+                flag(value, "darkness"), flag(value, "buildings"), flag(value, "ores"), flag(value, "grid"),
+                flag(value, "spawns"));
+    }
+
+    private static Boolean flag(JsonValue value, String name) {
+        return value.has(name) ? value.getBoolean(name) : null;
     }
 
     MapsRenderResponseV1 handle(MapsRenderRequestV1 request) {
@@ -84,8 +90,8 @@ final class RenderHandler {
         if (hash == null || !SHA256.matcher(hash).matches()) {
             return failed(hash, MapsRenderResponseV1Status.FAILED, "contentHash is not a SHA-256 hex digest");
         }
-        boolean darkness = request.darkness() == null || request.darkness();
-        String key = RenderCache.key(hash, maxSide, maxBytes, darkness, version);
+        var options = options(request);
+        String key = RenderCache.key(hash, maxSide, maxBytes, options, version);
         try {
             var cached = cache.get(key);
             if (cached != null) {
@@ -106,7 +112,7 @@ final class RenderHandler {
             }
             MapRenderer.Result result;
             try {
-                result = renderer.render(new ByteArrayInputStream(map), map.length, maxSide, maxBytes, darkness);
+                result = renderer.render(new ByteArrayInputStream(map), map.length, maxSide, maxBytes, options);
             } catch (MapRenderer.TooLarge tooLarge) {
                 return failed(hash, MapsRenderResponseV1Status.TOO_LARGE, tooLarge.getMessage());
             } catch (IOException invalid) {
@@ -122,6 +128,17 @@ final class RenderHandler {
         } catch (RuntimeException | OutOfMemoryError error) {
             return failed(hash, MapsRenderResponseV1Status.FAILED, error.toString());
         }
+    }
+
+    /** The request's flags over the game's defaults. */
+    static RenderOptions options(MapsRenderRequestV1 request) {
+        var game = RenderOptions.GAME;
+        return new RenderOptions(
+                request.darkness() == null ? game.darkness() : request.darkness(),
+                request.buildings() == null ? game.buildings() : request.buildings(),
+                request.ores() == null ? game.ores() : request.ores(),
+                request.grid() == null ? game.grid() : request.grid(),
+                request.spawns() == null ? game.spawns() : request.spawns());
     }
 
     private MapBlobRefV1 publish(RenderCache.Entry entry) throws IOException {

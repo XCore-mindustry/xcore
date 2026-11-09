@@ -52,14 +52,12 @@ public final class MapRenderer {
      * {@code maxBytes}, renders again at the next smaller scale.
      */
     public Result render(InputStream msav, long size, int maxSide, int maxBytes) throws IOException {
-        return render(msav, size, maxSide, maxBytes, true);
+        return render(msav, size, maxSide, maxBytes, RenderOptions.GAME);
     }
 
-    /**
-     * As {@link #render(InputStream, long, int, int)}; without {@code darkness} the static walls
-     * and the area outside the map are drawn without the game's darkness, block shadows stay.
-     */
-    public Result render(InputStream msav, long size, int maxSide, int maxBytes, boolean darkness) throws IOException {
+    /** As {@link #render(InputStream, long, int, int)}, showing what {@code options} asks for. */
+    public Result render(InputStream msav, long size, int maxSide, int maxBytes, RenderOptions options)
+            throws IOException {
         long start = System.nanoTime();
         MapSnapshot map = new DetachedMsavReader().read(msav, size, "", content.registry(), settings);
         if (!map.tilesAvailable()) throw new TooLarge("Map exceeds the tile limit");
@@ -69,7 +67,7 @@ public final class MapRenderer {
         for (int scale : SCALES) {
             if ((long) longest * scale > maxSide) continue;
             try {
-                Drawn drawn = draw(map, sprites(scale), maxBytes, darkness);
+                Drawn drawn = draw(map, sprites(scale), maxBytes, options);
                 return new Result(drawn.png(), width * scale, height * scale, scale, width, height,
                         decoded - start, System.nanoTime() - decoded, drawn.encodeNanos());
             } catch (Overflow overflow) {
@@ -93,12 +91,12 @@ public final class MapRenderer {
     private record Frame(MapSnapshot map, SpritePack sprites, Rand rand, Tiling tiling, Lighting lighting,
                          int width, int height, int s, int[] dirs, int[] blenders) {}
 
-    private Drawn draw(MapSnapshot map, SpritePack sprites, int maxBytes, boolean darkness) throws IOException {
+    private Drawn draw(MapSnapshot map, SpritePack sprites, int maxBytes, RenderOptions options) throws IOException {
         int s = sprites.scale;
         int width = map.metadata().width(), height = map.metadata().height();
         int pixelsWide = width * s;
         var frame = new Frame(map, sprites, new Rand(), new Tiling(content, map.buildings(), width, height),
-                new Lighting(content, map), width, height, s, new int[8], new int[8]);
+                new Lighting(content, map, options.buildings()), width, height, s, new int[8], new int[8]);
         int[] band = new int[pixelsWide * BAND_TILES * s];
 
         // Buildings by the row of their centre, so a band only looks at the rows near it.
@@ -124,6 +122,9 @@ public final class MapRenderer {
             columnFraction[x] = at & 0xff;
         }
 
+        byte[] focus = options.ores() ? ores(map) : null;
+        List<Overlays.Zone> zones = options.spawns() ? zones(map, s) : List.of();
+
         var png = new Limited(maxBytes);
         long encoding = 0;
         try (var writer = new PngStreamWriter(png, pixelsWide, height * s, Integer.getInteger("pngLevel", 3))) {
@@ -141,7 +142,7 @@ public final class MapRenderer {
                 for (int y = top; y >= bottom; y--) {
                     for (int x = 0; x < width; x++) drawWall(frame, target, x, y, top);
                 }
-                for (int pass = 0; pass < 2; pass++) {
+                for (int pass = 0; pass < (options.buildings() ? 2 : 0); pass++) {
                     for (int y = Math.min(height - 1, top + reach); y >= Math.max(0, bottom - reach); y--) {
                         for (int i = rowStart[y]; i < rowStart[y + 1]; i++) {
                             var building = placed.get(byRow[i]);
@@ -151,7 +152,11 @@ public final class MapRenderer {
                         }
                     }
                 }
-                if (darkness) shade(frame, target, top, column, columnFraction, frame.lighting().light, false);
+                if (options.darkness()) shade(frame, target, top, column, columnFraction, frame.lighting().light, false);
+                if (focus != null) dim(frame, target, top, column, columnFraction, focus);
+                var marks = new Overlays.Target(band, pixelsWide, (height - 1 - top) * s, rows);
+                if (options.grid()) Overlays.grid(marks, width, height, s);
+                if (!zones.isEmpty()) Overlays.spawns(marks, zones, s);
                 long encodeStart = System.nanoTime();
                 for (int row = 0; row < rows; row++) writer.row(band, row * pixelsWide);
                 encoding += System.nanoTime() - encodeStart;
@@ -187,6 +192,64 @@ public final class MapRenderer {
                 band.pixels()[offset + x] = r << 16 | g << 8 | b;
             }
         }
+    }
+
+    /** 255 on tiles with an ore, on the floor or in a wall; 0 elsewhere. */
+    private byte[] ores(MapSnapshot map) {
+        int count = map.tileCount();
+        byte[] focus = new byte[count];
+        var spawn = map.registry().resolve(org.xcore.msav.ContentRegistrySnapshot.BLOCK_TYPE, "spawn");
+        int spawnId = spawn == null ? -1 : spawn.id();
+        for (int i = 0; i < count; i++) {
+            int overlay = map.overlay(i), block = map.block(i);
+            if (overlay <= 0 || overlay >= content.layer.length || overlay == spawnId) continue;
+            boolean inWall = block > 0 && block < content.layer.length && content.layer[block] == RenderContent.STATIC;
+            boolean ore = content.wallOre[overlay] ? inWall
+                    : content.layer[overlay] == RenderContent.OVERLAY && content.sprites[overlay].length > 0 && !inWall;
+            if (ore) focus[i] = (byte) 255;
+        }
+        return focus;
+    }
+
+    /** Dims and greys every pixel by how far it is from an ore tile (the grid, sampled bilinearly). */
+    private static void dim(Frame frame, Band band, int top, int[] column, int[] columnFraction, byte[] focus) {
+        int s = frame.s(), width = frame.width(), height = frame.height();
+        for (int row = 0; row < band.rows(); row++) {
+            double tileY = top + 0.5 - (row + 0.5) / s;
+            int at = (int) Math.floor(tileY * 256);
+            int y0 = at >> 8, fy = at & 0xff;
+            int offset = row * band.width();
+            for (int x = 0; x < band.width(); x++) {
+                int keep = Lighting.sample(focus, width, height, column[x], y0, columnFraction[x], fy);
+                if (keep >= 255) continue;
+                int pixel = band.pixels()[offset + x];
+                int r = pixel >> 16 & 0xff, g = pixel >> 8 & 0xff, b = pixel & 0xff;
+                int grey = (r * 77 + g * 150 + b * 29) >> 8;
+                // Away from ores: greyed, at 60 % brightness, keeping a fifth of the colour.
+                int faded = grey * 154 >> 8, k = (255 - keep) * 4 / 5;
+                r = (r * keep + faded * k) / 255;
+                g = (g * keep + faded * k) / 255;
+                b = (b * keep + faded * k) / 255;
+                band.pixels()[offset + x] = r << 16 | g << 8 | b;
+            }
+        }
+    }
+
+    /** Enemy spawns ({@code spawn} overlay) and the rules' drop zone radius, in image pixels. */
+    private static List<Overlays.Zone> zones(MapSnapshot map, int s) {
+        var spawn = map.registry().resolve(org.xcore.msav.ContentRegistrySnapshot.BLOCK_TYPE, "spawn");
+        if (spawn == null) return List.of();
+        var rules = map.metadata().rules();
+        // World units (8 per tile); the game's default when the rules do not say.
+        double radius = (rules != null && rules.dropZoneRadius() > 0 ? rules.dropZoneRadius() : 300) / 8 * s;
+        int width = map.metadata().width(), height = map.metadata().height();
+        var zones = new java.util.ArrayList<Overlays.Zone>();
+        for (int i = 0; i < map.tileCount(); i++) {
+            if (map.overlay(i) != spawn.id()) continue;
+            int x = i % width, y = i / width;
+            zones.add(new Overlays.Zone((x + 0.5) * s, (height - 1 - y + 0.5) * s, radius));
+        }
+        return zones;
     }
 
     private static final int[] D8X = {1, 1, 0, -1, -1, -1, 0, 1}, D8Y = {0, 1, 1, 1, 0, -1, -1, -1};

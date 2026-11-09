@@ -9,7 +9,7 @@ from discord import Interaction
 from .i18n import DEFAULT, t
 from .presentation import build_servers_embed, sort_live_servers
 from .registry import LiveServerRegistry
-from .services.map_images import MapImageKind
+from .services.map_images import RenderStyle
 from .ui_helpers import disable_view_buttons, safe_edit_view_message
 
 MapSortMode = Literal["reputation", "popularity", "name"]
@@ -228,21 +228,31 @@ class MapsListView(discord.ui.View):
         return "reputation"
 
 
-class MapDetailsView(discord.ui.View):
-    """The /map card's button: the detailed render, then the darkness switch.
+# The layers menu under a detailed render: the style flag, its emoji and its text keys.
+MAP_LAYERS = (
+    ("buildings", "🏗️"),
+    ("darkness", "🌑"),
+    ("ores", "⛏️"),
+    ("grid", "#️⃣"),
+    ("spawns", "🎯"),
+)
 
-    The first press swaps the thumbnail for the detailed render, without the game's
-    darkness over static walls; after that the button switches the darkness on and off.
-    Anyone who sees the card may press it. ``render`` gets the id of whoever pressed it and
-    the kind of picture to draw, and returns the new card and file, or a message for that
-    person when it could not (including when their render cooldown has not run out).
+
+class MapDetailsView(discord.ui.View):
+    """Under the /map card: the detailed render, then the menu of its layers.
+
+    The first press swaps the thumbnail for the detailed render in the default style. After
+    that a menu turns layers on and off (buildings, wall darkness, ores, grid, spawns), and
+    choosing draws the map again. Anyone who sees the card may use them. ``render`` gets the
+    id of whoever chose and the style, and returns the new card and file, or a message for
+    that person when it could not (including when their render cooldown has not run out).
     """
 
     def __init__(
         self,
         *,
         render: Callable[
-            [int, MapImageKind], Awaitable[tuple[discord.Embed, discord.File] | str]
+            [int, RenderStyle], Awaitable[tuple[discord.Embed, discord.File] | str]
         ],
         locale: str = DEFAULT,
     ) -> None:
@@ -250,46 +260,62 @@ class MapDetailsView(discord.ui.View):
         super().__init__(timeout=600)
         self._render = render
         self._locale = locale
-        self.shown: MapImageKind | None = None
+        self.style: RenderStyle | None = None
         self.bot_message: discord.Message | None = None
-        self._label()
+        button: discord.ui.Button[MapDetailsView] = discord.ui.Button(
+            label=t(locale, "maps-card-render-button"),
+            style=discord.ButtonStyle.primary,
+        )
+        button.callback = lambda interaction: self._show(  # type: ignore[method-assign]
+            interaction, RenderStyle(), button
+        )
+        self.add_item(button)
 
-    def next_kind(self) -> MapImageKind:
-        """What the button draws now."""
-        return (
-            MapImageKind.DETAILED_DARK
-            if self.shown is MapImageKind.DETAILED
-            else MapImageKind.DETAILED
+    def _layers(self, style: RenderStyle) -> discord.ui.Select[MapDetailsView]:
+        menu: discord.ui.Select[MapDetailsView] = discord.ui.Select(
+            placeholder=t(self._locale, "maps-card-layers"),
+            min_values=0,
+            max_values=len(MAP_LAYERS),
+            options=[
+                discord.SelectOption(
+                    label=t(self._locale, f"maps-card-layer-{name}"),
+                    description=t(self._locale, f"maps-card-layer-{name}-hint"),
+                    emoji=emoji,
+                    value=name,
+                    default=getattr(style, name),
+                )
+                for name, emoji in MAP_LAYERS
+            ],
         )
 
-    def _label(self) -> None:
-        if self.shown is None:
-            self._render_btn.label = t(self._locale, "maps-card-render-button")
-            self._render_btn.style = discord.ButtonStyle.primary
-        else:
-            dark = self.next_kind() is MapImageKind.DETAILED_DARK
-            self._render_btn.label = t(
-                self._locale,
-                "maps-card-darkness-on" if dark else "maps-card-darkness-off",
-            )
-            self._render_btn.style = discord.ButtonStyle.secondary
+        async def chosen(interaction: Interaction) -> None:
+            wanted = RenderStyle.of(menu.values)
+            if wanted == self.style:
+                await interaction.response.defer()
+                return
+            await self._show(interaction, wanted, menu)
 
-    @discord.ui.button(label="Detailed render", style=discord.ButtonStyle.primary)
-    async def _render_btn(
-        self, interaction: Interaction, button: discord.ui.Button
+        menu.callback = chosen  # type: ignore[method-assign]
+        return menu
+
+    async def _show(
+        self,
+        interaction: Interaction,
+        style: RenderStyle,
+        control: discord.ui.Button[MapDetailsView] | discord.ui.Select[MapDetailsView],
     ) -> None:
-        kind = self.next_kind()
-        button.disabled = True
+        control.disabled = True
         await interaction.response.edit_message(view=self)
-        result = await self._render(interaction.user.id, kind)
-        button.disabled = False
+        result = await self._render(interaction.user.id, style)
+        control.disabled = False
         if isinstance(result, str):
             await interaction.edit_original_response(view=self)
             await interaction.followup.send(result, ephemeral=True)
             return
         embed, file = result
-        self.shown = kind
-        self._label()
+        self.style = style
+        self.clear_items()
+        self.add_item(self._layers(style))
         await interaction.edit_original_response(
             embed=embed, attachments=[file], view=self
         )

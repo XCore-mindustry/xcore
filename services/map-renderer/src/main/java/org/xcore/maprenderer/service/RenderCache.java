@@ -28,8 +28,10 @@ final class RenderCache {
         this.maxBytes = maxBytes;
     }
 
-    static String key(String contentHash, int maxSide, int maxBytes, boolean darkness, String version) {
-        return contentHash + "-" + maxSide + "-" + maxBytes + (darkness ? "" : "-light") + "-" + version;
+    static String key(String contentHash, int maxSide, int maxBytes, org.xcore.maprenderer.RenderOptions options,
+                      String version) {
+        String style = options.key();
+        return contentHash + "-" + maxSide + "-" + maxBytes + (style.isEmpty() ? "" : "-" + style) + "-" + version;
     }
 
     synchronized Entry get(String key) {

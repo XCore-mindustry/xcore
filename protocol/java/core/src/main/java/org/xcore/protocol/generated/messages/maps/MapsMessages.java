@@ -417,7 +417,11 @@ public final class MapsMessages {
             MapBlobRefV1 file,
             Integer maxSide,
             Integer maxBytes,
-            Boolean darkness
+            Boolean darkness,
+            Boolean buildings,
+            Boolean ores,
+            Boolean grid,
+            Boolean spawns
     ) implements ProtocolPayload {
     public static final String MESSAGE_TYPE = "maps.render.request";
     public static final int MESSAGE_VERSION = 1;
@@ -452,6 +456,18 @@ public final class MapsMessages {
             }
             if (darkness != null) {
                 payload.put("darkness", darkness);
+            }
+            if (buildings != null) {
+                payload.put("buildings", buildings);
+            }
+            if (ores != null) {
+                payload.put("ores", ores);
+            }
+            if (grid != null) {
+                payload.put("grid", grid);
+            }
+            if (spawns != null) {
+                payload.put("spawns", spawns);
             }
             return payload;
         }

@@ -34,14 +34,40 @@ class MapImageKind(StrEnum):
     # One pixel per tile, coloured by block: cheap, the game server draws it.
     THUMBNAIL = "thumbnail"
     # Block sprites, like the game itself: expensive, drawn away from the game servers.
-    # Without the game's darkness over static walls and outside the map, by default.
     DETAILED = "detailed"
-    # The same with the darkness, as the game shows it.
-    DETAILED_DARK = "detailed-dark"
 
-    @property
-    def detailed(self) -> bool:
-        return self is not MapImageKind.THUMBNAIL
+
+@dataclass(frozen=True, slots=True)
+class RenderStyle:
+    """What a detailed render shows besides the map. The default leaves out the game's
+    darkness over static walls, which hides the walls themselves."""
+
+    buildings: bool = True
+    darkness: bool = False
+    ores: bool = False
+    grid: bool = False
+    spawns: bool = False
+
+    LAYERS = ("buildings", "darkness", "ores", "grid", "spawns")
+
+    def key(self) -> str:
+        """A short name for cache keys and file names; empty for the default."""
+        if self == RenderStyle():
+            return ""
+        return "".join(name[0] for name in self.LAYERS if getattr(self, name))
+
+    def layers(self) -> dict[str, bool]:
+        """The flags of ``maps.render.request``."""
+        return {name: getattr(self, name) for name in self.LAYERS}
+
+    @classmethod
+    def of(cls, names: object) -> RenderStyle:
+        """The style with exactly these layers on."""
+        chosen = set(names)  # type: ignore[call-overload]
+        return cls(**{name: name in chosen for name in cls.LAYERS})
+
+
+PLAIN = RenderStyle()
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,12 +85,15 @@ class MapImage:
     width: int
     height: int
 
-    def attachment_name(self, ref: MapRef, kind: MapImageKind) -> str:
+    def attachment_name(
+        self, ref: MapRef, kind: MapImageKind, style: RenderStyle = PLAIN
+    ) -> str:
         stem = ref.file_name.rsplit(".", 1)[0]
         safe = "".join(
             c if c.isascii() and (c.isalnum() or c in "-_") else "_" for c in stem
         )
-        return f"{safe[:60] or 'map'}-{kind.value}.png"
+        suffix = f"-{style.key()}" if style.key() else ""
+        return f"{safe[:60] or 'map'}-{kind.value}{suffix}.png"
 
 
 class MapImageSource(Protocol):
@@ -80,13 +109,19 @@ class MapImageSource(Protocol):
         """Whether asking now is worth it: the source supports the kind and is running."""
         ...
 
-    async def fetch(self, ref: MapRef, kind: MapImageKind) -> MapImage | None: ...
+    async def fetch(
+        self, ref: MapRef, kind: MapImageKind, style: RenderStyle
+    ) -> MapImage | None:
+        """``style`` matters to detailed renders only."""
+        ...
 
 
 class FileRenderer(Protocol):
     """Draws a map file the bot holds itself, such as one submitted for review."""
 
-    async def render_file(self, data: bytes, sha256: str) -> MapImage | None: ...
+    async def render_file(
+        self, data: bytes, sha256: str, style: RenderStyle
+    ) -> MapImage | None: ...
 
 
 class NoMapImages:
@@ -98,7 +133,9 @@ class NoMapImages:
     async def available(self, kind: MapImageKind) -> bool:
         return False
 
-    async def fetch(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
+    async def fetch(
+        self, ref: MapRef, kind: MapImageKind, style: RenderStyle
+    ) -> MapImage | None:
         return None
 
 
@@ -131,14 +168,22 @@ class MapImages:
     async def available(self, kind: MapImageKind) -> bool:
         return self._source.supports(kind) and await self._source.available(kind)
 
-    async def get(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
+    async def get(
+        self, ref: MapRef, kind: MapImageKind, style: RenderStyle = PLAIN
+    ) -> MapImage | None:
         if not self._source.supports(kind):
             return None
+        source = self._source
         return await self._load(
-            self._key(ref, kind), ref, kind, lambda: self._source.fetch(ref, kind)
+            self._key(ref, kind, style),
+            ref,
+            kind,
+            lambda: source.fetch(ref, kind, style),
         )
 
-    async def render_file(self, ref: MapRef, data: bytes) -> MapImage | None:
+    async def render_file(
+        self, ref: MapRef, data: bytes, style: RenderStyle = PLAIN
+    ) -> MapImage | None:
         """The detailed render of a file the bot holds, cached under its content hash.
 
         ``ref`` names the file for logs and attachments; its hash is the file's own.
@@ -149,10 +194,10 @@ class MapImages:
         ref = MapRef(ref.server, ref.file_name, sha)
         files = self._files
         return await self._load(
-            self._key(ref, MapImageKind.DETAILED),
+            self._key(ref, MapImageKind.DETAILED, style),
             ref,
             MapImageKind.DETAILED,
-            lambda: files.render_file(data, sha),
+            lambda: files.render_file(data, sha, style),
         )
 
     async def _load(
@@ -208,18 +253,22 @@ class MapImages:
         if not task.cancelled():
             task.exception()
 
-    def drawing(self, ref: MapRef, kind: MapImageKind) -> bool:
+    def drawing(
+        self, ref: MapRef, kind: MapImageKind, style: RenderStyle = PLAIN
+    ) -> bool:
         """Whether this picture is being fetched right now for someone else."""
-        return self._key(ref, kind) in self._inflight
+        return self._key(ref, kind, style) in self._inflight
 
     def _drop(self, key: tuple[str, ...]) -> None:
         entry = self._cache.pop(key, None)
         if entry is not None:
             self._bytes -= len(entry[1].png)
 
-    def cached(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
+    def cached(
+        self, ref: MapRef, kind: MapImageKind, style: RenderStyle = PLAIN
+    ) -> MapImage | None:
         """The picture if it is in the cache and still fresh; never asks the source."""
-        return self.cached_key(self._key(ref, kind))
+        return self.cached_key(self._key(ref, kind, style))
 
     def cached_key(self, key: tuple[str, ...]) -> MapImage | None:
         cached = self._cache.get(key)
@@ -240,10 +289,15 @@ class MapImages:
             self._drop(key)
 
     @staticmethod
-    def _key(ref: MapRef, kind: MapImageKind) -> tuple[str, ...]:
+    def _key(
+        ref: MapRef, kind: MapImageKind, style: RenderStyle = PLAIN
+    ) -> tuple[str, ...]:
+        picture = (
+            kind.value if kind is MapImageKind.THUMBNAIL else f"{kind}:{style.key()}"
+        )
         if ref.content_hash:
-            return ("hash", ref.content_hash, kind.value)
-        return ("name", ref.server, ref.file_name, kind.value)
+            return ("hash", ref.content_hash, picture)
+        return ("name", ref.server, ref.file_name, picture)
 
 
 class ThumbnailRpc(Protocol):
@@ -276,7 +330,9 @@ class ServerThumbnails:
     async def available(self, kind: MapImageKind) -> bool:
         return self.supports(kind)
 
-    async def fetch(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
+    async def fetch(
+        self, ref: MapRef, kind: MapImageKind, style: RenderStyle = PLAIN
+    ) -> MapImage | None:
         if kind is not MapImageKind.THUMBNAIL:
             return None
         try:
@@ -324,7 +380,12 @@ class RenderRpc(Protocol):
     async def publish_blob(self, data: bytes, content_type: Any) -> Any: ...
 
     async def render_map(
-        self, *, content_hash: str, file: Any, darkness: bool, timeout_ms: int
+        self,
+        *,
+        content_hash: str,
+        file: Any,
+        timeout_ms: int,
+        layers: dict[str, bool] | None = None,
     ) -> Any: ...
 
     async def read_blob(self, ref: Any) -> bytes: ...
@@ -348,7 +409,7 @@ class RendererImages:
         self._timeout_ms = timeout_ms
 
     def supports(self, kind: MapImageKind) -> bool:
-        return kind.detailed
+        return kind is MapImageKind.DETAILED
 
     async def available(self, kind: MapImageKind) -> bool:
         if not self.supports(kind):
@@ -359,8 +420,10 @@ class RendererImages:
             logger.warning("Could not check the map renderer", exc_info=True)
             return False
 
-    async def fetch(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
-        if not kind.detailed:
+    async def fetch(
+        self, ref: MapRef, kind: MapImageKind, style: RenderStyle = PLAIN
+    ) -> MapImage | None:
+        if kind is not MapImageKind.DETAILED:
             return None
         await self._require_renderer()
         published = await self._rpc.map_file(
@@ -375,10 +438,12 @@ class RendererImages:
             published.contentHash or published.file.sha256,
             published.file,
             ref.file_name,
-            darkness=kind is MapImageKind.DETAILED_DARK,
+            style=style,
         )
 
-    async def render_file(self, data: bytes, sha256: str) -> MapImage | None:
+    async def render_file(
+        self, data: bytes, sha256: str, style: RenderStyle = PLAIN
+    ) -> MapImage | None:
         await self._require_renderer()
         try:
             file = await self._rpc.publish_blob(
@@ -387,19 +452,19 @@ class RendererImages:
         except Exception:
             logger.warning("Could not publish map file %s", sha256[:12], exc_info=True)
             return None
-        return await self._render(sha256, file, sha256[:12], darkness=False)
+        return await self._render(sha256, file, sha256[:12], style=style)
 
     async def _require_renderer(self) -> None:
         if not await self.available(MapImageKind.DETAILED):
             raise RendererUnavailable("the map renderer is not running")
 
     async def _render(
-        self, content_hash: str, file: Any, name: str, *, darkness: bool
+        self, content_hash: str, file: Any, name: str, *, style: RenderStyle
     ) -> MapImage | None:
         render = await self._rpc.render_map(
             content_hash=content_hash,
             file=file,
-            darkness=darkness,
+            layers=style.layers(),
             timeout_ms=self.RENDER_TIMEOUT_MS,
         )
         if render.status.value == "busy":
@@ -435,9 +500,11 @@ class RoutedImages:
         source = self._for(kind)
         return source is not None and await source.available(kind)
 
-    async def fetch(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
+    async def fetch(
+        self, ref: MapRef, kind: MapImageKind, style: RenderStyle = PLAIN
+    ) -> MapImage | None:
         source = self._for(kind)
-        return None if source is None else await source.fetch(ref, kind)
+        return None if source is None else await source.fetch(ref, kind, style)
 
 
 class RenderCooldown:

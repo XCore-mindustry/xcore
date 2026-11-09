@@ -1142,10 +1142,11 @@ class _Renderer:
     async def available(self, kind):
         return self.online
 
-    async def fetch(self, ref, kind):
+    async def fetch(self, ref, kind, style=None):
         return None
 
-    async def render_file(self, data, sha256):
+    async def render_file(self, data, sha256, style=None):
+        self.style = style
         if self.busy:
             self.busy -= 1
             raise RendererBusy("busy")
@@ -1169,7 +1170,7 @@ def _renders(thread):
     return [
         m
         for m in thread.messages
-        if getattr(m, "file", None) and m.file.filename.endswith("-detailed.png")
+        if getattr(m, "file", None) and "-detailed" in m.file.filename
     ]
 
 
@@ -1183,13 +1184,14 @@ async def test_review_thread_gets_the_render_of_the_submitted_file_once(monkeypa
     await asyncio.gather(*maps._previews.values())
 
     [render] = _renders(thread)
-    assert render.file.filename == "arena-detailed.png"
+    assert render.file.filename == "arena-detailed-bgs.png"
     assert render.file.fp.read() == b"\x89PNG-render"
     assert render.content == t(
         "en",
         "maps-preview-attached",
         sha=hashlib.sha256(attachment.data).hexdigest()[:12],
     )
+    assert renderer.style == maps.REVIEW_STYLE
     # The recheck found the posted render: the file was drawn once.
     assert renderer.files == [attachment.data]
 

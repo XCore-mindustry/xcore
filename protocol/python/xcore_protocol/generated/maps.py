@@ -669,6 +669,10 @@ class MapsRenderRequestV1:
     maxSide: int | None = None
     maxBytes: int | None = None
     darkness: bool | None = None
+    buildings: bool | None = None
+    ores: bool | None = None
+    grid: bool | None = None
+    spawns: bool | None = None
 
     MESSAGE_TYPE: ClassVar[str] = 'maps.render.request'
     MESSAGE_VERSION: ClassVar[int] = 1
@@ -687,6 +691,14 @@ class MapsRenderRequestV1:
                 raise ValueError("maxBytes must be >= 65536")
         if self.darkness is not None:
             _expect_bool(self.darkness, 'darkness')
+        if self.buildings is not None:
+            _expect_bool(self.buildings, 'buildings')
+        if self.ores is not None:
+            _expect_bool(self.ores, 'ores')
+        if self.grid is not None:
+            _expect_bool(self.grid, 'grid')
+        if self.spawns is not None:
+            _expect_bool(self.spawns, 'spawns')
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "MapsRenderRequestV1":
@@ -694,7 +706,7 @@ class MapsRenderRequestV1:
         _expect_exact_keys(
             mapping,
             required=frozenset(('messageType', 'messageVersion', 'contentHash', 'file')),
-            allowed=frozenset(('messageType', 'messageVersion', 'contentHash', 'file', 'maxSide', 'maxBytes', 'darkness')),
+            allowed=frozenset(('messageType', 'messageVersion', 'contentHash', 'file', 'maxSide', 'maxBytes', 'darkness', 'buildings', 'ores', 'grid', 'spawns')),
             model_name="MapsRenderRequestV1",
         )
         if mapping['messageType'] != cls.MESSAGE_TYPE:
@@ -707,6 +719,10 @@ class MapsRenderRequestV1:
             maxSide=(_expect_int(mapping['maxSide'], 'maxSide') if 'maxSide' in mapping else None),
             maxBytes=(_expect_int(mapping['maxBytes'], 'maxBytes') if 'maxBytes' in mapping else None),
             darkness=(_expect_bool(mapping['darkness'], 'darkness') if 'darkness' in mapping else None),
+            buildings=(_expect_bool(mapping['buildings'], 'buildings') if 'buildings' in mapping else None),
+            ores=(_expect_bool(mapping['ores'], 'ores') if 'ores' in mapping else None),
+            grid=(_expect_bool(mapping['grid'], 'grid') if 'grid' in mapping else None),
+            spawns=(_expect_bool(mapping['spawns'], 'spawns') if 'spawns' in mapping else None),
         )
 
     def to_payload(self) -> dict[str, Any]:
@@ -722,6 +738,14 @@ class MapsRenderRequestV1:
             payload['maxBytes'] = self.maxBytes
         if self.darkness is not None:
             payload['darkness'] = self.darkness
+        if self.buildings is not None:
+            payload['buildings'] = self.buildings
+        if self.ores is not None:
+            payload['ores'] = self.ores
+        if self.grid is not None:
+            payload['grid'] = self.grid
+        if self.spawns is not None:
+            payload['spawns'] = self.spawns
         return payload
 
 class MapsRenderResponseV1Status(StrEnum):
