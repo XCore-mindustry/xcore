@@ -292,6 +292,10 @@ async def test_failed_render_has_no_picture(status: str) -> None:
     )
 
 
+def _user(user_id: int, *role_ids: int) -> SimpleNamespace:
+    return SimpleNamespace(id=user_id, roles=[SimpleNamespace(id=r) for r in role_ids])
+
+
 def test_cooldown_is_thirty_seconds_per_person() -> None:
     now = [100.0]
     cooldown = RenderCooldown(clock=lambda: now[0])
@@ -315,14 +319,14 @@ async def test_render_button_waits_between_new_renders_but_not_for_cached_ones()
     await cmd_map_details(bot, first, "mini-pvp", "arena.msav")
     view = first.followup.messages[0]["view"]
 
-    drawn = await view._render(7, RenderStyle())
+    drawn = await view._render(_user(7), RenderStyle())
     again = await view._render(
-        7, RenderStyle()
+        _user(7), RenderStyle()
     )  # already drawn: no wait, no second render
     bot.container.map_images.clear()
-    waited = await view._render(7, RenderStyle())
+    waited = await view._render(_user(7), RenderStyle())
     other = await view._render(
-        8, RenderStyle()
+        _user(8), RenderStyle()
     )  # anyone may press; the wait is per presser
 
     assert not isinstance(drawn, str) and not isinstance(again, str)
@@ -333,6 +337,25 @@ async def test_render_button_waits_between_new_renders_but_not_for_cached_ones()
     )
 
 
+@pytest.mark.parametrize("role", [6, 5], ids=["map-reviewer", "admin"])
+async def test_reviewers_and_admins_render_without_the_wait(role: int) -> None:
+    bot, renderer = await _render_bot(
+        {"status": "ok", "image": _image(), "scale": 8, "renderMs": 420}
+    )
+    # The admin role is 5.
+    bot.settings = bot.settings.model_copy(update={"discord_map_reviewer_role_id": 6})
+    card = _Interaction()
+    await cmd_map_details(bot, card, "mini-pvp", "arena.msav")
+    view = card.followup.messages[0]["view"]
+
+    first = await view._render(_user(7, role), RenderStyle())
+    bot.container.map_images.clear()
+    second = await view._render(_user(7, role), RenderStyle())
+
+    assert not isinstance(first, str) and not isinstance(second, str)
+    assert len(renderer.sent(RENDER_REQUEST)) == 2
+
+
 @pytest.mark.parametrize("render", [{"status": "busy"}, {"status": "failed"}])
 async def test_render_that_draws_nothing_costs_no_wait(render: dict[str, Any]) -> None:
     bot, renderer = await _render_bot(render)
@@ -340,8 +363,8 @@ async def test_render_that_draws_nothing_costs_no_wait(render: dict[str, Any]) -
     await cmd_map_details(bot, card, "mini-pvp", "arena.msav")
     view = card.followup.messages[0]["view"]
 
-    first = await view._render(7, RenderStyle())
-    second = await view._render(7, RenderStyle())
+    first = await view._render(_user(7), RenderStyle())
+    second = await view._render(_user(7), RenderStyle())
 
     assert isinstance(first, str) and isinstance(second, str)
     assert not second.startswith("You can start a new render in")
@@ -357,8 +380,8 @@ async def test_timed_out_render_keeps_the_wait(
     await cmd_map_details(bot, card, "mini-pvp", "arena.msav")
     view = card.followup.messages[0]["view"]
 
-    await view._render(7, RenderStyle())
-    waited = await view._render(7, RenderStyle())
+    await view._render(_user(7), RenderStyle())
+    waited = await view._render(_user(7), RenderStyle())
 
     assert isinstance(waited, str) and waited.startswith(
         "You can start a new render in"
@@ -432,7 +455,7 @@ async def test_a_render_already_running_for_someone_else_costs_no_wait() -> None
     bot.container.render_cooldown.start(8)  # 8 just rendered another map
 
     first, second = await asyncio.gather(
-        view._render(7, RenderStyle()), view._render(8, RenderStyle())
+        view._render(_user(7), RenderStyle()), view._render(_user(8), RenderStyle())
     )
 
     assert not isinstance(first, str) and not isinstance(second, str)
