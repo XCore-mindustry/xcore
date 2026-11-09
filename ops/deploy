@@ -68,10 +68,14 @@ set -euo pipefail
 sha=$1; shift
 uv=$(command -v uv || echo ~/.local/bin/uv)
 repo=~/services/xcore
+# One deploy at a time: the checkout must not move while uv builds from it.
+mkdir -p ~/services/deployed
+exec 9>~/services/deployed/.lock
+flock 9
 [[ -d $repo ]] || git clone -q https://github.com/XCore-mindustry/xcore.git "$repo"
 git -C "$repo" fetch -q origin
 git -C "$repo" checkout -q --detach "$sha"
-mkdir -p ~/.config/systemd/user ~/services/deployed
+mkdir -p ~/.config/systemd/user
 
 wait_for() { # seconds, command...
   local deadline=$((SECONDS + $1)); shift
@@ -96,8 +100,10 @@ for svc in "$@"; do
     [[ -d ~/services/$svc ]] && mv ~/services/"$svc" ~/services/"$svc".prev
     mv ~/services/"$svc".next ~/services/"$svc"
   else
-    # Non-editable, so later checkouts do not change the code of a running service.
+    # Non-editable, so later checkouts do not change the code of a running service. The workspace
+    # packages keep their version between commits, so uv would keep the old build without --reinstall-package.
     UV_PROJECT_ENVIRONMENT=~/services/venvs/${unit#xcore-} "$uv" sync -q --locked --no-dev --no-editable \
+      --reinstall-package "$pkg" --reinstall-package xcore-protocol \
       --python "$python" --package "$pkg" --project "$repo"
   fi
 
