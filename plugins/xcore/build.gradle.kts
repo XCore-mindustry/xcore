@@ -15,7 +15,7 @@ plugins {
 }
 
 group = "org.xcore.plugin"
-version = "5.6.0"
+version = "5.6.1"
 val mindustryVersion = libs.versions.mindustry.get().removePrefix("v")
 
 java {
