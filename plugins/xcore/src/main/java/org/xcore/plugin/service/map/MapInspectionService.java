@@ -1,9 +1,13 @@
 package org.xcore.plugin.service.map;
 
 import jakarta.inject.Singleton;
+import org.xcore.msav.ContentRegistrySnapshot;
+import org.xcore.msav.DetachedMsavReader;
+import org.xcore.msav.MapSnapshot;
 import org.xcore.plugin.concurrent.GameThread;
 import org.xcore.plugin.config.TomlSecretsConfig;
 import org.xcore.plugin.service.map.inspect.*;
+import org.xcore.plugin.service.map.inspect.ContentRegistryCapture;
 import org.xcore.protocol.generated.shared.MapFileSourceV1;
 
 import java.io.IOException;
@@ -25,7 +29,7 @@ public class MapInspectionService {
 
     public Context capture() {
         GameThread.require("map inspection capture");
-        return new Context(ContentRegistrySnapshot.capture(), InspectionSettings.capture(secrets.maps.checks));
+        return new Context(ContentRegistryCapture.capture(), InspectionSettings.capture(secrets.maps.checks));
     }
 
     /** The caller must dispatch this method to Async/StorageExecutor. No engine references cross this boundary. */

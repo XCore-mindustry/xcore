@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.xcore.msav.DetachedMsavReader;
+import org.xcore.msav.MapSnapshot;
 import org.xcore.plugin.concurrent.GameThread;
 import org.xcore.testkit.fixtures.HeadlessWorld;
 
@@ -204,7 +206,7 @@ class EngineCoreOracleTest {
     private MapSnapshot detached(MsavFixture fixture) throws Exception {
         try (var world = HeadlessWorld.create(5, 5)) {
             return new DetachedMsavReader().read(fixture.write(directory), "0".repeat(64),
-                    ContentRegistrySnapshot.capture(), MsavFixture.settings());
+                    ContentRegistryCapture.capture(), MsavFixture.settings());
         } catch (IOException rejected) {
             return null;
         }

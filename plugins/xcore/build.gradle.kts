@@ -55,6 +55,7 @@ dependencies {
     compileOnly(toxopid.dependencies.mindustryHeadless)
     implementation(project(":protocol"))
     implementation(project(":libs:flubundle"))
+    implementation(project(":libs:msav"))
     implementation(project(":libs:xcore-ui"))
     implementation(project(":libs:cloud-mindustry:lib"))
     implementation(libs.mongodb.sync)

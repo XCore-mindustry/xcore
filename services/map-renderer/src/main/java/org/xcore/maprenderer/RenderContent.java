@@ -2,8 +2,8 @@ package org.xcore.maprenderer;
 
 import arc.util.serialization.JsonReader;
 import arc.util.serialization.JsonValue;
-import org.xcore.plugin.service.map.inspect.ContentRegistrySnapshot;
-import org.xcore.plugin.service.map.inspect.MapRules;
+import org.xcore.msav.ContentRegistrySnapshot;
+import org.xcore.msav.MapRules;
 
 import java.io.IOException;
 import java.nio.file.Files;

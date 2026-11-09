@@ -1,9 +1,9 @@
 package org.xcore.maprenderer;
 
 import arc.math.Rand;
-import org.xcore.plugin.service.map.inspect.DetachedMsavReader;
-import org.xcore.plugin.service.map.inspect.InspectionSettings;
-import org.xcore.plugin.service.map.inspect.MapSnapshot;
+import org.xcore.msav.DetachedMsavReader;
+import org.xcore.msav.MapSnapshot;
+import org.xcore.msav.MsavLimits;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -26,12 +26,12 @@ public final class MapRenderer {
     private final RenderContent content;
     private final Path pack;
     private final Map<Integer, SpritePack> packs = new ConcurrentHashMap<>();
-    private final InspectionSettings settings;
+    private final MsavLimits settings;
 
     public MapRenderer(RenderContent content, Path pack, int maxFileBytes, int maxTiles) {
         this.content = content;
         this.pack = pack;
-        this.settings = new InspectionSettings(maxFileBytes, maxTiles, Map.of());
+        this.settings = MsavLimits.of(maxFileBytes, maxTiles);
     }
 
     /**

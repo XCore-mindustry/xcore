@@ -1,4 +1,4 @@
-package org.xcore.plugin.service.map.inspect;
+package org.xcore.msav;
 
 import java.util.List;
 import java.util.Map;

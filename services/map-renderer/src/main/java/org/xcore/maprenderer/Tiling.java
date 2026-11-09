@@ -1,6 +1,6 @@
 package org.xcore.maprenderer;
 
-import org.xcore.plugin.service.map.inspect.MapSnapshot.Placed;
+import org.xcore.msav.MapSnapshot.Placed;
 
 import java.util.List;
 

@@ -15,8 +15,8 @@ This is the measured prototype. It renders and benchmarks; it does not listen on
   - `sprites.pack`: the 1260 sprites maps use (block sprites, the cells of floor edge sheets and
     of 2x2 wall sheets, the autotile cases of conveyors, ducts and conduits), untrimmed, at 32,
     16, 8 and 4 px per tile; one deflated section per scale, 1.6 MB in total.
-- The renderer (source set `main`) never loads Mindustry content. It decodes the map with the
-  plugin's `DetachedMsavReader` and draws it in bands of 16 tile rows, top first. Each band goes
+- The renderer (source set `main`) has no Mindustry classes. It decodes the map with
+  [`libs/msav`](../../libs/msav) and draws it in bands of 16 tile rows, top first. Each band goes
   straight to a streaming PNG encoder (RGB, Sub filter). Layers, in the engine's order:
   - floor variant, then the edges of higher floors around it (`Floor.drawEdges`: blend id order,
     same cache layer), then the ore;
@@ -125,7 +125,6 @@ With a 256 MB budget, the plain JVM at `-Xmx64m` fits with about 90 MB to spare.
 
 ## Known gaps (to be closed before production)
 
-- The reader comes from `:plugins:xcore` with all of its dependencies; it moves to `libs/msav`.
 - No Redis consumer, protocol messages or disk cache yet.
 - Not drawn: items on conveyors and liquids in conduits, bridge and power-node links (their
   configuration is in building payloads the reader leaves opaque), cliffs, autotiled Erekir floors and walls, and animated water.

@@ -10,6 +10,10 @@ import java.nio.ByteBuffer;
 import java.nio.file.*;
 import java.util.*;
 import java.util.zip.DeflaterOutputStream;
+import org.xcore.msav.ContentRegistrySnapshot;
+import org.xcore.msav.DetachedMsavReader;
+import org.xcore.msav.MapRules;
+import org.xcore.msav.MapSnapshot;
 
 import static org.assertj.core.api.Assertions.*;
 

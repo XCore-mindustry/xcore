@@ -5,8 +5,8 @@ import java.security.MessageDigest
 // Two source sets with different classpaths, on purpose:
 // - `export` runs at build time with Mindustry's content loaded and writes the content table
 //   and the sprite pack from the client's atlas;
-// - `main` is the renderer. It never loads Mindustry content: it reads those two files and
-//   decodes maps with the plugin's DetachedMsavReader.
+// - `main` is the renderer. It has no Mindustry classes at all: it reads those two files and
+//   decodes maps with libs/msav.
 plugins {
     java
     application
@@ -34,10 +34,8 @@ dependencies {
     "exportImplementation"(libs.mindustry.core)
     "exportImplementation"(libs.arc.core)
 
-    // The reader lives in the plugin until it moves to libs/msav. It needs Mindustry's
-    // ContentType enum and Arc's JSON parser on the classpath, not loaded content.
-    implementation(project(":plugins:xcore"))
-    implementation(libs.mindustry.core)
+    // The map reader, and Arc for its JSON parser and the engine's random generator.
+    implementation(project(":libs:msav"))
     implementation(libs.arc.core)
 
     testImplementation(platform(libs.junit.bom))

@@ -171,12 +171,12 @@ The pack is a build output of the renderer, rebuilt with the table.
 ### 3. The reader, shared with the plugin
 
 `DetachedMsavReader`, `MapSnapshot`, `MapRules` and the value part of
-`ContentRegistrySnapshot` move from `plugins/xcore/.../service/map/inspect` into
-`libs/msav`. The registry's `capture()` from `Vars.content` stays in the plugin. The
-renderer builds the same record from `content.json`. One decoder serves both, and
-`EngineCoreOracleTest` keeps checking it against the engine. `MapSnapshot.buildings()`
-now lists every placed building and multiblock centre with its team and rotation. The
-prototype still takes the reader from `:plugins:xcore` directly.
+`ContentRegistrySnapshot` live in `libs/msav` (done), with no Mindustry dependency. The
+registry's `capture()` from `Vars.content` stays in the plugin as
+`ContentRegistryCapture`. The renderer builds the same record from `content.json`. One
+decoder serves both, and `EngineCoreOracleTest` keeps checking it against the engine.
+`MapSnapshot.buildings()` lists every placed building and multiblock centre with its
+team and rotation. The renderer's runtime classpath is now `msav.jar` and Arc, 1.3 MB.
 
 ### Drawing, in bands
 
@@ -252,7 +252,7 @@ compiler's native memory. `native-image` draws byte-identical images about 20 % 
 3. **Detailed renders.**
    a. **done in the prototype:** `exportContent` (content table + sprite pack);
    b. **done:** the measured prototype and the language decision (Java);
-   c. `libs/msav`, and snapshot tests of the compositor on a few bundled maps
+   c. **done:** `libs/msav`; still to do: snapshot tests of the compositor on a few bundled maps
       (perceptual diff, so a changed filter does not fail on single pixels);
    d. the service around it, `maps.file`, `maps.render` and `RendererImages` in the
       bot;

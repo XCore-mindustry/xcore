@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.xcore.msav.DetachedMsavReader;
+import org.xcore.msav.MapSnapshot;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.xcore.plugin.service.map.inspect.MapFinding.Severity.*;

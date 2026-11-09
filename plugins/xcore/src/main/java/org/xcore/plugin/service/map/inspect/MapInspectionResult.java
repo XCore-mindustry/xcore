@@ -1,5 +1,7 @@
 package org.xcore.plugin.service.map.inspect;
 
+import org.xcore.msav.MapSnapshot;
+
 import java.util.List;
 
 public record MapInspectionResult(Status status, String detail, MapSnapshot snapshot, String profile, List<MapFinding> findings) {

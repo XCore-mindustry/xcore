@@ -1,6 +1,6 @@
 package org.xcore.maprenderer;
 
-import org.xcore.plugin.service.map.inspect.MapSnapshot;
+import org.xcore.msav.MapSnapshot;
 
 /**
  * Block shadows and darkness, one byte per tile, sampled bilinearly as the engine's linear-filtered

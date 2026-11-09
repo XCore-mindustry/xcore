@@ -1,5 +1,8 @@
 package org.xcore.plugin.service.map.inspect;
 
+import org.xcore.msav.ContentRegistrySnapshot;
+import org.xcore.msav.MapRules;
+
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;

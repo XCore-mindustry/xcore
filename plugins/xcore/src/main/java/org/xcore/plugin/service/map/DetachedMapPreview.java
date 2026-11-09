@@ -6,10 +6,11 @@ import mindustry.Vars;
 import mindustry.game.Team;
 import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.environment.OverlayFloor;
-import org.xcore.plugin.service.map.inspect.ContentRegistrySnapshot;
-import org.xcore.plugin.service.map.inspect.DetachedMsavReader;
+import org.xcore.msav.ContentRegistrySnapshot;
+import org.xcore.msav.DetachedMsavReader;
+import org.xcore.msav.MapSnapshot;
+import org.xcore.plugin.service.map.inspect.ContentRegistryCapture;
 import org.xcore.plugin.service.map.inspect.InspectionSettings;
-import org.xcore.plugin.service.map.inspect.MapSnapshot;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -28,7 +29,7 @@ final class DetachedMapPreview {
     }
 
     static DetachedMapPreview capture() {
-        var registry = ContentRegistrySnapshot.capture();
+        var registry = ContentRegistryCapture.capture();
         var colors = new HashMap<Integer, BlockColor>();
         for (var block : Vars.content.blocks()) {
             colors.put((int) block.id, new BlockColor(MapColorPalette.colorFor(block), block.synthetic(),

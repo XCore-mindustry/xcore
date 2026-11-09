@@ -5,6 +5,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.xcore.msav.DetachedMsavReader;
+import org.xcore.msav.MapSnapshot;
 import org.xcore.plugin.config.TomlSecretsConfig;
 
 import java.nio.file.Path;

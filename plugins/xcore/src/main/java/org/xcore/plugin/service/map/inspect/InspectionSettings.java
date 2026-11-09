@@ -1,5 +1,6 @@
 package org.xcore.plugin.service.map.inspect;
 
+import org.xcore.msav.MsavLimits;
 import org.xcore.plugin.config.TomlSecretsConfig.MapsConfig.ChecksConfig;
 
 import java.util.LinkedHashMap;
@@ -7,10 +8,10 @@ import java.util.Map;
 
 /** Immutable configuration captured before leaving the game thread. */
 public record InspectionSettings(int maxFileBytes, int maxTiles, Map<String, Profile> profiles,
-                                 Map<String, MapFinding.Severity> severities) {
-    public static final int MAX_INFLATED_BYTES = 64 * 1024 * 1024;
-    public static final int MAX_REGION_BYTES = 32 * 1024 * 1024;
-    public static final int MAX_ALLOCATED_TILES = 1_000_000;
+                                 Map<String, MapFinding.Severity> severities) implements MsavLimits {
+    public static final int MAX_INFLATED_BYTES = MsavLimits.MAX_INFLATED_BYTES;
+    public static final int MAX_REGION_BYTES = MsavLimits.MAX_REGION_BYTES;
+    public static final int MAX_ALLOCATED_TILES = MsavLimits.MAX_ALLOCATED_TILES;
 
     public InspectionSettings {
         if (maxFileBytes <= 0 || maxTiles <= 0) throw new IllegalArgumentException("Positive map limits required");

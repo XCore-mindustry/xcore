@@ -1,5 +1,8 @@
 package org.xcore.plugin.service.map.inspect;
 
+import org.xcore.msav.ContentRegistrySnapshot;
+import org.xcore.msav.MapSnapshot;
+
 import java.util.*;
 
 import static org.xcore.plugin.service.map.inspect.MapFinding.Severity.*;
