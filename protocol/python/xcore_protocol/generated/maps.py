@@ -668,6 +668,7 @@ class MapsRenderRequestV1:
     file: MapBlobRefV1
     maxSide: int | None = None
     maxBytes: int | None = None
+    darkness: bool | None = None
 
     MESSAGE_TYPE: ClassVar[str] = 'maps.render.request'
     MESSAGE_VERSION: ClassVar[int] = 1
@@ -684,6 +685,8 @@ class MapsRenderRequestV1:
             _expect_int(self.maxBytes, 'maxBytes')
             if self.maxBytes < 65536:
                 raise ValueError("maxBytes must be >= 65536")
+        if self.darkness is not None:
+            _expect_bool(self.darkness, 'darkness')
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "MapsRenderRequestV1":
@@ -691,7 +694,7 @@ class MapsRenderRequestV1:
         _expect_exact_keys(
             mapping,
             required=frozenset(('messageType', 'messageVersion', 'contentHash', 'file')),
-            allowed=frozenset(('messageType', 'messageVersion', 'contentHash', 'file', 'maxSide', 'maxBytes')),
+            allowed=frozenset(('messageType', 'messageVersion', 'contentHash', 'file', 'maxSide', 'maxBytes', 'darkness')),
             model_name="MapsRenderRequestV1",
         )
         if mapping['messageType'] != cls.MESSAGE_TYPE:
@@ -703,6 +706,7 @@ class MapsRenderRequestV1:
             file=MapBlobRefV1.from_payload(_expect_mapping(mapping['file'], 'file')),
             maxSide=(_expect_int(mapping['maxSide'], 'maxSide') if 'maxSide' in mapping else None),
             maxBytes=(_expect_int(mapping['maxBytes'], 'maxBytes') if 'maxBytes' in mapping else None),
+            darkness=(_expect_bool(mapping['darkness'], 'darkness') if 'darkness' in mapping else None),
         )
 
     def to_payload(self) -> dict[str, Any]:
@@ -716,6 +720,8 @@ class MapsRenderRequestV1:
             payload['maxSide'] = self.maxSide
         if self.maxBytes is not None:
             payload['maxBytes'] = self.maxBytes
+        if self.darkness is not None:
+            payload['darkness'] = self.darkness
         return payload
 
 class MapsRenderResponseV1Status(StrEnum):

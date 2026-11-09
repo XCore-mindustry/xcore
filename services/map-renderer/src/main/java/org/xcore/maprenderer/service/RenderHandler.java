@@ -68,7 +68,8 @@ final class RenderHandler {
                 file.getLong("expiresAt"));
         return new MapsRenderRequestV1(value.getString("contentHash"), blob,
                 value.has("maxSide") ? value.getInt("maxSide") : null,
-                value.has("maxBytes") ? value.getInt("maxBytes") : null);
+                value.has("maxBytes") ? value.getInt("maxBytes") : null,
+                value.has("darkness") ? value.getBoolean("darkness") : null);
     }
 
     MapsRenderResponseV1 handle(MapsRenderRequestV1 request) {
@@ -83,7 +84,8 @@ final class RenderHandler {
         if (hash == null || !SHA256.matcher(hash).matches()) {
             return failed(hash, MapsRenderResponseV1Status.FAILED, "contentHash is not a SHA-256 hex digest");
         }
-        String key = RenderCache.key(hash, maxSide, maxBytes, version);
+        boolean darkness = request.darkness() == null || request.darkness();
+        String key = RenderCache.key(hash, maxSide, maxBytes, darkness, version);
         try {
             var cached = cache.get(key);
             if (cached != null) {
@@ -104,7 +106,7 @@ final class RenderHandler {
             }
             MapRenderer.Result result;
             try {
-                result = renderer.render(new ByteArrayInputStream(map), map.length, maxSide, maxBytes);
+                result = renderer.render(new ByteArrayInputStream(map), map.length, maxSide, maxBytes, darkness);
             } catch (MapRenderer.TooLarge tooLarge) {
                 return failed(hash, MapsRenderResponseV1Status.TOO_LARGE, tooLarge.getMessage());
             } catch (IOException invalid) {

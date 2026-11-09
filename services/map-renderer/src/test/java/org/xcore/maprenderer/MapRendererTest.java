@@ -89,6 +89,32 @@ class MapRendererTest {
     }
 
     @Test
+    void withoutDarknessWallsAreBrighterAndShadowsStay() throws IOException {
+        byte[] map = bundled("groundZero");
+        var dark = ImageIO.read(new ByteArrayInputStream(
+                renderer.render(new ByteArrayInputStream(map), map.length, 1024, 8 * 1024 * 1024, true).png()));
+        var light = ImageIO.read(new ByteArrayInputStream(
+                renderer.render(new ByteArrayInputStream(map), map.length, 1024, 8 * 1024 * 1024, false).png()));
+
+        long darkSum = 0, lightSum = 0, darker = 0;
+        for (int y = 0; y < dark.getHeight(); y++) {
+            for (int x = 0; x < dark.getWidth(); x++) {
+                int a = luma(dark.getRGB(x, y)), b = luma(light.getRGB(x, y));
+                darkSum += a;
+                lightSum += b;
+                if (b < a) darker++;
+            }
+        }
+        // Darkness only ever darkens: nothing gets darker without it, and walls get lighter.
+        assertEquals(0, darker);
+        assertTrue(lightSum > darkSum);
+    }
+
+    private static int luma(int rgb) {
+        return ((rgb >> 16) & 0xff) * 3 + ((rgb >> 8) & 0xff) * 6 + (rgb & 0xff);
+    }
+
+    @Test
     void aByteLimitMakesTheRendererStepDown() throws IOException {
         byte[] map = bundled("groundZero");
         var full = renderer.render(new ByteArrayInputStream(map), map.length, 4096, 8 * 1024 * 1024);

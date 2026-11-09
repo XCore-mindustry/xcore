@@ -416,7 +416,8 @@ public final class MapsMessages {
             String contentHash,
             MapBlobRefV1 file,
             Integer maxSide,
-            Integer maxBytes
+            Integer maxBytes,
+            Boolean darkness
     ) implements ProtocolPayload {
     public static final String MESSAGE_TYPE = "maps.render.request";
     public static final int MESSAGE_VERSION = 1;
@@ -448,6 +449,9 @@ public final class MapsMessages {
             }
             if (maxBytes != null) {
                 payload.put("maxBytes", maxBytes);
+            }
+            if (darkness != null) {
+                payload.put("darkness", darkness);
             }
             return payload;
         }

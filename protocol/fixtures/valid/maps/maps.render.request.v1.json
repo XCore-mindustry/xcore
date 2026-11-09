@@ -10,5 +10,6 @@
     "expiresAt": 1794000900000
   },
   "maxSide": 4096,
-  "maxBytes": 8388608
+  "maxBytes": 8388608,
+  "darkness": false
 }

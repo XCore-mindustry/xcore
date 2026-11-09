@@ -257,28 +257,29 @@ async def send_map_card(
     }
     cooldown = bot.container.render_cooldown
 
-    async def render(presser: int) -> tuple[discord.Embed, discord.File] | str:
+    async def render(
+        presser: int, kind: MapImageKind
+    ) -> tuple[discord.Embed, discord.File] | str:
         # Only a new render costs the wait; one already drawn, or being drawn for someone
         # else, is shown without it.
-        if images.cached(ref, MapImageKind.DETAILED) is not None or images.drawing(
-            ref, MapImageKind.DETAILED
-        ):
-            drawn = await picture(MapImageKind.DETAILED)
+        if images.cached(ref, kind) is not None or images.drawing(ref, kind):
+            drawn = await picture(kind)
             return t(locale, drawn) if isinstance(drawn, str) else drawn
         wait = cooldown.remaining(presser)
         if wait > 0:
             return t(locale, "maps-card-render-cooldown", seconds=math.ceil(wait))
         # Started before the render, so pressing again meanwhile waits too.
         cooldown.start(presser)
-        drawn = await picture(MapImageKind.DETAILED)
+        drawn = await picture(kind)
         if isinstance(drawn, str) and drawn in REFUNDED:
             cooldown.cancel(presser)
         return t(locale, drawn) if isinstance(drawn, str) else drawn
 
-    # No button while the renderer is down, unless its picture is still cached.
-    if images.cached(ref, MapImageKind.DETAILED) is not None or await images.available(
-        MapImageKind.DETAILED
-    ):
+    # No button while the renderer is down, unless a render is still cached.
+    if any(
+        images.cached(ref, kind) is not None
+        for kind in (MapImageKind.DETAILED, MapImageKind.DETAILED_DARK)
+    ) or await images.available(MapImageKind.DETAILED):
         view = MapDetailsView(render=render, locale=locale)
         kwargs["view"] = view
     if isinstance(thumbnail, str):

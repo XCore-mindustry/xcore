@@ -162,9 +162,16 @@ class MapsBus:
         return response
 
     async def rpc_maps_render(
-        self, *, content_hash: str, file: MapBlobRefV1, timeout_ms: int
+        self,
+        *,
+        content_hash: str,
+        file: MapBlobRefV1,
+        timeout_ms: int,
+        darkness: bool | None = None,
     ) -> MapsRenderResponseV1:
-        request = MapsRenderRequestV1(contentHash=content_hash, file=file)
+        request = MapsRenderRequestV1(
+            contentHash=content_hash, file=file, darkness=darkness
+        )
         body = await self._transport.rpc_request(
             server=RENDERER,
             rpc_type=request.MESSAGE_TYPE,

@@ -34,7 +34,14 @@ class MapImageKind(StrEnum):
     # One pixel per tile, coloured by block: cheap, the game server draws it.
     THUMBNAIL = "thumbnail"
     # Block sprites, like the game itself: expensive, drawn away from the game servers.
+    # Without the game's darkness over static walls and outside the map, by default.
     DETAILED = "detailed"
+    # The same with the darkness, as the game shows it.
+    DETAILED_DARK = "detailed-dark"
+
+    @property
+    def detailed(self) -> bool:
+        return self is not MapImageKind.THUMBNAIL
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,7 +324,7 @@ class RenderRpc(Protocol):
     async def publish_blob(self, data: bytes, content_type: Any) -> Any: ...
 
     async def render_map(
-        self, *, content_hash: str, file: Any, timeout_ms: int
+        self, *, content_hash: str, file: Any, darkness: bool, timeout_ms: int
     ) -> Any: ...
 
     async def read_blob(self, ref: Any) -> bytes: ...
@@ -341,7 +348,7 @@ class RendererImages:
         self._timeout_ms = timeout_ms
 
     def supports(self, kind: MapImageKind) -> bool:
-        return kind is MapImageKind.DETAILED
+        return kind.detailed
 
     async def available(self, kind: MapImageKind) -> bool:
         if not self.supports(kind):
@@ -353,7 +360,7 @@ class RendererImages:
             return False
 
     async def fetch(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
-        if kind is not MapImageKind.DETAILED:
+        if not kind.detailed:
             return None
         await self._require_renderer()
         published = await self._rpc.map_file(
@@ -368,6 +375,7 @@ class RendererImages:
             published.contentHash or published.file.sha256,
             published.file,
             ref.file_name,
+            darkness=kind is MapImageKind.DETAILED_DARK,
         )
 
     async def render_file(self, data: bytes, sha256: str) -> MapImage | None:
@@ -379,15 +387,20 @@ class RendererImages:
         except Exception:
             logger.warning("Could not publish map file %s", sha256[:12], exc_info=True)
             return None
-        return await self._render(sha256, file, sha256[:12])
+        return await self._render(sha256, file, sha256[:12], darkness=False)
 
     async def _require_renderer(self) -> None:
         if not await self.available(MapImageKind.DETAILED):
             raise RendererUnavailable("the map renderer is not running")
 
-    async def _render(self, content_hash: str, file: Any, name: str) -> MapImage | None:
+    async def _render(
+        self, content_hash: str, file: Any, name: str, *, darkness: bool
+    ) -> MapImage | None:
         render = await self._rpc.render_map(
-            content_hash=content_hash, file=file, timeout_ms=self.RENDER_TIMEOUT_MS
+            content_hash=content_hash,
+            file=file,
+            darkness=darkness,
+            timeout_ms=self.RENDER_TIMEOUT_MS,
         )
         if render.status.value == "busy":
             raise RendererBusy(render.reason or "busy")

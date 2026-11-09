@@ -313,11 +313,15 @@ async def test_render_button_waits_between_new_renders_but_not_for_cached_ones()
     await cmd_map_details(bot, first, "mini-pvp", "arena.msav")
     view = first.followup.messages[0]["view"]
 
-    drawn = await view._render(7)
-    again = await view._render(7)  # already drawn: no wait, no second render
+    drawn = await view._render(7, MapImageKind.DETAILED)
+    again = await view._render(
+        7, MapImageKind.DETAILED
+    )  # already drawn: no wait, no second render
     bot.container.map_images.clear()
-    waited = await view._render(7)
-    other = await view._render(8)  # anyone may press; the wait is per presser
+    waited = await view._render(7, MapImageKind.DETAILED)
+    other = await view._render(
+        8, MapImageKind.DETAILED
+    )  # anyone may press; the wait is per presser
 
     assert not isinstance(drawn, str) and not isinstance(again, str)
     assert not isinstance(other, str)
@@ -334,8 +338,8 @@ async def test_render_that_draws_nothing_costs_no_wait(render: dict[str, Any]) -
     await cmd_map_details(bot, card, "mini-pvp", "arena.msav")
     view = card.followup.messages[0]["view"]
 
-    first = await view._render(7)
-    second = await view._render(7)
+    first = await view._render(7, MapImageKind.DETAILED)
+    second = await view._render(7, MapImageKind.DETAILED)
 
     assert isinstance(first, str) and isinstance(second, str)
     assert not second.startswith("You can start a new render in")
@@ -351,8 +355,8 @@ async def test_timed_out_render_keeps_the_wait(
     await cmd_map_details(bot, card, "mini-pvp", "arena.msav")
     view = card.followup.messages[0]["view"]
 
-    await view._render(7)
-    waited = await view._render(7)
+    await view._render(7, MapImageKind.DETAILED)
+    waited = await view._render(7, MapImageKind.DETAILED)
 
     assert isinstance(waited, str) and waited.startswith(
         "You can start a new render in"
@@ -425,7 +429,57 @@ async def test_a_render_already_running_for_someone_else_costs_no_wait() -> None
     view = card.followup.messages[0]["view"]
     bot.container.render_cooldown.start(8)  # 8 just rendered another map
 
-    first, second = await asyncio.gather(view._render(7), view._render(8))
+    first, second = await asyncio.gather(
+        view._render(7, MapImageKind.DETAILED), view._render(8, MapImageKind.DETAILED)
+    )
 
     assert not isinstance(first, str) and not isinstance(second, str)
     assert len(renderer.sent(RENDER_REQUEST)) == 1
+
+
+@dataclass
+class _ButtonResponse:
+    edits: list[dict[str, Any]] = field(default_factory=list)
+
+    async def edit_message(self, **kwargs: Any) -> None:
+        self.edits.append(kwargs)
+
+
+@dataclass
+class _Press:
+    """A button press on the card: Discord's interaction for a component."""
+
+    user: Any = field(default_factory=lambda: SimpleNamespace(id=9))
+    response: _ButtonResponse = field(default_factory=_ButtonResponse)
+    followup: _Followup = field(default_factory=_Followup)
+    edits: list[dict[str, Any]] = field(default_factory=list)
+
+    async def edit_original_response(self, **kwargs: Any) -> None:
+        self.edits.append(kwargs)
+
+
+async def test_the_button_renders_without_darkness_then_switches_it() -> None:
+    bot, renderer = await _render_bot(
+        {"status": "ok", "image": _image(), "scale": 8, "renderMs": 420}
+    )
+    card = _Interaction()
+    await cmd_map_details(bot, card, "mini-pvp", "arena.msav")
+    view = card.followup.messages[0]["view"]
+    [button] = view.children
+    assert button.label == "Detailed render"
+
+    first = _Press()
+    await button.callback(first)  # type: ignore[arg-type]
+    assert first.edits[-1]["view"] is view
+    assert first.edits[-1]["attachments"][0].filename == "arena-detailed.png"
+    assert button.label == "🌑 Show wall darkness" and not button.disabled
+
+    second = _Press(user=SimpleNamespace(id=10))
+    await button.callback(second)  # type: ignore[arg-type]
+    assert second.edits[-1]["attachments"][0].filename == "arena-detailed-dark.png"
+    assert button.label == "☀️ Hide wall darkness"
+
+    third = _Press(user=SimpleNamespace(id=10))
+    await button.callback(third)  # back to the cached render: no wait, no request
+    assert third.edits[-1]["attachments"][0].filename == "arena-detailed.png"
+    assert [r.get("darkness") for r in renderer.sent(RENDER_REQUEST)] == [False, True]

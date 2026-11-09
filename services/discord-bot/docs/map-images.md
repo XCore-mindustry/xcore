@@ -13,7 +13,7 @@ gives the wait back (a timed-out one keeps it: the renderer may still be drawing
 | Command | Shows | Picture |
 |---|---|---|
 | `/maps list <server> [creator]` | the server's maps, 15 per page, sortable | phase 2: a thumbnail per map, on request |
-| `/map <server> <map>` | one map: author, size, mode, rating, activity, Discord attribution, file | a thumbnail right away; the **Detailed render** button swaps it for a render with block sprites |
+| `/map <server> <map>` | one map: author, size, mode, rating, activity, Discord attribution, review post, file | a thumbnail right away; the **Detailed render** button swaps it for a render with block sprites, without the game's darkness over static walls; then the same button switches that darkness on and off |
 | `/maps upload`, `/maps remove`, `/maps review` | map management (map reviewers) | — |
 
 `/map` used to be the management group. Discord does not let one name be a group and
@@ -124,6 +124,10 @@ costs one round trip.
 - Renderer presence: the renderer keeps `xcore:service:map-renderer` (30 s TTL, refreshed
   every 10 s, deleted on shutdown). While it is missing the card has no **Detailed
   render** button, and a press answers "not running" at once instead of after 60 s.
+- Darkness: `maps.render.request.darkness` (default true in the protocol) turns the game's
+  darkness over static walls and outside the map on or off; block shadows stay either way.
+  The bot asks without it (`MapImageKind.DETAILED`) unless the card's switch asks for
+  `DETAILED_DARK`; both are cached separately, in the bot and in the renderer.
 - `map_card.py`: the embed of one map. `handlers_maps.send_map_card` asks for the
   thumbnail, links the map forum post where this file was reviewed (`CaseStore.by_map_file`,
   by SHA-256: a map accepted through the forum is installed byte for byte), and adds

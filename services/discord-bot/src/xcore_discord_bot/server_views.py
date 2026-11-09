@@ -9,6 +9,7 @@ from discord import Interaction
 from .i18n import DEFAULT, t
 from .presentation import build_servers_embed, sort_live_servers
 from .registry import LiveServerRegistry
+from .services.map_images import MapImageKind
 from .ui_helpers import disable_view_buttons, safe_edit_view_message
 
 MapSortMode = Literal["reputation", "popularity", "name"]
@@ -228,42 +229,69 @@ class MapsListView(discord.ui.View):
 
 
 class MapDetailsView(discord.ui.View):
-    """The /map card's button that swaps the thumbnail for the detailed render.
+    """The /map card's button: the detailed render, then the darkness switch.
 
-    Anyone who sees the card may press it. ``render`` gets the id of whoever pressed it, draws
-    the picture and returns the new card and file, or a message for that person when it could
-    not (including when their render cooldown has not run out).
+    The first press swaps the thumbnail for the detailed render, without the game's
+    darkness over static walls; after that the button switches the darkness on and off.
+    Anyone who sees the card may press it. ``render`` gets the id of whoever pressed it and
+    the kind of picture to draw, and returns the new card and file, or a message for that
+    person when it could not (including when their render cooldown has not run out).
     """
 
     def __init__(
         self,
         *,
-        render: Callable[[int], Awaitable[tuple[discord.Embed, discord.File] | str]],
+        render: Callable[
+            [int, MapImageKind], Awaitable[tuple[discord.Embed, discord.File] | str]
+        ],
         locale: str = DEFAULT,
     ) -> None:
         # The render can take a while; the interaction token outlives it (15 minutes).
         super().__init__(timeout=600)
         self._render = render
         self._locale = locale
+        self.shown: MapImageKind | None = None
         self.bot_message: discord.Message | None = None
-        self._render_btn.label = t(locale, "maps-card-render-button")
+        self._label()
+
+    def next_kind(self) -> MapImageKind:
+        """What the button draws now."""
+        return (
+            MapImageKind.DETAILED_DARK
+            if self.shown is MapImageKind.DETAILED
+            else MapImageKind.DETAILED
+        )
+
+    def _label(self) -> None:
+        if self.shown is None:
+            self._render_btn.label = t(self._locale, "maps-card-render-button")
+            self._render_btn.style = discord.ButtonStyle.primary
+        else:
+            dark = self.next_kind() is MapImageKind.DETAILED_DARK
+            self._render_btn.label = t(
+                self._locale,
+                "maps-card-darkness-on" if dark else "maps-card-darkness-off",
+            )
+            self._render_btn.style = discord.ButtonStyle.secondary
 
     @discord.ui.button(label="Detailed render", style=discord.ButtonStyle.primary)
     async def _render_btn(
         self, interaction: Interaction, button: discord.ui.Button
     ) -> None:
+        kind = self.next_kind()
         button.disabled = True
         await interaction.response.edit_message(view=self)
-        result = await self._render(interaction.user.id)
+        result = await self._render(interaction.user.id, kind)
+        button.disabled = False
         if isinstance(result, str):
-            button.disabled = False
             await interaction.edit_original_response(view=self)
             await interaction.followup.send(result, ephemeral=True)
             return
         embed, file = result
-        self.stop()
+        self.shown = kind
+        self._label()
         await interaction.edit_original_response(
-            embed=embed, attachments=[file], view=None
+            embed=embed, attachments=[file], view=self
         )
 
     async def on_timeout(self) -> None:

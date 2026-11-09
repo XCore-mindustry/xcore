@@ -52,6 +52,14 @@ public final class MapRenderer {
      * {@code maxBytes}, renders again at the next smaller scale.
      */
     public Result render(InputStream msav, long size, int maxSide, int maxBytes) throws IOException {
+        return render(msav, size, maxSide, maxBytes, true);
+    }
+
+    /**
+     * As {@link #render(InputStream, long, int, int)}; without {@code darkness} the static walls
+     * and the area outside the map are drawn without the game's darkness, block shadows stay.
+     */
+    public Result render(InputStream msav, long size, int maxSide, int maxBytes, boolean darkness) throws IOException {
         long start = System.nanoTime();
         MapSnapshot map = new DetachedMsavReader().read(msav, size, "", content.registry(), settings);
         if (!map.tilesAvailable()) throw new TooLarge("Map exceeds the tile limit");
@@ -61,7 +69,7 @@ public final class MapRenderer {
         for (int scale : SCALES) {
             if ((long) longest * scale > maxSide) continue;
             try {
-                Drawn drawn = draw(map, sprites(scale), maxBytes);
+                Drawn drawn = draw(map, sprites(scale), maxBytes, darkness);
                 return new Result(drawn.png(), width * scale, height * scale, scale, width, height,
                         decoded - start, System.nanoTime() - decoded, drawn.encodeNanos());
             } catch (Overflow overflow) {
@@ -85,7 +93,7 @@ public final class MapRenderer {
     private record Frame(MapSnapshot map, SpritePack sprites, Rand rand, Tiling tiling, Lighting lighting,
                          int width, int height, int s, int[] dirs, int[] blenders) {}
 
-    private Drawn draw(MapSnapshot map, SpritePack sprites, int maxBytes) throws IOException {
+    private Drawn draw(MapSnapshot map, SpritePack sprites, int maxBytes, boolean darkness) throws IOException {
         int s = sprites.scale;
         int width = map.metadata().width(), height = map.metadata().height();
         int pixelsWide = width * s;
@@ -143,7 +151,7 @@ public final class MapRenderer {
                         }
                     }
                 }
-                shade(frame, target, top, column, columnFraction, frame.lighting().light, false);
+                if (darkness) shade(frame, target, top, column, columnFraction, frame.lighting().light, false);
                 long encodeStart = System.nanoTime();
                 for (int row = 0; row < rows; row++) writer.row(band, row * pixelsWide);
                 encoding += System.nanoTime() - encodeStart;
