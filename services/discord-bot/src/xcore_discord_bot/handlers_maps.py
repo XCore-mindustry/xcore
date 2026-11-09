@@ -200,7 +200,7 @@ async def _card_picture(
         return RENDER_FAILED
     name = image.attachment_name(ref, kind, style)
     file = discord.File(io.BytesIO(image.png), filename=name)
-    return card(image_name=name), file
+    return card(image_name=name, render_ms=image.render_ms), file
 
 
 async def _review_thread(bot: XCoreDiscordBot, content_hash: str) -> str | None:

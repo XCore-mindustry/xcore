@@ -264,6 +264,7 @@ async def test_detailed_render_goes_through_the_map_file_and_the_renderer() -> N
     image = await source.fetch(MapRef("mini-pvp", "arena.msav"), MapImageKind.DETAILED)
 
     assert image is not None and image.png == PNG
+    assert image.render_ms == 420
     [request] = renderer.sent(RENDER_REQUEST)
     assert request["contentHash"] == FILE_SHA
     assert request["file"]["key"] == f"xcore:blob:{FILE_SHA}"

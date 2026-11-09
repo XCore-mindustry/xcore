@@ -79,11 +79,12 @@ def map_card(
     *,
     image_name: str | None = None,
     review_thread_id: str | None = None,
+    render_ms: int | None = None,
 ) -> discord.Embed:
     """The card of one map.
 
     ``image_name`` is the attachment drawn under the fields; ``review_thread_id`` the map
-    forum post where this file was reviewed.
+    forum post where this file was reviewed; ``render_ms`` how long the renderer drew it.
     """
     unknown = t(locale, "maps-list-unknown")
     name = map_text(strip_mindustry_colors(item.get("name", "")) or unknown, 200)
@@ -125,5 +126,8 @@ def map_card(
 
     if image_name:
         embed.set_image(url=f"attachment://{image_name}")
-    embed.set_footer(text=t(locale, "maps-card-footer", server=server))
+    footer = t(locale, "maps-card-footer", server=server)
+    if render_ms is not None:
+        footer += " • " + t(locale, "maps-render-time", seconds=render_ms / 1000)
+    embed.set_footer(text=footer)
     return embed
