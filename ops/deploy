@@ -96,8 +96,10 @@ for svc in "$@"; do
     [[ -d ~/services/$svc ]] && mv ~/services/"$svc" ~/services/"$svc".prev
     mv ~/services/"$svc".next ~/services/"$svc"
   else
-    # Non-editable, so later checkouts do not change the code of a running service.
+    # Non-editable, so later checkouts do not change the code of a running service. The workspace
+    # packages keep their version between commits, so uv would keep the old build without --reinstall-package.
     UV_PROJECT_ENVIRONMENT=~/services/venvs/${unit#xcore-} "$uv" sync -q --locked --no-dev --no-editable \
+      --reinstall-package "$pkg" --reinstall-package xcore-protocol \
       --python "$python" --package "$pkg" --project "$repo"
   fi
 
