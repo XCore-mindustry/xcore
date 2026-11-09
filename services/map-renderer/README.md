@@ -74,6 +74,29 @@ reported (JIT warm), `-Xmx64m -XX:+UseSerialGC -Xss512k -XX:MaxMetaspaceSize=48m
 - Output: 79 maps at 8 px per tile, 21 at 4 px, 13 at 16 px; PNG median 3.1 MB, max 7.9 MB.
 - The max includes a second attempt one scale smaller when the first PNG is over 8 MiB.
 
+### Compared with mindus 5.0.46 (measured)
+
+[mindus](https://github.com/bend-n/mindus) (Rust, GPL-3.0) is the renderer behind the plent
+Discord bot. Its own `mindus map` binary, built with `nightly-2026-08-20` and the crate's release
+profile (opt-level 3, thin LTO), was run on the same 114 maps and the same machine, one process
+per map, best of two runs. Peak RSS is the process's `ru_maxrss`. Nothing of it is used here.
+
+| | mindus | this renderer |
+|---|---|---|
+| maps read | 83 of 114 | 113 of 114 |
+| time per map, without PNG (median / p90 / max) | 0.78 / 2.25 / 5.15 s | 0.27 / 0.41 / 0.96 s |
+| time per map, with PNG | 1.71 / 3.10 / 6.43 s | 0.50 / 0.76 / 1.09 s |
+| throughput without / with PNG | 20 / 12 Mpx/s | 33 / 18 Mpx/s |
+| memory | 74 MB median, 200 MB p90, 280 MB max, per render | 170 MB peak for the whole JVM process |
+| image size | 8 px per tile, or 32 px when width + height < 600 (8192×8192 for a 256×256 map) | ≤ 4096 px and ≤ 8 MiB |
+| PNG median / max | 2.0 / 4.8 MB | 3.0 / 7.9 MB |
+
+Times are for the 83 maps both read. mindus failed on 31 maps: 15 save versions it does not read
+(2, 4, 5), 13 blocks it does not know (`target-dummy`, `payload-propulsion-tower`, `sand`), 2
+panics while reading units and 1 short read. It keeps the whole image in memory, so a small map
+drawn at 32 px costs about 200 MB. It also draws units and Erekir's autotiled metal floors, which
+this renderer does not, but no floor edges, shadows or darkness.
+
 ### First composer (icons only), runtimes compared
 
 The 113 readable maps bundled with v160 (the 114th, `canyon`, is a legacy map that the plugin's
