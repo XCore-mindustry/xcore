@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import functools
 import io
 import logging
 import math
 import secrets
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import discord
@@ -15,7 +17,12 @@ from .map_card import find_map, map_card
 from .map_list import map_list_page_items, map_list_row, map_text
 from .moderation_views import MapRemoveConfirmView
 from .server_views import MapDetailsView, MapOption, MapsListView
-from .services.map_images import MapImageKind, MapRef, RendererBusy
+from .services.map_images import (
+    MapImageKind,
+    MapRef,
+    RendererBusy,
+    RendererUnavailable,
+)
 from .staff_actions import (
     Actor,
     InvalidMapUpload,
@@ -168,9 +175,7 @@ def map_option(index: int, item: dict[str, str], locale: str) -> MapOption:
 
 async def _card_picture(
     bot: XCoreDiscordBot,
-    server: str,
-    item: dict[str, str],
-    locale: str,
+    card: Callable[..., discord.Embed],
     ref: MapRef,
     kind: MapImageKind,
 ) -> tuple[discord.Embed, discord.File] | str:
@@ -181,19 +186,43 @@ async def _card_picture(
         return RENDER_TIMEOUT
     except RendererBusy:
         return RENDER_BUSY
+    except RendererUnavailable:
+        return RENDER_UNAVAILABLE
     except Exception:
-        logger.exception("Could not draw %s of %s on %s", kind, ref.file_name, server)
+        logger.exception(
+            "Could not draw %s of %s on %s", kind, ref.file_name, ref.server
+        )
         image = None
     if image is None:
         return RENDER_FAILED
     name = image.attachment_name(ref, kind)
     file = discord.File(io.BytesIO(image.png), filename=name)
-    return map_card(server, item, locale, image_name=name), file
+    return card(image_name=name), file
+
+
+async def _review_thread(bot: XCoreDiscordBot, content_hash: str) -> str | None:
+    """The map forum post where this file was reviewed, if it came that way."""
+    if not content_hash or not bot.settings.cases_maps_enabled:
+        return None
+    try:
+        case = await bot.container.cases.store.by_map_file(content_hash)
+    except Exception:
+        logger.warning(
+            "Could not look up the review of %s", content_hash, exc_info=True
+        )
+        return None
+    if case is None:
+        return None
+    return case.discord.get("thread_id") or None
 
 
 RENDER_TIMEOUT = "maps-card-render-timeout"
 RENDER_BUSY = "maps-card-render-busy"
 RENDER_FAILED = "maps-card-render-failed"
+RENDER_UNAVAILABLE = "maps-card-render-unavailable"
+# Nothing was drawn for the presser: these cost no wait. A timed-out render keeps it,
+# since the renderer may still be drawing.
+REFUNDED = frozenset((RENDER_BUSY, RENDER_FAILED, RENDER_UNAVAILABLE))
 
 
 async def send_map_card(
@@ -209,8 +238,16 @@ async def send_map_card(
     images = bot.container.map_images
     ref = MapRef(server, item.get("file_name", ""), item.get("content_hash", ""))
 
+    card = functools.partial(
+        map_card,
+        server,
+        item,
+        locale,
+        review_thread_id=await _review_thread(bot, ref.content_hash),
+    )
+
     async def picture(kind: MapImageKind) -> tuple[discord.Embed, discord.File] | str:
-        return await _card_picture(bot, server, item, locale, ref, kind)
+        return await _card_picture(bot, card, ref, kind)
 
     thumbnail = await picture(MapImageKind.THUMBNAIL)
     view: MapDetailsView | None = None
@@ -231,17 +268,18 @@ async def send_map_card(
         # Started before the render, so pressing again meanwhile waits too.
         cooldown.start(presser)
         drawn = await picture(MapImageKind.DETAILED)
-        if drawn in (RENDER_BUSY, RENDER_FAILED):
-            # Nothing was drawn for this person: a busy or failed render costs no wait. A
-            # timed-out one may still be drawing, so it keeps the wait.
+        if isinstance(drawn, str) and drawn in REFUNDED:
             cooldown.cancel(presser)
         return t(locale, drawn) if isinstance(drawn, str) else drawn
 
-    if images.supports(MapImageKind.DETAILED):
+    # No button while the renderer is down, unless its picture is still cached.
+    if images.cached(ref, MapImageKind.DETAILED) is not None or await images.available(
+        MapImageKind.DETAILED
+    ):
         view = MapDetailsView(render=render, locale=locale)
         kwargs["view"] = view
     if isinstance(thumbnail, str):
-        kwargs["embed"] = map_card(server, item, locale)
+        kwargs["embed"] = card()
     else:
         kwargs["embed"], kwargs["file"] = thumbnail
     sent = await interaction.followup.send(**kwargs)

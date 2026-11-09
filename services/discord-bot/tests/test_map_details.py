@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import discord
+import pytest
 from backends import GameServer, real_bot
 from bot_fakes import make_settings
 from xcore_protocol.generated.maps import MapsListRequestV1, MapsListResponseV1
@@ -73,6 +74,9 @@ class _Source:
 
     def supports(self, kind: MapImageKind) -> bool:
         return kind in self.kinds
+
+    async def available(self, kind: MapImageKind) -> bool:
+        return self.supports(kind)
 
     async def fetch(self, ref: MapRef, kind: MapImageKind) -> MapImage | None:
         self.calls.append((ref, kind))
@@ -200,3 +204,31 @@ async def test_map_images_cache_by_hash_survives_forget() -> None:
     # The same bytes on another server are the same picture.
     await images.get(MapRef("hexed", "b.msav", "abc"), MapImageKind.THUMBNAIL)
     assert len(source.calls) == 1
+
+
+async def test_map_card_links_the_review_post_of_its_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = await _bot([{**ARENA, "contentHash": "ab" * 32}])
+    bot.settings = bot.settings.model_copy(update={"cases_maps_enabled": True})
+    bot.container.map_images = MapImages()
+    asked: list[str] = []
+
+    async def by_map_file(sha256: str) -> Any:
+        asked.append(sha256)
+        return SimpleNamespace(discord={"thread_id": "123456"})
+
+    monkeypatch.setattr(bot.container.cases.store, "by_map_file", by_map_file)
+    interaction = _Interaction()
+
+    await cmd_map_details(bot, interaction, "mini-pvp", "Arena.msav")
+
+    [message] = interaction.followup.messages
+    fields = {f.name: f.value for f in message["embed"].fields}
+    assert fields["Review"] == "<#123456>"
+    assert asked == ["ab" * 32]
+
+
+def test_map_card_has_no_review_field_without_a_post() -> None:
+    names = [f.name for f in map_card("mini-pvp", {"name": "Arena"}).fields]
+    assert "Review" not in names

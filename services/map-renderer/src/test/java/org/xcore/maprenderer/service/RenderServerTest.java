@@ -170,6 +170,21 @@ class RenderServerTest {
     }
 
     @Test
+    void theRendererAnnouncesItselfWhileListening() throws Exception {
+        long deadline = System.currentTimeMillis() + 10_000;
+        Object presence = null;
+        while (presence == null && System.currentTimeMillis() < deadline) {
+            presence = client.command("GET", RenderServer.PRESENCE_KEY);
+            if (presence == null) Thread.sleep(50);
+        }
+        assertTrue(presence != null, "no presence key");
+        var value = new JsonReader().parse(Resp.text(presence));
+        assertEquals(1, value.getInt("concurrency"));
+        long ttl = ((Number) client.command("PTTL", RenderServer.PRESENCE_KEY)).longValue();
+        assertTrue(ttl > 0 && ttl <= RenderServer.PRESENCE_TTL_MS);
+    }
+
+    @Test
     void anotherRpcTypeIsRejected() throws Exception {
         String correlation = UUID.randomUUID().toString();
         client.command("XADD", RenderServer.STREAM, "*", "rpc_type", "maps.list.request", "correlation_id", correlation,

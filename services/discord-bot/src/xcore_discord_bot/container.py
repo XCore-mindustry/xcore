@@ -127,6 +127,7 @@ class ServiceContainer:
         rating_merge_daemon = RatingMergeDaemon(bot=bot, ratings=rating_service)
         stream_supervisor = StreamSupervisor(bot=bot)
         case_store = CaseStore(store)
+        renderer = RendererImages(rpc, settings.rpc_timeout_ms)
 
         cases = CaseService(
             store=case_store,
@@ -154,10 +155,8 @@ class ServiceContainer:
             servers=servers,
             map_catalog=MapCatalog(rpc),
             map_images=MapImages(
-                RoutedImages(
-                    ServerThumbnails(rpc, settings.rpc_timeout_ms),
-                    RendererImages(rpc, settings.rpc_timeout_ms),
-                )
+                RoutedImages(ServerThumbnails(rpc, settings.rpc_timeout_ms), renderer),
+                files=renderer,
             ),
             render_cooldown=RenderCooldown(),
             players=players,

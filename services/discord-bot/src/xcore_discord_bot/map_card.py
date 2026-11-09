@@ -78,8 +78,13 @@ def map_card(
     locale: str = DEFAULT,
     *,
     image_name: str | None = None,
+    review_thread_id: str | None = None,
 ) -> discord.Embed:
-    """The card of one map. ``image_name`` is the attachment drawn under the fields."""
+    """The card of one map.
+
+    ``image_name`` is the attachment drawn under the fields; ``review_thread_id`` the map
+    forum post where this file was reviewed.
+    """
     unknown = t(locale, "maps-list-unknown")
     name = map_text(strip_mindustry_colors(item.get("name", "")) or unknown, 200)
     author = map_text(
@@ -105,6 +110,11 @@ def map_card(
     if credits:
         embed.add_field(
             name=t(locale, "maps-card-discord"), value=credits, inline=False
+        )
+
+    if review_thread_id and review_thread_id.isascii() and review_thread_id.isdigit():
+        embed.add_field(
+            name=t(locale, "maps-card-review"), value=f"<#{review_thread_id}>"
         )
 
     file_line = f"`{map_text(item.get('file_name', ''), 100, inline_code=True)}`"

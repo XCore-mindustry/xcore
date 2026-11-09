@@ -31,7 +31,11 @@ from xcore_protocol.generated.sentinel import (
     SentinelSubnetRulesListResponseV1,
     SentinelSubnetRulesResponseV1,
 )
-from xcore_protocol.generated.shared import MapBlobRefV1, SeasonPrizeV1
+from xcore_protocol.generated.shared import (
+    MapBlobRefV1,
+    MapBlobRefV1ContentType,
+    SeasonPrizeV1,
+)
 
 from ..bus.cases import CasesBus
 from ..bus.maps import MapsBus
@@ -348,6 +352,14 @@ class MindustryRpcClient:
 
     async def read_blob(self, ref: MapBlobRefV1) -> bytes:
         return await self._maps.read_blob(ref)
+
+    async def publish_blob(
+        self, data: bytes, content_type: MapBlobRefV1ContentType
+    ) -> MapBlobRefV1:
+        return await self._maps.write_blob(data, content_type)
+
+    async def renderer_online(self) -> bool:
+        return await self._maps.renderer_online()
 
     async def remove_map(self, *, server: str, file_name: str, timeout_ms: int) -> str:
         return await self._maps.rpc_remove_map(

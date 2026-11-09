@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from typing import Any, cast
 
 from redis.client import NEVER_DECODE
@@ -22,7 +23,11 @@ from xcore_protocol.generated.maps import (
     MapsUploadRequestV1,
     MapsUploadResponseV1,
 )
-from xcore_protocol.generated.shared import MapBlobRefV1, MapEntryV1
+from xcore_protocol.generated.shared import (
+    MapBlobRefV1,
+    MapBlobRefV1ContentType,
+    MapEntryV1,
+)
 
 from ..protocol_outbound import (
     build_maps_inspect_request,
@@ -37,6 +42,10 @@ MAP_INSPECT_TTL_MS = 60_000
 RENDERER = "map-renderer"
 # The protocol's ceiling for one blob.
 MAX_BLOB_BYTES = 16 * 1024 * 1024
+BLOB_PREFIX = "xcore:blob:"
+BLOB_TTL_SECONDS = 15 * 60
+# Kept by the renderer while it listens (a 30 s TTL refreshed every 10 s).
+RENDERER_PRESENCE_KEY = "xcore:service:map-renderer"
 
 
 class BlobUnavailable(RuntimeError):
@@ -168,6 +177,27 @@ class MapsBus:
         if response.contentHash != content_hash:
             raise ValueError("Map render response does not match the request")
         return response
+
+    async def renderer_online(self) -> bool:
+        """Whether the map renderer announced itself in the last 30 seconds."""
+        return bool(await self._transport.redis.exists(RENDERER_PRESENCE_KEY))
+
+    async def write_blob(
+        self, data: bytes, content_type: MapBlobRefV1ContentType
+    ) -> MapBlobRefV1:
+        """Publishes bytes the bot holds (a submitted map file) as a blob for the renderer."""
+        if not 0 < len(data) <= MAX_BLOB_BYTES:
+            raise ValueError(f"blob size {len(data)} out of range")
+        sha = hashlib.sha256(data).hexdigest()
+        key = BLOB_PREFIX + sha
+        await self._transport.redis.set(key, data, ex=BLOB_TTL_SECONDS)
+        return MapBlobRefV1(
+            key=key,
+            sha256=sha,
+            sizeBytes=len(data),
+            contentType=content_type,
+            expiresAt=int((time.time() + BLOB_TTL_SECONDS) * 1000),
+        )
 
     async def read_blob(self, ref: MapBlobRefV1) -> bytes:
         """The bytes a reference points at, checked against its size and SHA-256."""

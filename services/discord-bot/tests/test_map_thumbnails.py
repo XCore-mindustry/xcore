@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from dataclasses import dataclass, field
 from types import SimpleNamespace
@@ -22,14 +23,16 @@ from xcore_protocol.generated.maps import (
 from xcore_protocol.generated.shared import MapBlobRefV1
 
 from xcore_discord_bot.bot import XCoreDiscordBot
-from xcore_discord_bot.bus.maps import BlobUnavailable
+from xcore_discord_bot.bus.maps import RENDERER_PRESENCE_KEY, BlobUnavailable
 from xcore_discord_bot.handlers_maps import cmd_map_details, cmd_maps
 from xcore_discord_bot.services.map_images import (
     MapImageKind,
+    MapImages,
     MapRef,
     RenderCooldown,
     RendererBusy,
     RendererImages,
+    RendererUnavailable,
     ServerThumbnails,
 )
 
@@ -227,6 +230,7 @@ async def _render_bot(
         {"status": "ok", "contentHash": FILE_HASH, "image": _image()}
     )
     await bot.bus.redis.set(f"xcore:blob:{SHA}", PNG)
+    await bot.bus.redis.set(RENDERER_PRESENCE_KEY, '{"version": "1-test"}')
     game.answers[FILE_REQUEST] = lambda payload: {
         "messageType": MapsFileResponseV1.MESSAGE_TYPE,
         "messageVersion": 1,
@@ -362,6 +366,9 @@ async def test_cache_is_bounded_by_bytes() -> None:
         def supports(self, kind: MapImageKind) -> bool:
             return True
 
+        async def available(self, kind: MapImageKind) -> bool:
+            return True
+
         async def fetch(self, ref: MapRef, kind: MapImageKind) -> Any:
             return map_images.MapImage(png=b"x" * 4 * 1024 * 1024, width=1, height=1)
 
@@ -372,3 +379,38 @@ async def test_cache_is_bounded_by_bytes() -> None:
     assert images._bytes <= map_images.CACHE_BYTES
     assert images.cached(MapRef("s", "19.msav"), MapImageKind.DETAILED) is not None
     assert images.cached(MapRef("s", "0.msav"), MapImageKind.DETAILED) is None
+
+
+async def test_without_the_renderer_nothing_is_asked_and_no_button_is_offered() -> None:
+    bot, renderer = await _render_bot({"status": "ok", "image": _image()})
+    await bot.bus.redis.delete(RENDERER_PRESENCE_KEY)
+    source = RendererImages(bot.container.rpc, timeout_ms=50)
+
+    with pytest.raises(RendererUnavailable):
+        await source.fetch(MapRef("mini-pvp", "arena.msav"), MapImageKind.DETAILED)
+    card = _Interaction()
+    await cmd_map_details(bot, card, "mini-pvp", "arena.msav")
+
+    assert "view" not in card.followup.messages[0]
+    assert renderer.sent(RENDER_REQUEST) == []
+
+
+async def test_a_file_the_bot_holds_is_published_and_rendered() -> None:
+    bot, renderer = await _render_bot(
+        {"status": "ok", "image": _image(), "scale": 8, "renderMs": 420}
+    )
+    source = RendererImages(bot.container.rpc, timeout_ms=50)
+    images = MapImages(source, files=source)
+
+    first, second = await asyncio.gather(
+        images.render_file(MapRef("review", "arena.msav"), FILE),
+        images.render_file(MapRef("review", "arena.msav"), FILE),
+    )
+
+    assert first is not None and first.png == PNG and second == first
+    # Both asked at once: one render.
+    [request] = renderer.sent(RENDER_REQUEST)
+    assert request["contentHash"] == FILE_SHA
+    assert request["file"]["key"] == f"xcore:blob:{FILE_SHA}"
+    assert await bot.bus.redis.get(f"xcore:blob:{FILE_SHA}") is not None
+    assert images.cached(MapRef("x", "y", FILE_SHA), MapImageKind.DETAILED) == first

@@ -19,6 +19,13 @@ Maps request/response contracts belong here.
 ## Blobs
 Images and map files travel as `MapBlobRefV1`: a Redis string `xcore:blob:{sha256}` with a TTL, referenced
 from the message. Stream entries stay small; readers check `sizeBytes` and `sha256` before use.
+Game servers publish previews and map files, the renderer its renders, and the Discord bot map files
+it holds itself (a file submitted for review), always under the bytes' own SHA-256.
+
+## Renderer presence
+The map renderer keeps the Redis string `xcore:service:map-renderer` (JSON with `version`,
+`concurrency` and `inFlight`) with a 30 s TTL while it consumes requests. Clients may skip
+`maps.render` while the key is absent instead of waiting out the RPC timeout.
 
 ## Field Policy
 - Payload fields use camelCase.

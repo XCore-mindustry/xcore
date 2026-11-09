@@ -33,6 +33,12 @@ import java.util.regex.Pattern;
 public final class RenderServer implements AutoCloseable {
     static final String STREAM = "xcore:rpc:req:map-renderer";
     static final String RPC_TYPE = MapsRenderRequestV1.MESSAGE_TYPE;
+    /**
+     * Present while the renderer listens: clients skip asking for a render while it is absent
+     * instead of waiting out the RPC timeout. Refreshed every {@link #PRESENCE_EVERY_MS}.
+     */
+    static final String PRESENCE_KEY = "xcore:service:map-renderer";
+    static final long PRESENCE_TTL_MS = 30_000, PRESENCE_EVERY_MS = 10_000;
     /** Bumped when drawing changes, so cached renders of the old drawing are not served. */
     static final String RENDERER_REVISION = "1";
     private static final long RESPONSE_STREAM_MAXLEN = 20_000;
@@ -68,13 +74,15 @@ public final class RenderServer implements AutoCloseable {
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final AtomicBoolean ready = new AtomicBoolean();
     private volatile Resp reader, commands;
+    private volatile String version;
+    private long presenceAt;
     private HttpServer http;
 
     public RenderServer(Config config) throws IOException {
         this.config = config;
         var content = RenderContent.load(config.data().resolve("content.json"));
         var renderer = new MapRenderer(content, config.data().resolve("sprites.pack"), 16 * 1024 * 1024, 1_000_000);
-        String version = RENDERER_REVISION + "-" + dataHash(config.data()).substring(0, 12);
+        version = RENDERER_REVISION + "-" + dataHash(config.data()).substring(0, 12);
         handler = new RenderHandler(renderer, new RenderCache(config.cache(), config.cacheBytes()), new RedisBlobs(),
                 version, metrics, Clock.systemUTC());
         workers = new ThreadPoolExecutor(config.concurrency(), config.concurrency(), 1, TimeUnit.MINUTES,
@@ -141,10 +149,17 @@ public final class RenderServer implements AutoCloseable {
         } catch (Resp.Error exists) {
             if (!exists.getMessage().startsWith("BUSYGROUP")) throw exists;
         }
+        presenceAt = 0;
         ready.set(true);
     }
 
     private void poll() throws IOException {
+        long now = System.currentTimeMillis();
+        if (now - presenceAt >= PRESENCE_EVERY_MS) {
+            commands.command("SET", PRESENCE_KEY, Json.write(Map.of("version", version,
+                    "concurrency", config.concurrency(), "inFlight", metrics.inFlight.get())), "PX", PRESENCE_TTL_MS);
+            presenceAt = now;
+        }
         Object reply = reader.command("XREADGROUP", "GROUP", config.group(), config.consumer(), "COUNT", "4",
                 "BLOCK", "5000", "STREAMS", STREAM, ">");
         for (Object stream : Resp.list(reply)) {
@@ -260,6 +275,12 @@ public final class RenderServer implements AutoCloseable {
             Thread.currentThread().interrupt();
         }
         if (http != null) http.stop(0);
+        try {
+            // Clients stop asking at once rather than when the key expires.
+            if (commands != null) commands.command("DEL", PRESENCE_KEY);
+        } catch (IOException | RuntimeException gone) {
+            // Redis is down: the key expires by itself.
+        }
         closeConnections();
     }
 

@@ -14,6 +14,10 @@ the bus's RPC envelope, as a consumer group:
 3. publish the PNG as a blob (`xcore:blob:{sha256}`, 15 minutes) and answer with its reference,
    the scale and the render time.
 
+While it listens it keeps `xcore:service:map-renderer` in Redis (`{"version", "concurrency",
+"inFlight"}`, 30 s TTL, refreshed every 10 s, deleted on shutdown); the bot asks for renders only
+while that key exists.
+
 At most `MAP_RENDERER_CONCURRENCY` maps are drawn at once with `MAP_RENDERER_QUEUE` waiting;
 beyond that the answer is `busy`. Requests past their `expires_at` are dropped. Answers are
 `ok`, `busy`, `too_large`, `invalid_map`, `download_failed` (blob gone or not matching) or

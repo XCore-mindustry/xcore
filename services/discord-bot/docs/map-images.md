@@ -1,6 +1,7 @@
 # Map images: thumbnails in `/maps`, detailed renders in `/map`
 
-Status: **phases 1–3 built, not yet deployed.** `/map` shows the server's thumbnail,
+Status: **phases 1–3 built, not yet deployed.** The map review forum shows the render of
+each submitted file. `/map` shows the server's thumbnail,
 `/maps list` opens map cards, and the **Detailed render** button goes through
 `maps.file` and the map renderer service. Anyone who sees the card may press it, at most
 once every 30 s per presser for a new render (`RenderCooldown`); a render already in the
@@ -107,28 +108,37 @@ working, but the bot must be deployed before servers start sending `contentHash`
 `maps.preview` could later carry several file names, so that a page of `/maps list`
 costs one round trip.
 
-## The bot side (phase 1, in place)
+## The bot side
 
 - `services/map_images.py`: `MapImageKind` (`thumbnail`, `detailed`), `MapRef`
-  (server, file, optional content hash), `MapImage` (PNG + size), the
-  `MapImageSource` protocol and `MapImages`, an LRU of at most 64 pictures and 64 MB for
-  15 minutes. It
-  is keyed by content hash when known, otherwise by server and file name, and dropped
-  when a map is uploaded or removed. `NoMapImages` is the source until phase 2.
-- `map_card.py`: the embed of one map. `handlers_maps.cmd_map_details` lists the
-  server's maps, finds the file, asks for the thumbnail and adds the render button
-  (`server_views.MapDetailsView`) only if the source supports `detailed`.
-- Phase 2 adds `ServerThumbnails` and phase 3 `RendererImages`, each a
-  `MapImageSource`. A small composite source routes each kind to one of them. The
-  handlers do not change.
+  (server, file, optional content hash), `MapImage` (PNG + size), the `MapImageSource`
+  protocol (`supports`, `available`, `fetch`) and `MapImages`, an LRU of at most 64
+  pictures and 64 MB for 15 minutes. It is keyed by content hash when known, otherwise by
+  server and file name, and drops the by-name entries of a server when a map is uploaded
+  or removed. Two people asking for the same picture at once share one request
+  (`asyncio.shield`ed, so one expired interaction does not cancel the other's).
+- Sources: `ServerThumbnails` (`maps.preview`) and `RendererImages` (`maps.file`, then
+  `maps.render` with a 60 s timeout, not retried), routed by kind with `RoutedImages`.
+  `RendererImages` also draws files the bot holds itself (`render_file`: the bot
+  publishes the blob, then asks for the render).
+- Renderer presence: the renderer keeps `xcore:service:map-renderer` (30 s TTL, refreshed
+  every 10 s, deleted on shutdown). While it is missing the card has no **Detailed
+  render** button, and a press answers "not running" at once instead of after 60 s.
+- `map_card.py`: the embed of one map. `handlers_maps.send_map_card` asks for the
+  thumbnail, links the map forum post where this file was reviewed (`CaseStore.by_map_file`,
+  by SHA-256: a map accepted through the forum is installed byte for byte), and adds
+  `server_views.MapDetailsView`.
 
-`RendererImages.fetch` will:
+### Map review forum
 
-1. look up `xcore:map-render:{contentHash}:{rendererVersion}:{maxSide}` (a pointer to a
-   blob with a 7-day TTL) and return it if present;
-2. otherwise `maps.file` from the game server, then `maps.render` to the renderer with
-   a 60 s timeout (the button keeps the interaction alive for 15 minutes);
-3. read the image blob, verify it and store the pointer.
+When a post in the map forum (`DISCORD_MAPS_FORUM_ID`) gets a file and the bot's own
+checks pass, `cases/flows/maps.py` posts the render of that file under the review card:
+"Render of this map, file `<sha>`" with the PNG. It runs in the background so the
+inspection and the card do not wait for it, once per file (a recheck or a restart finds
+the posted message), and only while the renderer is up. A busy renderer is asked again
+twice, 20 s apart; any other failure leaves the review as it was. The render lands in the
+renderer's disk cache under the file's hash, so after **Accept** the same map's
+**Detailed render** in `/map` is answered from the cache.
 
 ## The renderer (phase 3)
 
@@ -265,7 +275,8 @@ compiler's native memory. `native-image` draws byte-identical images about 20 % 
    e. **done:** `ops/systemd/xcore-map-renderer.service` (one core, `MemoryMax=256M`),
       `ops/deploy map-renderer` (built locally, rsynced, `/ready` checked), the client jar
       cached in CI.
-4. **Polish.** Bridges and power links (needs the reader to keep their config), a gallery view in `/maps list`
+4. **Polish.** Done: renderer presence, shared in-flight requests, renders in the map
+   review forum, the review post linked from the card. Still open: bridges and power links (needs the reader to keep their config), a gallery view in `/maps list`
    (up to four embeds sharing one `url` show as one image grid), the same renders on
    map pages of the website.
 
