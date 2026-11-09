@@ -12,12 +12,24 @@ This is the measured prototype. It renders and benchmarks; it does not listen on
   It writes `build/render-data/`:
   - `content.json`: every content name and id (what the plugin's `ContentRegistrySnapshot`
     holds), plus how each block is drawn: sprite names, size, rotation, team region, colour;
-  - `sprites.pack`: the 616 sprites maps use, untrimmed, at 32, 16, 8 and 4 px per tile; one
-    deflated section per scale, 1.2 MB in total.
+  - `sprites.pack`: the 1260 sprites maps use (block sprites, the cells of floor edge sheets and
+    of 2x2 wall sheets, the autotile cases of conveyors, ducts and conduits), untrimmed, at 32,
+    16, 8 and 4 px per tile; one deflated section per scale, 1.6 MB in total.
 - The renderer (source set `main`) never loads Mindustry content. It decodes the map with the
   plugin's `DetachedMsavReader` and draws it in bands of 16 tile rows, top first. Each band goes
-  straight to a streaming PNG encoder (RGB, Sub filter). Layers per tile: floor variant, ore,
-  static wall, wall ore. Then buildings, as full icons, rotated and with the team region tinted.
+  straight to a streaming PNG encoder (RGB, Sub filter). Layers, in the engine's order:
+  - floor variant, then the edges of higher floors around it (`Floor.drawEdges`: blend id order,
+    same cache layer), then the ore;
+  - block shadows (`BlockRenderer.drawShadows`: every `hasShadow` tile, 0.71 black, linear
+    filtered);
+  - natural walls, with a quarter of the 2x2 `-large` sprite where four equal walls allow it
+    (`StaticWall.drawBase`), and wall ores;
+  - conveyors, ducts and conduits joined to their neighbours (`Tiling`, a port of `Autotiler`
+    and each block's `blends`, with conduit and duct caps);
+  - other buildings: full icon, rotated, team region tinted;
+  - darkness (`World.getWallDarkness` and `borderDarkness`): wall masses go black with their
+    distance to open ground, and so do the two tiles at the map border.
+
   Variants are picked as the engine picks them (`Mathf.randomSeed(pos, 0, n - 1)`).
 - Scale: the largest of 32/16/8/4 px per tile whose long side fits `maxSide` (4096). If the PNG
   is over the byte limit (8 MiB), it is rendered again one scale smaller.
@@ -35,6 +47,13 @@ build/install/map-renderer/bin/map-renderer \
 Pass JVM flags in `JAVA_OPTS`.
 
 ## Measurements (2026-11-09)
+
+Two runs: the first composer (icons only), and the current one with edges, shadows, darkness and
+autotiling. The table below is the first; the current composer peaks at **167 MB** at `-Xmx64m`
+and takes 117 s for the same 339 renders (0.2–1.9 s per map). The extra time is mostly PNG
+encoding: shading and edges make the images 1.5–2× larger, and a few big maps (263) step down a
+scale to stay under 8 MiB.
+
 
 The 113 readable maps bundled with v160 (the 114th, `canyon`, is a legacy map that the plugin's
 reader rejects too), 3 rounds, 2 renders at a time, 4 cores. Peak RSS is `VmHWM`.
@@ -64,5 +83,6 @@ With a 256 MB budget, the plain JVM at `-Xmx64m` fits with about 90 MB to spare.
 
 - The reader comes from `:plugins:xcore` with all of its dependencies; it moves to `libs/msav`.
 - No Redis consumer, protocol messages or disk cache yet.
-- Floor edge blending, conveyor/conduit autotiling, cliffs and the darkness over solid walls
-  are not drawn.
+- Not drawn: items on conveyors and liquids in conduits, bridge and power-node links (their
+  configuration is in building payloads the reader leaves opaque), plastanium conveyors' joints,
+  cliffs, autotiled Erekir floors and walls, and animated water.

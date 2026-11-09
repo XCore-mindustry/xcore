@@ -185,18 +185,21 @@ Scale `s`: the largest of 32, 16, 8 and 4 px per tile whose long side fits `maxS
 PNG encoder band by band, top row first: RGB, the Sub filter, one `IDAT` deflate stream
 (`java.util.zip.Deflater`) cut into 64 KB chunks. Only one band is ever in memory: for a
 4096 px wide image at 16 rows × 16 px, that is 4 MB, whatever the map's height.
-Per tile, bottom to top:
+Layers, bottom to top, in the engine's order:
 
-1. floor: variant `1 + hash(x, y) % variants`; edge blending between floors is phase 4;
-2. ore overlay, then static wall (`wallOre` on top of the wall);
-3. buildings whose footprint (`-(size - 1) / 2` from the centre, as the engine places
+1. floor variant, the edges of higher floors around it (`Floor.drawEdges`), the ore;
+2. block shadows, a per-tile mask sampled bilinearly as the engine's linear-filtered
+   frame buffer is;
+3. natural walls (2x2 `-large` quarters where four equal walls allow it), wall ores;
+4. buildings whose footprint (`-(size - 1) / 2` from the centre, as the engine places
    it) crosses the band: full icon, rotated by `rotation · 90°` for `rotate` blocks,
-   then the `-team` region multiplied by the team colour. Conveyor and conduit
-   autotiling is phase 4.
+   then the `-team` region multiplied by the team colour. Conveyors, ducts and
+   conduits use the sprite for their blend case instead (`Autotiler`), with caps;
+5. darkness: wall masses by distance to open ground, and the map border.
 
 If the encoded PNG exceeds 8 MiB, the renderer drops to the next smaller scale and
-renders again. On the bundled maps that never happened: the largest PNG is 7 MB
-(map 263, 480×480 at 8 px).
+renders again. With edges and shading, map 263 (480×480) is the one bundled map that
+steps down to 4 px for it.
 
 ### Service shape
 
@@ -231,7 +234,9 @@ two renders at a time, 4 cores. Peak RSS is the kernel's `VmHWM` for the process
 | GraalVM `native-image`, `-Xmx64m` | 87 MB | 95 s |
 | GraalVM `native-image`, `-Xmx48m` | 79 MB | 100 s |
 
-One render takes 0.1–0.8 s on the JVM, a 512×512 map included. Content and sprites
+With the first, icons-only composer one render took 0.1–0.8 s on the JVM, a 512×512 map
+included. The full composer (edges, shadows, darkness, autotiling) takes 0.2–1.9 s and
+peaks at 167 MB at `-Xmx64m`. The extra time is mostly PNG encoding of the busier images. Content and sprites
 cost 13 MB of RSS once loaded. Of the JVM's 162 MB, Native Memory Tracking accounts for
 93 MB (64 MB heap, 14 MB shared classes, 5 MB code). Most of the rest is the C2
 compiler's native memory. `native-image` draws byte-identical images about 20 % slower.
@@ -252,7 +257,7 @@ compiler's native memory. `native-image` draws byte-identical images about 20 % 
    d. the service around it, `maps.file`, `maps.render` and `RendererImages` in the
       bot;
    e. CI release, `ops/systemd/xcore-map-renderer.service`, `ops/deploy map-renderer`.
-4. **Polish.** Floor edge blending, conveyor autotiling, a gallery view in `/maps list`
+4. **Polish.** Bridges and power links (needs the reader to keep their config), a gallery view in `/maps list`
    (up to four embeds sharing one `url` show as one image grid), the same renders on
    map pages of the website.
 

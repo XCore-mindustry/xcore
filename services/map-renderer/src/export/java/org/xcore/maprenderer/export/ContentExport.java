@@ -17,6 +17,13 @@ import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.environment.OverlayFloor;
 import mindustry.world.blocks.environment.Prop;
 import mindustry.world.blocks.environment.StaticWall;
+import mindustry.world.blocks.distribution.ArmoredConveyor;
+import mindustry.world.blocks.distribution.Conveyor;
+import mindustry.world.blocks.distribution.Duct;
+import mindustry.world.blocks.distribution.StackConveyor;
+import mindustry.world.blocks.liquid.ArmoredConduit;
+import mindustry.world.blocks.liquid.Conduit;
+import mindustry.world.blocks.liquid.LiquidJunction;
 import mindustry.world.blocks.storage.CoreBlock;
 
 import javax.imageio.ImageIO;
@@ -64,6 +71,8 @@ public final class ContentExport {
         Core.settings = new Settings();
         Vars.headless = true;
         Vars.content = new ContentLoader();
+        // Floors pick their cache layer at construction; headless servers never create the layers.
+        mindustry.graphics.CacheLayer.init();
         Vars.content.createBaseContent();
         Vars.content.init();
 
@@ -178,6 +187,24 @@ public final class ContentExport {
                     json.set("teamSprite", team);
                     wanted.add(team);
                 }
+                // What neighbours and shadows need to know (Autotiler, BlockRenderer, Tile.isDarkened).
+                json.set("darkens", block.solid && ((!block.synthetic() && block.fillsTile) || block.forceDark));
+                json.set("shadow", block.hasShadow);
+                json.set("outputsItems", block.outputsItems());
+                json.set("hasItems", block.hasItems);
+                json.set("hasLiquids", block.hasLiquids);
+                json.set("outputsLiquid", block.outputsLiquid);
+                json.set("rotatedOutput", rotatedOutput(block));
+                json.set("isDuct", block.isDuct);
+                json.set("conveyor", block instanceof Conveyor);
+                json.set("liquidJunction", block instanceof LiquidJunction);
+                if (block instanceof Floor floor && !(block instanceof OverlayFloor)) floorJson(json, floor, atlas, wanted);
+                if (block instanceof StaticWall wall && !wall.autotile && atlas.containsKey(block.name + "-large")) {
+                    json.array("large");
+                    for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++) json.value(piece(block.name + "-large", x, y, wanted));
+                    json.pop();
+                }
+                tilingJson(json, block, atlas, wanted);
                 json.pop();
             }
             json.pop();
@@ -186,6 +213,72 @@ public final class ContentExport {
             throw new IllegalStateException(impossible);
         }
         return text.toString();
+    }
+
+    private static boolean rotatedOutput(Block block) {
+        try {
+            return block.rotatedOutput(0, 0);
+        } catch (RuntimeException needsWorld) {
+            return block.rotate;
+        }
+    }
+
+    /** Floor edges as Floor.drawEdges draws them: the blend group's 3x3 "-edge" sheet, by blend id. */
+    private static void floorJson(JsonWriter json, Floor floor, Map<String, TextureAtlasData.Region> atlas,
+                                  Set<String> wanted) throws IOException {
+        json.set("blendId", floor.blendGroup.id);
+        json.set("edgeIn", floor.drawEdgeIn);
+        json.set("edgeOut", floor.drawEdgeOut);
+        json.set("cache", floor.cacheLayer.id);
+        String sheet = floor.blendGroup.name + "-edge";
+        if (atlas.containsKey(sheet)) {
+            // [column][row], rows from the top, as TextureRegion.split returns them.
+            json.array("edges");
+            for (int x = 0; x < 3; x++) for (int y = 0; y < 3; y++) json.value(piece(sheet, x, y, wanted));
+            json.pop();
+        }
+    }
+
+    /** Autotiled conveyors, ducts and conduits: the sprites for each blend case (Autotiler.buildBlending). */
+    private static void tilingJson(JsonWriter json, Block block, Map<String, TextureAtlasData.Region> atlas,
+                                   Set<String> wanted) throws IOException {
+        String kind;
+        if (block instanceof StackConveyor) return;
+        else if (block instanceof ArmoredConveyor) kind = "armoredConveyor";
+        else if (block instanceof Conveyor) kind = "conveyor";
+        else if (block instanceof Duct duct) kind = duct.armored ? "armoredDuct" : "duct";
+        else if (block instanceof ArmoredConduit) kind = "armoredConduit";
+        else if (block instanceof Conduit) kind = "conduit";
+        else return;
+        json.set("tiling", kind);
+        if (kind.endsWith("onveyor")) {
+            json.array("top");
+            for (int i = 0; i < 5; i++) json.value(found(block.name + "-" + i + "-0", null, atlas, wanted));
+            json.pop();
+            return;
+        }
+        String fallback = block instanceof Duct ? "duct-bottom-" : "conduit-bottom-";
+        json.array("top");
+        for (int i = 0; i < 5; i++) json.value(found(block.name + "-top-" + i, null, atlas, wanted));
+        json.pop();
+        json.array("bottom");
+        for (int i = 0; i < 5; i++) json.value(found(block.name + "-bottom-" + i, fallback + i, atlas, wanted));
+        json.pop();
+        json.set("cap", found(block.name + "-cap", null, atlas, wanted));
+        if (block instanceof Conduit conduit) json.set("bottomTint", conduit.botColor.rgba());
+    }
+
+    private static String found(String name, String fallback, Map<String, TextureAtlasData.Region> atlas, Set<String> wanted) {
+        String result = atlas.containsKey(name) ? name : fallback != null && atlas.containsKey(fallback) ? fallback : null;
+        if (result != null) wanted.add(result);
+        return result;
+    }
+
+    /** A 32 px cell of a sheet, cut when the pack is written; named "sheet@x,y". */
+    private static String piece(String sheet, int x, int y, Set<String> wanted) {
+        String name = sheet + "@" + x + "," + y;
+        wanted.add(name);
+        return name;
     }
 
     /** How the renderer treats a block; "building" covers every block placed from a centre. */
@@ -227,29 +320,25 @@ public final class ContentExport {
                                   Map<Fi, BufferedImage> pages) throws IOException {
         var sprites = new LinkedHashMap<String, int[]>();
         var sizes = new HashMap<String, int[]>();
+        var sheets = new HashMap<String, int[]>();
         for (String name : names) {
-            var region = atlas.get(name);
-            if (region.rotate) throw new IOException("Rotated atlas regions are not supported: " + name);
-            BufferedImage page = pages.computeIfAbsent(region.page.textureFile, fi -> {
-                try {
-                    return ImageIO.read(fi.file());
-                } catch (IOException error) {
-                    throw new java.io.UncheckedIOException(error);
-                }
-            });
-            // The binary atlas leaves the original size at 0 for regions that were not trimmed.
-            int width = Math.max(region.originalWidth, region.width), height = Math.max(region.originalHeight, region.height);
-            int[] pixels = new int[width * height];
-            // Whitespace was stripped around the centre; put the pixels back where they were.
-            int left = Math.round(region.offsetX);
-            int top = height - region.height - Math.round(region.offsetY);
-            for (int y = 0; y < region.height; y++) {
-                for (int x = 0; x < region.width; x++) {
-                    pixels[(top + y) * width + left + x] = page.getRGB(region.left + x, region.top + y);
-                }
+            int at = name.indexOf('@');
+            if (at >= 0) {
+                String sheet = name.substring(0, at);
+                String[] cell = name.substring(at + 1).split(",");
+                int[] full = sheets.computeIfAbsent(sheet, key -> untrimmed(atlas.get(key), pages));
+                var region = atlas.get(sheet);
+                int sheetWidth = Math.max(region.originalWidth, region.width);
+                int cx = Integer.parseInt(cell[0]) * 32, cy = Integer.parseInt(cell[1]) * 32;
+                int[] pixels = new int[32 * 32];
+                for (int y = 0; y < 32; y++) System.arraycopy(full, (cy + y) * sheetWidth + cx, pixels, y * 32, 32);
+                sprites.put(name, pixels);
+                sizes.put(name, new int[]{32, 32});
+                continue;
             }
-            sprites.put(name, pixels);
-            sizes.put(name, new int[]{width, height});
+            var region = atlas.get(name);
+            sprites.put(name, untrimmed(region, pages));
+            sizes.put(name, new int[]{Math.max(region.originalWidth, region.width), Math.max(region.originalHeight, region.height)});
         }
 
         out.writeInt(0x584d5250); // "XMRP"
@@ -278,6 +367,29 @@ public final class ContentExport {
             out.writeInt(section.size());
             section.writeTo(out);
         }
+    }
+
+    /** The region's pixels at their original size: the packer stripped whitespace around the centre. */
+    private static int[] untrimmed(TextureAtlasData.Region region, Map<Fi, BufferedImage> pages) {
+        if (region.rotate) throw new IllegalStateException("Rotated atlas regions are not supported: " + region.name);
+        BufferedImage page = pages.computeIfAbsent(region.page.textureFile, fi -> {
+            try {
+                return ImageIO.read(fi.file());
+            } catch (IOException error) {
+                throw new java.io.UncheckedIOException(error);
+            }
+        });
+        // The binary atlas leaves the original size at 0 for regions that were not trimmed.
+        int width = Math.max(region.originalWidth, region.width), height = Math.max(region.originalHeight, region.height);
+        int[] pixels = new int[width * height];
+        int left = Math.round(region.offsetX);
+        int top = height - region.height - Math.round(region.offsetY);
+        for (int y = 0; y < region.height; y++) {
+            for (int x = 0; x < region.width; x++) {
+                pixels[(top + y) * width + left + x] = page.getRGB(region.left + x, region.top + y);
+            }
+        }
+        return pixels;
     }
 
     /** Averages each factor×factor block with premultiplied alpha, so transparent edges do not darken. */
