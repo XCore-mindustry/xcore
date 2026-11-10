@@ -595,7 +595,7 @@ async def test_map_actions_need_reviewer_and_block_author_including_senior(verb)
             )
 
 
-async def test_reject_locks_post_switches_tag_by_name_and_notifies_post_and_dm():
+async def test_reject_keeps_post_open_switches_tag_by_name_and_notifies_post_and_dm():
     env, case = await opened()
     service, db, bot, bus, _, _, thread, _, _ = env
     # Resolve the link at close, including an account linked after intake.
@@ -609,7 +609,12 @@ async def test_reject_locks_post_switches_tag_by_name_and_notifies_post_and_dm()
     final = await service.reject(
         case.number, reviewer(), reason_code="other", reason_text="No route to the core"
     )
-    assert final.status == CaseStatus.REJECTED and thread.locked and not thread.archived
+    # The author may still post a corrected file, which opens the next revision.
+    assert (
+        final.status == CaseStatus.REJECTED
+        and not thread.locked
+        and not thread.archived
+    )
     assert [tag.name for tag in thread.applied_tags] == ["PvP", "Rejected"]
     assert thread.applied_tags[-1] is bot.channels[400].available_tags[-1]
     assert any("No route to the core" in m.content for m in thread.messages)
@@ -1256,8 +1261,12 @@ async def test_a_review_closed_while_drawing_gets_no_render(monkeypatch):
 # --- What an accepted map replaces on the server -----------------------------------------
 
 
-def _installed(file_name, *, name="Arena", author="", sha="0" * 64):
-    return {"file_name": file_name, "name": name, "author": author, "content_hash": sha}
+def _installed(file_name, *, name="Arena", author="", sha="0" * 64, creator=None):
+    item = {"file_name": file_name, "name": name, "author": author, "content_hash": sha}
+    if creator is not None:
+        item["creator_discord_id"] = creator
+        item["creator_name"] = f"Creator {creator}"
+    return item
 
 
 async def _accept_until_target(service, case, bot):
@@ -1298,7 +1307,7 @@ async def test_accept_of_a_renamed_version_replaces_the_installed_map():
     )
     await maps.on_thread_create(service, thread)
     case = await service.store.by_submission(f"map:{thread.id}")
-    bot.bus.rpc_maps_list.return_value = [_installed("arena.msav")]
+    bot.bus.rpc_maps_list.return_value = [_installed("arena.msav", creator="42")]
 
     interaction = await _accept_until_target(service, case, bot)
     assert not bus.upload_calls
@@ -1367,7 +1376,7 @@ async def test_crash_after_a_replacing_upload_recovers_from_the_audit_of_the_tar
     )
     await maps.on_thread_create(service, thread)
     case = await service.store.by_submission(f"map:{thread.id}")
-    bot.bus.rpc_maps_list.return_value = [_installed("arena.msav")]
+    bot.bus.rpc_maps_list.return_value = [_installed("arena.msav", creator="42")]
     original = service.actions._finish
     service.actions._finish = AsyncMock(
         side_effect=RuntimeError("crash before case write")

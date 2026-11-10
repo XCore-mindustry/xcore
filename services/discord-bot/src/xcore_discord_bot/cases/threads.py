@@ -494,6 +494,10 @@ class CaseThreads:
             allowed_mentions=discord.AllowedMentions.none(),
         )
         forum = await self.channel(case.discord["forum_id"])
+        if case.kind == CaseKind.MAP and await service.store.has_newer_map_case(case):
+            # The post's tags show its latest revision; an older card only updates itself.
+            await self._render_user_thread(case)
+            return
         if case.kind == CaseKind.MAP:
             managed = (
                 self.settings.maps_tag_waiting,
@@ -507,8 +511,9 @@ class CaseThreads:
                 if case.status == CaseStatus.REJECTED
                 else managed[0],
             )
-            # The author's public post is never archived; a rejected one is locked (9.5).
-            closing = {"locked": True} if case.status == CaseStatus.REJECTED else {}
+            # The author's public post is never archived or locked: after a rejection the
+            # author may still post a corrected file, which opens the next revision.
+            closing = {}
         else:
             managed = KIND_TAGS + tuple(STATUS_TAGS.values())
             names = (case.kind.value.title(), STATUS_TAGS.get(case.status, "Rejected"))

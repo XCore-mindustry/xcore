@@ -34,8 +34,6 @@ maps-upload-status-invalid_map = invalid map
 maps-upload-status-metadata_failed = metadata could not be saved; check the installed file before retrying
 maps-installed = Installed map
 maps-installed-info = { $file } · { $server }
-maps-badge = Map Maker
-maps-badge-pending = The Map Maker grant is pending. The bot retries it for 30 days after acceptance.
 maps-outcome-accepted = Your map { $file } was accepted in case #{ $number } and installed on { $server }.
 maps-outcome-rejected = Your map was rejected in case #{ $number }. Reason: { $reason }
 maps-severity-error = Errors
@@ -225,3 +223,55 @@ maps-log-upload = ⬆ { $user } used /maps upload.
 maps-log-accepted = ✅ { $user } accepted case #{ $number }: { $file } on `{ $server }`
 maps-log-removed = 🗑️ { $user } removed { $file } from `{ $server }`.
 maps-log-restored = ♻️ { $user } restored { $file } on `{ $server }`.
+
+# Revisions
+
+maps-update = Update
+maps-revision = Revision
+maps-revision-info = Revision { $revision } · the previous one: case #{ $case }, { $status }
+maps-revision-status-resolved = accepted
+maps-revision-status-rejected = rejected
+maps-revision-status-cancelled = cancelled
+maps-installed-now = Installed now
+maps-changes = Changes since the previous revision
+maps-changes-identical = The file is identical to revision { $revision }.
+maps-changes-size = File size: { $before } → { $after } bytes
+maps-changes-dimensions = Size: { $before } → { $after }
+maps-changes-cores = Cores: { $before } → { $after }
+maps-changes-patches = Data patches: { $before } → { $after }
+maps-changes-none = No change in size, cores or data patches.
+maps-select-server-update = Choose the server. The one with the earlier version comes first; the update replaces it there.
+maps-server-installed = { $server } — update { $file }
+maps-accept-plan = It will be installed as { $file } on `{ $server }`.
+maps-review-nothing-new = This post has no newer file from its author since its last review.
+maps-review-binding-both = Give both `server` and `replaces`, or neither.
+maps-outcome-updated = The update of your map { $file } was accepted in case #{ $number } and installed on { $server }.
+maps-outcome-fixed = Your fix of { $file } was accepted in case #{ $number } and installed on { $server }. The map keeps its creator; you are recorded as the one who fixed it.
+
+# Request changes
+
+maps-changes-button = Request changes
+maps-changes-reason = What should the author change?
+maps-changes-requested = The author was asked for changes. The review stays open; their next file is checked again.
+maps-changes-requested-field = Changes requested
+maps-changes-requested-note = { $user }, the reviewer asks for changes before this map can be accepted: { $reason }
+    Post the corrected .msav file in this post.
+
+# A fix of someone else's map
+
+maps-fixed-by = Fixed by
+maps-card-fixed-by = Fixed by
+maps-creator-choose = { $file } has no recorded creator. Who made this map?
+maps-creator-author = The author of this post made it
+maps-creator-fix = Someone else made it; this post fixes it
+
+# /maps upload of a file under review, /maps rollback
+
+maps-upload-under-review = This file is under review in case #{ $number } in this post. Use the buttons on its card, so the review is closed and the author credited.
+cmd-maps-rollback-description = Put an earlier accepted revision of this post's map back (map reviewer)
+maps-rollback-nothing = This post has no earlier accepted revision to go back to.
+maps-rollback-choose = Now installed: { $file } on `{ $server }`, from case #{ $number }. Which accepted revision should replace it?
+maps-rollback-option = Revision { $revision } · case #{ $number }
+maps-rollback-running = Putting an earlier revision back as { $file }…
+maps-rollback-file-gone = The file of case #{ $number } is no longer in this post, or it has changed. Nothing was uploaded.
+maps-rollback-note = ↩️ { $user } put revision { $revision } (case #{ $number }) back in place of case #{ $current }: { $file } on `{ $server }`.

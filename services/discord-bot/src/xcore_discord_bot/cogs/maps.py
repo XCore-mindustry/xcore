@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import discord
 from discord import Interaction, app_commands
@@ -11,6 +11,9 @@ from ..cases.flows.maps import intake
 from ..cases.modals import error_text
 from ..cases.model import AccessDenied, ActionFailed, CaseKind
 from ..i18n import t
+from ..map_admin import list_maps_or_none
+from ..map_card import find_map
+from ..map_list import map_text
 from ..permissions import has_any_role, map_reviewer_role_ids
 from .autocomplete import autocomplete_map_file
 from .checks import map_reviewer_check
@@ -59,7 +62,18 @@ class MapsCog(commands.Cog):
     @maps_group.command(
         name="review", description="Start map review in this forum post"
     )
-    async def cmd_review_map(self, interaction: Interaction) -> None:
+    @app_commands.describe(
+        server="Server where this post's map is already installed (optional)",
+        replaces="The installed map this post updates (optional, with server)",
+    )
+    @app_commands.autocomplete(server=_autocomplete_server_for_command)
+    @app_commands.autocomplete(replaces=autocomplete_map_file)
+    async def cmd_review_map(
+        self,
+        interaction: Interaction,
+        server: str | None = None,
+        replaces: str | None = None,
+    ) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
         service = self.bot.container.cases
         locale = await service.store.remember_interaction(interaction)
@@ -69,23 +83,54 @@ class MapsCog(commands.Cog):
                 interaction.user, map_reviewer_role_ids(service.settings)
             ):
                 raise AccessDenied()
-            thread = interaction.channel
+            # A post in the maps forum; anything else is refused just below.
+            thread: Any = interaction.channel
             if (
-                getattr(thread, "parent_id", None)
+                thread is None
+                or getattr(thread, "parent_id", None)
                 != service.settings.discord_maps_forum_id
             ):
                 raise ActionFailed(t(locale, "maps-review-in-post"))
             if str(interaction.user.id) == str(thread.owner_id):
                 raise AccessDenied()
-            case = await intake(service, thread, manual=True)
-            await interaction.followup.send(
-                t(locale, "cases-updated", number=case.number)
-                if case
-                else t(locale, "maps-review-no-file"),
-                ephemeral=True,
-            )
+            installed = await self._binding(locale, server, replaces)
+            case = await intake(service, thread, manual=True, installed=installed)
+            if case:
+                text = t(locale, "cases-updated", number=case.number)
+            elif await service.store.map_cases(thread.id):
+                text = t(locale, "maps-review-nothing-new")
+            else:
+                text = t(locale, "maps-review-no-file")
+            await interaction.followup.send(text, ephemeral=True)
         except ValueError as error:
             await interaction.followup.send(error_text(locale, error), ephemeral=True)
+
+    async def _binding(
+        self, locale: str, server: str | None, replaces: str | None
+    ) -> dict[str, str | None] | None:
+        """The installed map a post updates, as the reviewer named it, checked on the server."""
+        if not server and not replaces:
+            return None
+        if not server or not replaces:
+            raise ActionFailed(t(locale, "maps-review-binding-both"))
+        maps = await list_maps_or_none(self.bot, server)
+        if maps is None:
+            raise ActionFailed(t(locale, "maps-list-timeout"))
+        item = find_map(maps, replaces)
+        if item is None:
+            raise ActionFailed(
+                t(
+                    locale,
+                    "maps-card-not-found",
+                    server=map_text(server, inline_code=True),
+                    file=map_text(replaces, 100, inline_code=True),
+                )
+            )
+        return {
+            "server": server,
+            "file_name": item["file_name"],
+            "sha256": item.get("content_hash") or None,
+        }
 
     @maps_group.command(name="list", description="List maps on a server")
     @app_commands.describe(
@@ -124,6 +169,14 @@ class MapsCog(commands.Cog):
     @map_reviewer_check()
     async def cmd_duplicates(self, interaction: Interaction, server: str) -> None:
         await map_admin.cmd_duplicates(self.bot, interaction, server)
+
+    @maps_group.command(
+        name="rollback",
+        description="Put an earlier accepted revision of this post's map back (map reviewer)",
+    )
+    @map_reviewer_check()
+    async def cmd_rollback(self, interaction: Interaction) -> None:
+        await map_admin.cmd_rollback(self.bot, interaction)
 
     @maps_group.command(
         name="upload",

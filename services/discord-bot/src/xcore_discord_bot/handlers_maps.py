@@ -193,20 +193,24 @@ async def _card_picture(
     return card(image_name=name, render_ms=image.render_ms), file
 
 
-async def _review_thread(bot: XCoreDiscordBot, content_hash: str) -> str | None:
-    """The map forum post where this file was reviewed, if it came that way."""
+async def _review(
+    bot: XCoreDiscordBot, content_hash: str
+) -> tuple[str | None, str | None]:
+    """The map forum post where this file was reviewed, if it came that way, and who fixed
+    the map when the post fixed someone else's map."""
     if not content_hash or not bot.settings.cases_maps_enabled:
-        return None
+        return None, None
     try:
         case = await bot.container.cases.store.by_map_file(content_hash)
     except Exception:
         logger.warning(
             "Could not look up the review of %s", content_hash, exc_info=True
         )
-        return None
+        return None, None
     if case is None:
-        return None
-    return case.discord.get("thread_id") or None
+        return None, None
+    fixer = (case.payload.get("fixer") or {}).get("discord_id")
+    return case.discord.get("thread_id") or None, fixer or None
 
 
 RENDER_TIMEOUT = "maps-card-render-timeout"
@@ -231,12 +235,14 @@ async def send_map_card(
     images = bot.container.map_images
     ref = MapRef(server, item.get("file_name", ""), item.get("content_hash", ""))
 
+    review_thread_id, fixed_by = await _review(bot, ref.content_hash)
     card = functools.partial(
         map_card,
         server,
         item,
         locale,
-        review_thread_id=await _review_thread(bot, ref.content_hash),
+        review_thread_id=review_thread_id,
+        fixed_by=fixed_by,
     )
 
     async def picture(

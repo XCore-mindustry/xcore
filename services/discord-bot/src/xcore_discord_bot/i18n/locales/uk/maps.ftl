@@ -34,8 +34,6 @@ maps-upload-status-invalid_map = некоректна карта
 maps-upload-status-metadata_failed = не вдалося зберегти метадані; перевірте встановлений файл перед повторною спробою
 maps-installed = Установлена карта
 maps-installed-info = { $file } · { $server }
-maps-badge = Творець карт
-maps-badge-pending = Надання значка «Творець карт» ще не завершено. Бот повторює спроби протягом 30 днів після прийняття карти.
 maps-outcome-accepted = Вашу карту { $file } прийнято за заявкою №{ $number } і встановлено на сервері { $server }.
 maps-outcome-rejected = Вашу карту відхилено за заявкою №{ $number }. Причина: { $reason }
 maps-severity-error = Помилки
@@ -225,3 +223,55 @@ maps-log-upload = ⬆ { $user } використав(-ла) /maps upload.
 maps-log-accepted = ✅ { $user } прийняв(-ла) заявку №{ $number }: { $file } на `{ $server }`
 maps-log-removed = 🗑️ { $user } видалив(-ла) { $file } з `{ $server }`.
 maps-log-restored = ♻️ { $user } повернув(-ла) { $file } на `{ $server }`.
+
+# Revisions
+
+maps-update = Оновити
+maps-revision = Ревізія
+maps-revision-info = Ревізія { $revision } · попередня: заявка №{ $case }, { $status }
+maps-revision-status-resolved = прийнята
+maps-revision-status-rejected = відхилена
+maps-revision-status-cancelled = скасована
+maps-installed-now = Зараз встановлена
+maps-changes = Що змінилося з попередньої ревізії
+maps-changes-identical = Файл той самий, що в ревізії { $revision }.
+maps-changes-size = Розмір файлу: { $before } → { $after } байт
+maps-changes-dimensions = Розмір карти: { $before } → { $after }
+maps-changes-cores = Ядра: { $before } → { $after }
+maps-changes-patches = Дата-патчі: { $before } → { $after }
+maps-changes-none = Розмір, ядра й дата-патчі не змінилися.
+maps-select-server-update = Оберіть сервер. Першим іде той, де стоїть попередня версія; оновлення замінить її там.
+maps-server-installed = { $server } — оновити { $file }
+maps-accept-plan = Карту буде встановлено як { $file } на `{ $server }`.
+maps-review-nothing-new = Від останньої перевірки автор не викладав у цей пост нових файлів.
+maps-review-binding-both = Вкажіть і `server`, і `replaces` — або нічого з цього.
+maps-outcome-updated = Оновлення вашої карти { $file } прийнято за заявкою №{ $number } і встановлено на сервері { $server }.
+maps-outcome-fixed = Ваше виправлення карти { $file } прийнято за заявкою №{ $number } і встановлено на сервері { $server }. Творець карти лишається тим самим, вас записано як того, хто її виправив.
+
+# Request changes
+
+maps-changes-button = На доопрацювання
+maps-changes-reason = Що автору треба змінити?
+maps-changes-requested = Автору надіслано запит на доопрацювання. Заявка лишається відкритою; наступний файл автора буде перевірено знову.
+maps-changes-requested-field = Запитано доопрацювання
+maps-changes-requested-note = { $user }, перевіряльник просить доопрацювати карту перед прийняттям: { $reason }
+    Викладіть виправлений файл .msav у цей пост.
+
+# A fix of someone else's map
+
+maps-fixed-by = Виправив(-ла)
+maps-card-fixed-by = Виправив(-ла)
+maps-creator-choose = У { $file } не записано творця. Хто зробив цю карту?
+maps-creator-author = Автор цього поста
+maps-creator-fix = Хтось інший; цей пост її виправляє
+
+# /maps upload of a file under review, /maps rollback
+
+maps-upload-under-review = Цей файл на перевірці в заявці №{ $number } у цьому пості. Скористайтеся кнопками на її картці, щоб заявку закрито, а автор отримав атрибуцію.
+cmd-maps-rollback-description = Повернути попередню прийняту ревізію карти цього поста (перевіряльник карт)
+maps-rollback-nothing = У цього поста немає попередньої прийнятої ревізії.
+maps-rollback-choose = Зараз встановлена: { $file } на `{ $server }`, із заявки №{ $number }. Якою прийнятою ревізією її замінити?
+maps-rollback-option = Ревізія { $revision } · заявка №{ $number }
+maps-rollback-running = Повертаю попередню ревізію як { $file }…
+maps-rollback-file-gone = Файлу заявки №{ $number } більше немає в цьому пості, або він змінився. Нічого не завантажено.
+maps-rollback-note = ↩️ { $user } повернув(-ла) ревізію { $revision } (заявка №{ $number }) замість заявки №{ $current }: { $file } на `{ $server }`.

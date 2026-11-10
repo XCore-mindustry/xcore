@@ -13,6 +13,7 @@ of the file with a **Restore** button (``map_backups``) before the server delete
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import logging
 import secrets
@@ -324,6 +325,13 @@ async def cmd_upload_map(  # noqa: C901
             for (_, attachment), file in zip(sources, files, strict=True)
         )
     )
+    review = await _review_of(bot, interaction, incomings)
+    if review is not None:
+        await interaction.edit_original_response(
+            content=t(locale, "maps-upload-under-review", number=review.number),
+            allowed_mentions=NO_MENTIONS,
+        )
+        return
     maps = await list_maps_or_none(bot, server)
     if replace is not None and maps is not None:
         replaced = find_map(maps, replace)
@@ -435,6 +443,32 @@ async def cmd_upload_map(  # noqa: C901
         content=text[:2000], view=view, allowed_mentions=NO_MENTIONS
     )
     view.message = await interaction.original_response()
+
+
+async def _review_of(
+    bot: XCoreDiscordBot, interaction: Interaction, incomings: Sequence[Incoming]
+) -> Any:
+    """The open review of one of these files, when the command runs in its map post.
+
+    Uploading it by hand would install it past the review: the case would stay open and the
+    author would get no creator, badge or answer.
+    """
+    channel = getattr(interaction, "channel", None)
+    if (
+        not bot.settings.cases_maps_enabled
+        or getattr(channel, "parent_id", None) != bot.settings.discord_maps_forum_id
+        or channel is None
+    ):
+        return None
+    try:
+        case = await bot.container.cases.store.by_thread(channel.id)
+    except Exception:  # A failed lookup must not block the upload itself.
+        logger.warning("Could not look up the review of %s", channel.id, exc_info=True)
+        return None
+    if case is None or not case.active or not case.payload.get("sha256"):
+        return None
+    hashes = {incoming.sha256 for incoming in incomings if incoming.sha256}
+    return case if case.payload["sha256"] in hashes else None
 
 
 async def _finish_upload(
@@ -743,4 +777,178 @@ async def cmd_duplicates(
     )
     await interaction.followup.send(
         embed=embed, ephemeral=True, allowed_mentions=NO_MENTIONS
+    )
+
+
+# --- /maps rollback -------------------------------------------------------------------
+
+
+class _SelectView(discord.ui.View):
+    """One select only the person who ran the command can use."""
+
+    def __init__(
+        self,
+        requester_id: int,
+        locale: str,
+        options: list[discord.SelectOption],
+        on_choice: Callable[[Interaction, str], Awaitable[None]],
+    ) -> None:
+        super().__init__(timeout=VIEW_TIMEOUT)
+        self.requester_id, self.locale, self.on_choice = requester_id, locale, on_choice
+        self.select: discord.ui.Select[_SelectView] = discord.ui.Select(
+            placeholder=t(locale, "cases-choice-placeholder"), options=options[:25]
+        )
+        self.select.callback = self._chosen  # type: ignore[method-assign]
+        self.add_item(self.select)
+
+    async def _chosen(self, interaction: Interaction) -> None:
+        if interaction.user.id != self.requester_id:
+            await interaction.response.send_message(
+                t(self.locale, "error-not-allowed"), ephemeral=True
+            )
+            return
+        self.stop()
+        await self.on_choice(interaction, self.select.values[0])
+
+
+def _accepted(cases: Sequence[Any]) -> list[Any]:
+    return [
+        case
+        for case in cases
+        if case.resolution is not None
+        and case.resolution.code == "accepted"
+        and case.resolution.server
+        and case.resolution.file_name
+    ]
+
+
+async def cmd_rollback(bot: XCoreDiscordBot, interaction: Interaction) -> None:
+    """Put an earlier accepted revision of this post's map back on its server."""
+    locale = reply_locale(bot, interaction)
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    thread = interaction.channel
+    if (
+        thread is None
+        or getattr(thread, "parent_id", None) != bot.settings.discord_maps_forum_id
+    ):
+        await interaction.followup.send(
+            t(locale, "maps-review-in-post"), ephemeral=True
+        )
+        return
+    accepted = _accepted(await bot.container.cases.store.map_cases(thread.id))
+    if len(accepted) < 2:
+        await interaction.followup.send(
+            t(locale, "maps-rollback-nothing"), ephemeral=True
+        )
+        return
+    current = accepted[-1]
+    server, file_name = current.resolution.server, current.resolution.file_name
+    options = [
+        discord.SelectOption(
+            label=t(
+                locale,
+                "maps-rollback-option",
+                revision=case.payload.get("revision") or 1,
+                number=case.number,
+            )[:100],
+            value=str(case.number),
+            description=(case.payload.get("file_name") or "")[:100] or None,
+        )
+        for case in reversed(accepted[:-1])
+    ]
+
+    async def on_choice(pressed: Interaction, value: str) -> None:
+        await pressed.response.edit_message(
+            content=t(locale, "maps-rollback-running", file=_code(file_name)), view=None
+        )
+        text = await _rollback(
+            bot, pressed, thread, server, file_name, int(value), current.number
+        )
+        await pressed.edit_original_response(content=text, view=None)
+
+    view = _SelectView(interaction.user.id, locale, options, on_choice)
+    await interaction.followup.send(
+        t(
+            locale,
+            "maps-rollback-choose",
+            file=_code(file_name),
+            server=map_text(server, inline_code=True),
+            number=current.number,
+        ),
+        view=view,
+        ephemeral=True,
+        allowed_mentions=NO_MENTIONS,
+    )
+
+
+async def _rollback(
+    bot: XCoreDiscordBot,
+    pressed: Interaction,
+    thread: Any,
+    server: str,
+    file_name: str,
+    number: int,
+    current: int,
+) -> str:
+    locale = reply_locale(bot, pressed)
+    case = await bot.container.cases.store.get(number)
+    if case is None:
+        return t(locale, "maps-rollback-file-gone", number=number)
+    try:
+        message = await thread.fetch_message(int(case.payload["message_id"]))
+        attachment = next(
+            a for a in message.attachments if str(a.id) == case.payload["attachment_id"]
+        )
+        data = await attachment.read()
+    except (discord.HTTPException, StopIteration, KeyError, ValueError):
+        return t(locale, "maps-rollback-file-gone", number=number)
+    if hashlib.sha256(data).hexdigest() != case.payload.get("sha256"):
+        return t(locale, "maps-rollback-file-gone", number=number)
+    # The map keeps the creator it has on the server now.
+    maps = await list_maps_or_none(bot, server) or []
+    item = find_map(maps, file_name) or {}
+    creator = (
+        Actor(
+            item["creator_discord_id"],
+            item.get("creator_name", ""),
+            item.get("creator_handle") or None,
+        )
+        if item.get("creator_discord_id")
+        else None
+    )
+    try:
+        result = await perform_map_upload(
+            bot,
+            server,
+            [MapUploadFile(attachment.url, file_name)],
+            _identity(pressed.user),
+            creator,
+        )
+    except MapUploadTimeout:
+        return t(locale, "maps-upload-timeout")
+    except MapUploadFailed:
+        return t(locale, "maps-upload-unconfirmed")
+    status = result.results[0].status.value
+    if status in {"installed", "metadata_failed"}:
+        note = t(
+            bot.settings.cases_staff_locale,
+            "maps-rollback-note",
+            user=f"<@{pressed.user.id}>",
+            revision=case.payload.get("revision") or 1,
+            number=number,
+            current=current,
+            file=_code(file_name),
+            server=map_text(server, inline_code=True),
+        )
+        try:
+            await thread.send(note, allowed_mentions=NO_MENTIONS)
+        except discord.HTTPException:
+            logger.warning("Could not note the rollback in %s", thread.id)
+        await post_maps_log(bot, note + f" <#{thread.id}>")
+    return t(
+        locale,
+        "maps-restore-result",
+        file=_code(file_name),
+        server=map_text(server, inline_code=True),
+        status=t(locale, "maps-upload-label-" + status),
     )

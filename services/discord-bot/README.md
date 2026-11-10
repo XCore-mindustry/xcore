@@ -27,7 +27,11 @@ Standalone Discord bot for XCore transport migration.
     and other installed files with the same map. Before removing, the bot asks the server for the
     file (`maps.file`) and posts it in the channel; its **Restore** button (map reviewers) uploads
     that copy back under the same name, unless another file took the name since
-  - `/maps review` → starts the review of a post in the maps forum
+  - `/maps review [server] [replaces]` → starts the review of a post in the maps forum, or of
+    its newest file when the last review is closed. `server` and `replaces` name the installed
+    map the post updates, for maps put on a server before their post was reviewed
+  - `/maps rollback` (in a map post, map reviewer) → puts an earlier accepted revision of the
+    post's map back under the installed name
   - `/maps upload <server> <file1> [file2] [file3] [creator] [creator1] [creator2] [creator3] [replace]`
     → per-file confirmed upload results; individual creators override the shared default.
     The uploader is recorded automatically; `creator` selects a Discord user for every attached map.
@@ -40,6 +44,8 @@ Standalone Discord bot for XCore transport migration.
     statistics and attribution stay with the map and no second copy appears
   - `/maps duplicates <server>` → installed files that hold the same bytes, or the same map name
     and author (map reviewer)
+  - Inside a map post, `/maps upload` of the file that post has under review uploads nothing
+    and points at the review's card instead
   - `/subnet list|check|allow|deny|remove|reload|import|sweep <server>` (general admin; protocol 0.6.0)
 - Rating seasons (Mini-PvP and HexedCore ladders; protocol 0.9.0):
   - consumes `xcore:evt:rating:season-started|season-ending-soon|season-ended|season-rescheduled`

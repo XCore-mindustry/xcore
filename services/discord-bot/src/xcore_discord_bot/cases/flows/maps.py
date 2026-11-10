@@ -17,8 +17,15 @@ from xcore_protocol.generated.maps import MapsInspectResponseV1
 from ...bus.transport import RpcError
 from ...i18n import resolve_dm_locale, t
 from ...map_backups import RPC_FAILURES, post_maps_log
+from ...map_card import find_map
 from ...map_list import map_text
-from ...map_targets import Incoming, Match, find_candidates, replacement_targets
+from ...map_targets import (
+    Incoming,
+    Match,
+    find_candidates,
+    replacement_targets,
+    title_key,
+)
 from ...map_targets import Outcome as Install
 from ...map_targets import outcome as install_outcome
 from ...retry import TRANSIENT_EXCEPTIONS
@@ -51,7 +58,7 @@ from ..model import (
 )
 from ..msav import InvalidMsav, data_patches, validate_msav
 from ..notify import Outcome
-from ..registry import Action, Flow, flow_registry
+from ..registry import Action, Flow, FormField, flow_registry
 from ..views import ActionContext
 from .badges import grant_map_maker, linked_players
 
@@ -180,18 +187,124 @@ async def _request_file(service, thread, locale):
         await thread.send(content, allowed_mentions=discord.AllowedMentions.none())
 
 
-async def intake(service, thread, *, manual: bool = False, message=None) -> Case | None:
+def _order(case: Case) -> tuple[int, int]:
+    return int(case.payload["message_id"]), int(case.payload["attachment_id"])
+
+
+def _revision(case: Case) -> int:
+    return int(case.payload.get("revision") or 1)
+
+
+def _installed_after(case: Case) -> dict | None:
+    """Where this post's map is installed once ``case`` is closed: the server and file of
+    its accepted upload, else what it was before."""
+    if (
+        case.resolution
+        and case.resolution.code == "accepted"
+        and case.resolution.server
+    ):
+        return {
+            "server": case.resolution.server,
+            "file_name": case.resolution.file_name,
+            "case": case.number,
+            "revision": _revision(case),
+            "sha256": case.payload.get("sha256"),
+        }
+    return case.payload.get("installed")
+
+
+def _summary(case: Case) -> dict:
+    """What the next revision's card compares itself with."""
+    info = case.payload.get("info", {})
+    patches = next(
+        (
+            f.get("count") or 1
+            for f in case.payload.get("findings", [])
+            if f.get("code") == "data-patches"
+        ),
+        0,
+    )
+    return {
+        "case": case.number,
+        "revision": _revision(case),
+        "status": case.status.value,
+        "sha256": case.payload.get("sha256"),
+        "size": case.payload.get("size"),
+        "width": info.get("width"),
+        "height": info.get("height"),
+        "cores": info.get("coresByTeam"),
+        "patches": patches,
+    }
+
+
+async def _open_review(
+    service, thread, message, attachment, author, *, previous, installed
+):
+    """Open the review of one file: the post's first, or a later revision of it."""
+    locale = await resolve_dm_locale(thread.owner_id, service.store)
+    payload = {
+        **_identity(message, attachment),
+        "profile": _profile(service, thread),
+        "creator_handle": getattr(author, "name", None),
+        "review_stamp": uuid4().hex,
+    }
+    submission = f"map:{thread.id}"
+    if previous is not None:
+        payload.update(
+            revision=_revision(previous) + 1,
+            previous=_summary(previous),
+        )
+        submission += f":{attachment.id}"
+    if installed:
+        payload["installed"] = installed
+    return await service.open(
+        kind=CaseKind.MAP,
+        origin=Origin("forum", submission, locale),
+        opener=Party(discord_id=str(thread.owner_id), discord_name=author.display_name),
+        payload=payload,
+        dedup_key=f"map:{thread.id}",
+        flags=("deep_checks_pending",),
+        discord={"forum_id": str(thread.parent_id), "thread_id": str(thread.id)},
+        member=author if isinstance(author, discord.Member) else None,
+    )
+
+
+async def _author(service, thread, message):
+    if message is not None:
+        return message.author
+    return service.bot.get_user(thread.owner_id) or await service.bot.fetch_user(
+        thread.owner_id
+    )
+
+
+async def intake(
+    service, thread, *, manual: bool = False, message=None, installed=None
+) -> Case | None:
+    """Start the review of the author's file in this post.
+
+    The first file starts the post's first review. While a review is open, newer files
+    replace its file (``on_message``). Once it is closed, a newer file opens the next
+    revision: a review of its own, which knows where the earlier version is installed.
+    ``installed`` (``/maps review``) says which installed map this post updates, for maps
+    that were put on a server before their post was reviewed.
+    """
     if not _belongs(service, thread) or _ignored(service, thread):
         return None
     async with service._lock(f"map-intake:{thread.id}"):
-        existing = await service.store.by_submission(f"map:{thread.id}")
-        if existing:
-            return await service.resume_creation(existing.number)
+        cases = await service.store.map_cases(thread.id)
+        latest = cases[-1] if cases else None
+        if latest is not None and latest.active:
+            if installed and latest.payload.get("installed") != installed:
+                await service.checkpoint(
+                    latest.number, set_fields={"payload.installed": installed}
+                )
+            return await service.resume_creation(latest.number)
         markers = service.store.database["case_map_intake"]
         marker = await markers.find_one({"_id": str(thread.id)})
         # Gateway events also announce old posts when the bot gains access to them.
         if (
-            not manual
+            latest is None
+            and not manual
             and marker is None
             and (
                 thread.created_at is None
@@ -212,38 +325,33 @@ async def intake(service, thread, *, manual: bool = False, message=None) -> Case
                 upsert=True,
             )
         if message is None:
-            message = await _latest(thread) if manual else await _starter(thread)
-        if message is None:
-            author = service.bot.get_user(
-                thread.owner_id
-            ) or await service.bot.fetch_user(thread.owner_id)
-        else:
-            author = message.author
-        locale = await resolve_dm_locale(thread.owner_id, service.store)
+            message = (
+                await _latest(thread)
+                if manual or latest is not None
+                else await _starter(thread)
+            )
         attachment = (
             _file(message)
             if message and str(message.author.id) == str(thread.owner_id)
             else None
         )
         if attachment is None:
-            await _request_file(service, thread, locale)
+            if latest is None:
+                locale = await resolve_dm_locale(thread.owner_id, service.store)
+                await _request_file(service, thread, locale)
             return None
-        return await service.open(
-            kind=CaseKind.MAP,
-            origin=Origin("forum", f"map:{thread.id}", locale),
-            opener=Party(
-                discord_id=str(thread.owner_id), discord_name=author.display_name
-            ),
-            payload={
-                **_identity(message, attachment),
-                "profile": _profile(service, thread),
-                "creator_handle": getattr(author, "name", None),
-                "review_stamp": uuid4().hex,
-            },
-            dedup_key=f"map:{thread.id}",
-            flags=("deep_checks_pending",),
-            discord={"forum_id": str(thread.parent_id), "thread_id": str(thread.id)},
-            member=author if isinstance(author, discord.Member) else None,
+        if latest is not None and (message.id, attachment.id) <= _order(latest):
+            return None  # this file was reviewed already
+        author = await _author(service, thread, message)
+        return await _open_review(
+            service,
+            thread,
+            message,
+            attachment,
+            author,
+            previous=latest,
+            installed=installed
+            or (_installed_after(latest) if latest is not None else None),
         )
 
 
@@ -261,22 +369,20 @@ async def on_message(service, message):
         or _ignored(service, thread)
     ):
         return
-    case = await service.store.by_submission(f"map:{thread.id}")
-    if case is None:
+    case = await service.store.by_thread(thread.id)
+    if case is None or case.kind != CaseKind.MAP or not case.active:
+        # No review yet, or the last one is closed: this file starts the next one. A review
+        # that another event was opening meanwhile takes the file below instead.
         await intake(service, thread, message=message)
-        case = await service.store.by_submission(f"map:{thread.id}")
-        if case is None:
+        case = await service.store.by_thread(thread.id)
+        if case is None or case.kind != CaseKind.MAP or not case.active:
             return
     async with service._lock(f"map-file:{case.number}"):
         case = await service.get(case.number)
         if not case.actionable or case.pending_action or _unknown(case):
             return
         attachment = _file(message)
-        current_order = (
-            int(case.payload["message_id"]),
-            int(case.payload["attachment_id"]),
-        )
-        if (message.id, attachment.id) <= current_order:
+        if (message.id, attachment.id) <= _order(case):
             return
         await _refresh(service, case, message=message)
     await service.project(case.number)
@@ -314,6 +420,7 @@ async def _refresh(service, case, *, message=None):  # noqa: C901
             for key in (
                 "server",
                 "target_file",
+                "changes_requested",
                 "upload_attempt",
                 "last_upload",
                 "badge_state",
@@ -544,6 +651,46 @@ async def recheck(context: ActionContext):
     return t(context.locale, "maps-rechecked")
 
 
+async def request_changes(context: ActionContext):
+    """Send the map back to its author with what to fix. The review stays open; the
+    author's next file is checked again on its own and clears the request."""
+    service = context.service
+    async with service._lock(f"map-file:{context.case.number}"):
+        case = await service.get(context.case.number)
+        await service.authorize(case, context.member, "changes")
+        if not case.actionable or case.pending_action:
+            raise CaseRace()
+        reason = context.values.get("reason_text", "").strip()
+        await service.checkpoint(
+            case.number,
+            set_fields={
+                "payload.changes_requested": {
+                    "reason": reason,
+                    "by_discord_id": str(context.member.id),
+                    "by_name": getattr(context.member, "display_name", "") or "",
+                    "at": service.now(),
+                }
+            },
+        )
+        thread = await service.threads.channel(case.discord["thread_id"])
+        author = case.opener.discord_id
+        await thread.send(
+            t(
+                case.origin.locale,
+                "maps-changes-requested-note",
+                user=f"<@{author}>",
+                reason=safe_text(reason, limit=1500),
+            ),
+            allowed_mentions=discord.AllowedMentions(
+                everyone=False,
+                roles=False,
+                users=[discord.Object(int(author))] if author else False,
+            ),
+        )
+    await service.project(case.number)
+    return t(context.locale, "maps-changes-requested")
+
+
 def _ready(case, locale):
     if _unknown(case):
         raise ActionFailed(t(locale, "maps-upload-unknown"))
@@ -583,6 +730,84 @@ def _target_option(locale, candidate) -> discord.SelectOption | None:
     )
 
 
+def _own_installed(case: Case, server: str, maps: list[dict[str, str]]) -> str | None:
+    """The installed file that holds this post's earlier version on ``server``, if it is
+    still there and still that map: an update replaces it without a question."""
+    installed = case.payload.get("installed") or {}
+    if installed.get("server") != server or not installed.get("file_name"):
+        return None
+    item = find_map(maps, installed["file_name"])
+    if item is None:
+        return None
+    info = case.payload.get("info", {})
+    same_bytes = (
+        bool(installed.get("sha256"))
+        and str(item.get("content_hash", "")).lower()
+        == str(installed["sha256"]).lower()
+    )
+    same_map = title_key(info.get("name"), info.get("author")) == title_key(
+        item.get("name"), item.get("author")
+    )
+    # A reviewer who bound the post to a file vouched for it; there is no hash to compare.
+    vouched = not installed.get("sha256") and not installed.get("case")
+    return item["file_name"] if same_bytes or same_map or vouched else None
+
+
+async def _choose_creator(
+    context: ActionContext, case: Case, server: str, target_name: str
+) -> bool:
+    """Who is recorded as the map's creator; ``True`` when a person was asked.
+
+    A new map, or a new version of this post's own map, is the post author's. A file that
+    replaces a map someone else created is a fix: the creator stays, and the post's
+    author is recorded as the one who fixed it. A replaced map without a recorded creator
+    leaves the choice to the reviewer.
+    """
+    values = context.values
+    if "creator" in values:
+        return False
+    installed = case.payload.get("installed") or {}
+    own = installed.get("case") and installed.get("file_name") == target_name
+    if values.get("target", "as-is") == "as-is" or own:
+        values["creator"] = "author"
+        return False
+    try:
+        maps = await context.service.bot.container.rpc.list_maps(
+            server=server, timeout_ms=context.service.settings.rpc_timeout_ms
+        )
+    except RPC_FAILURES:
+        maps = []
+    item = find_map(maps, target_name) or {}
+    creator_id = item.get("creator_discord_id")
+    if creator_id == case.opener.discord_id:
+        values["creator"] = "author"
+        return False
+    if creator_id:
+        values.update(
+            creator="original",
+            creator_id=creator_id,
+            creator_name=item.get("creator_name", ""),
+            creator_handle=item.get("creator_handle", ""),
+        )
+        return False
+    file = "`" + map_text(target_name, 100, inline_code=True) + "`"
+    await context.choose(
+        t(context.locale, "maps-creator-choose", file=file),
+        "creator",
+        [
+            discord.SelectOption(
+                label=safe_text(t(context.locale, "maps-creator-author"), limit=100),
+                value="author",
+            ),
+            discord.SelectOption(
+                label=safe_text(t(context.locale, "maps-creator-fix"), limit=100),
+                value="unknown",
+            ),
+        ],
+    )
+    return True
+
+
 async def _choose_target(context: ActionContext, case: Case, server: str) -> bool:
     """Decides what the map replaces on ``server``; ``True`` when a person was asked.
 
@@ -610,6 +835,10 @@ async def _choose_target(context: ActionContext, case: Case, server: str) -> boo
             )
             return True
         context.values["target"] = "as-is"
+        return False
+    own = _own_installed(case, server, maps)
+    if own is not None:
+        context.values["target"] = "replace:" + own
         return False
     info = case.payload.get("info", {})
     candidates = find_candidates(
@@ -680,14 +909,31 @@ async def accept(context: ActionContext):  # noqa: C901
     )
     if not servers:
         raise ActionFailed(t(context.locale, "maps-no-server"))
+    installed = case.payload.get("installed") or {}
+    if installed.get("server") in {s.name for s in servers}:
+        # An update goes where the earlier version is, unless the reviewer picks another.
+        servers.sort(key=lambda s: s.name != installed["server"])
     if "server" not in context.values:
+        options = []
+        for s in servers[:25]:
+            label = s.name
+            if s.name == installed.get("server"):
+                label = t(
+                    context.locale,
+                    "maps-server-installed",
+                    server=s.name,
+                    file=installed.get("file_name") or "",
+                )
+            options.append(
+                discord.SelectOption(label=safe_text(label, limit=100), value=s.name)
+            )
         await context.choose(
-            t(context.locale, "maps-select-server"),
+            t(
+                context.locale,
+                "maps-select-server-update" if installed else "maps-select-server",
+            ),
             "server",
-            [
-                discord.SelectOption(label=safe_text(s.name, limit=100), value=s.name)
-                for s in servers[:25]
-            ],
+            options,
         )
         return None
     server = context.values["server"]
@@ -702,19 +948,26 @@ async def accept(context: ActionContext):  # noqa: C901
         or "\\" in target_name
     ):
         raise ActionFailed(t(context.locale, "maps-review-changed"))
-    has_errors = any(f["severity"] == "error" for f in case.payload.get("findings", []))
-    if has_errors and context.values.get("accept_anyway") != "yes":
-        await context.confirm(
-            t(context.locale, "maps-accept-anyway"), name="accept_anyway"
-        )
+    if await _choose_creator(context, case, server, target_name):
         return None
-    if (
-        "deep_checks_pending" in case.flags
-        and context.values.get("accept_pending") != "yes"
-    ):
-        await context.confirm(
-            t(context.locale, "maps-accept-pending"), name="accept_pending"
+    has_errors = any(f["severity"] == "error" for f in case.payload.get("findings", []))
+    warnings = [
+        t(context.locale, key)
+        for key, applies in (
+            ("maps-accept-anyway", has_errors),
+            ("maps-accept-pending", "deep_checks_pending" in case.flags),
         )
+        if applies
+    ]
+    if warnings and context.values.get("accept_anyway") != "yes":
+        # One question for everything that is wrong, with what is about to happen.
+        plan = t(
+            context.locale,
+            "maps-accept-plan",
+            file="`" + map_text(target_name, 100, inline_code=True) + "`",
+            server=map_text(server, inline_code=True),
+        )
+        await context.confirm("\n".join([*warnings, plan]), name="accept_anyway")
         return None
 
     async def upload(claimed):
@@ -728,10 +981,32 @@ async def accept(context: ActionContext):  # noqa: C901
             != claimed.payload["sha256"]
         ):
             raise ActionFailed(t(context.locale, "maps-file-changed"))
-        creator = Actor(
+        author = Actor(
             claimed.opener.discord_id,
             claimed.opener.discord_name or "",
             claimed.payload.get("creator_handle"),
+        )
+        # A fix of someone else's map keeps its creator; the post's author fixed it.
+        mode = context.values.get("creator", "author")
+        fixer = (
+            {
+                "discord_id": claimed.opener.discord_id,
+                "name": claimed.opener.discord_name or "",
+                "handle": claimed.payload.get("creator_handle"),
+            }
+            if mode in {"original", "unknown"}
+            else None
+        )
+        creator = (
+            Actor(
+                context.values["creator_id"],
+                context.values.get("creator_name", ""),
+                context.values.get("creator_handle") or None,
+            )
+            if mode == "original"
+            else None
+            if mode == "unknown"
+            else author
         )
         files = [MapUploadFile(attachment.url, target_name)]
         uploader = Actor(
@@ -748,6 +1023,7 @@ async def accept(context: ActionContext):  # noqa: C901
             set_fields={
                 "payload.server": server,
                 "payload.target_file": target_name,
+                "payload.fixer": fixer,
                 "payload.upload_attempt": {
                     "state": "unknown",
                     "token": token,
@@ -818,7 +1094,7 @@ async def accept(context: ActionContext):  # noqa: C901
             action_token=token,
             set_fields={
                 "payload.upload_attempt.state": "installed",
-                "payload.pending_badge": True,
+                "payload.pending_badge": fixer is None and not _is_update(claimed),
             },
             unset_fields=("payload.last_upload",),
         )
@@ -898,6 +1174,25 @@ async def _badge(service, case):
         )
 
 
+def _is_update(case: Case) -> bool:
+    """A later revision of a map this post already had accepted."""
+    return bool((case.payload.get("installed") or {}).get("case"))
+
+
+def _earns_badge(case: Case) -> bool:
+    """Map Maker is for creating a map: an update was earned by the first accepted
+    revision, and a fix of someone else's map is not its creation."""
+    return not _is_update(case) and not case.payload.get("fixer")
+
+
+def _outcome_key(case: Case) -> str:
+    if case.resolution is None or case.resolution.code != "accepted":
+        return "maps-outcome-rejected"
+    if case.payload.get("fixer"):
+        return "maps-outcome-fixed"
+    return "maps-outcome-updated" if _is_update(case) else "maps-outcome-accepted"
+
+
 def outcomes(case):
     recipient = case.progress.get("map_outcome", {})
     if recipient.get("closed_at") != case.closed_at:
@@ -929,7 +1224,7 @@ def outcomes(case):
         Outcome(
             party,
             "map_accepted" if accepted else "map_rejected",
-            "maps-outcome-accepted" if accepted else "maps-outcome-rejected",
+            _outcome_key(case),
             params,
         ),
     )
@@ -954,6 +1249,7 @@ async def on_closed(service, case):
     if (
         case.resolution.code == "accepted"
         and case.payload.get("badge_state") != "complete"
+        and _earns_badge(case)
     ):
         await _badge(service, case)
     outcome = outcomes(case)[0]
@@ -984,7 +1280,7 @@ async def reconcile(service, case):
             ):
                 await _refresh(service, current)
         await service.project(case.number)
-    elif case.payload.get("pending_badge"):
+    elif case.payload.get("pending_badge") and _earns_badge(case):
         if (
             case.resolution
             and case.resolution.code == "accepted"
@@ -1012,6 +1308,113 @@ def _finding(finding, locale):
     if finding.get("detail") and code not in PLAIN_FINDINGS:
         text += " — " + safe_text(finding["detail"], limit=180)
     return text[:350]
+
+
+def _cores(value) -> str:
+    if not isinstance(value, dict) or not value:
+        return "—"
+    return ", ".join(f"{team} {count}" for team, count in sorted(value.items()))
+
+
+def _changes(case: Case, locale: str) -> list[str]:
+    """What differs from the previous revision, in what the checks measure."""
+    payload, previous = case.payload, case.payload.get("previous") or {}
+    info = payload.get("info", {})
+    if previous.get("sha256") and previous["sha256"] == payload.get("sha256"):
+        return [
+            t(locale, "maps-changes-identical", revision=previous.get("revision", 1))
+        ]
+    lines = []
+    if (
+        previous.get("size")
+        and payload.get("size")
+        and previous["size"] != payload["size"]
+    ):
+        lines.append(
+            t(
+                locale,
+                "maps-changes-size",
+                before=previous["size"],
+                after=payload["size"],
+            )
+        )
+    before = (previous.get("width"), previous.get("height"))
+    after = (info.get("width"), info.get("height"))
+    if None not in before and None not in after and before != after:
+        lines.append(
+            t(
+                locale,
+                "maps-changes-dimensions",
+                before=f"{before[0]} × {before[1]}",
+                after=f"{after[0]} × {after[1]}",
+            )
+        )
+    if (
+        isinstance(previous.get("cores"), dict)
+        and isinstance(info.get("coresByTeam"), dict)
+        and previous["cores"] != info["coresByTeam"]
+    ):
+        lines.append(
+            t(
+                locale,
+                "maps-changes-cores",
+                before=safe_text(_cores(previous["cores"]), limit=150),
+                after=safe_text(_cores(info["coresByTeam"]), limit=150),
+            )
+        )
+    patches = next(
+        (
+            f.get("count") or 1
+            for f in payload.get("findings", [])
+            if f.get("code") == "data-patches"
+        ),
+        0,
+    )
+    if payload.get("info") and patches != (previous.get("patches") or 0):
+        lines.append(
+            t(
+                locale,
+                "maps-changes-patches",
+                before=previous.get("patches") or 0,
+                after=patches,
+            )
+        )
+    return lines or [t(locale, "maps-changes-none")]
+
+
+def _revision_fields(embed, case: Case, locale: str) -> None:
+    payload = case.payload
+    previous = payload.get("previous")
+    if previous:
+        embed.add_field(
+            name=t(locale, "maps-revision"),
+            value=t(
+                locale,
+                "maps-revision-info",
+                revision=_revision(case),
+                case=previous.get("case", "?"),
+                status=t(locale, "maps-revision-status-" + str(previous.get("status"))),
+            ),
+            inline=False,
+        )
+    installed = payload.get("installed")
+    if installed and case.active:
+        embed.add_field(
+            name=t(locale, "maps-installed-now"),
+            value=t(
+                locale,
+                "maps-installed-info",
+                server=safe_text(installed.get("server"), limit=100),
+                file=safe_text(installed.get("file_name"), limit=150),
+            ),
+            inline=False,
+        )
+    if previous and case.active:
+        embed.add_field(
+            name=t(locale, "maps-changes"),
+            value="\n".join(_changes(case, locale))[:1000],
+            inline=False,
+        )
 
 
 def card_builder(case, locale):  # noqa: C901
@@ -1053,6 +1456,14 @@ def card_builder(case, locale):  # noqa: C901
         value=safe_text(mode, limit=100) + (" · " + dimensions if dimensions else ""),
         inline=False,
     )
+    _revision_fields(embed, case, locale)
+    requested = payload.get("changes_requested")
+    if requested and case.active:
+        embed.add_field(
+            name=t(locale, "maps-changes-requested-field"),
+            value=safe_text(requested.get("reason"), limit=900) or "…",
+            inline=False,
+        )
     if payload.get("validation_error"):
         embed.add_field(
             name=t(locale, "maps-validation"),
@@ -1095,10 +1506,10 @@ def card_builder(case, locale):  # noqa: C901
             ),
             inline=False,
         )
-        if payload.get("pending_badge"):
+        if payload.get("fixer"):
             embed.add_field(
-                name=t(locale, "maps-badge"),
-                value=t(locale, "maps-badge-pending"),
+                name=t(locale, "maps-fixed-by"),
+                value=f"<@{payload['fixer']['discord_id']}>",
                 inline=False,
             )
     for severity in ("error", "warning", "info"):
@@ -1127,7 +1538,23 @@ MAP_FLOW = flow_registry.register(
         card_builder=card_builder,
         takeable=False,
         actions=(
-            Action("accept", "maps-accept", accept, style=discord.ButtonStyle.success),
+            Action(
+                "accept",
+                "maps-accept",
+                accept,
+                style=discord.ButtonStyle.success,
+                label_for=lambda case: (
+                    "maps-update" if case.payload.get("installed") else "maps-accept"
+                ),
+            ),
+            Action(
+                "changes",
+                "maps-changes-button",
+                request_changes,
+                fields=(
+                    FormField("reason_text", "maps-changes-reason", paragraph=True),
+                ),
+            ),
             Action("recheck", "maps-recheck", recheck),
         ),
         on_thread_create=on_thread_create,

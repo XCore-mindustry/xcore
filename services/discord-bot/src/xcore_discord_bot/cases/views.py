@@ -372,7 +372,12 @@ def case_view(registry: FlowRegistry, case: Case, locale: str) -> discord.ui.Vie
                 CaseActionButton(
                     case.number,
                     action.verb,
-                    label=t(locale, action.label_key)[:80],
+                    label=t(
+                        locale,
+                        action.label_for(case)
+                        if action.label_for
+                        else action.label_key,
+                    )[:80],
                     style=action.style,
                 )
             )

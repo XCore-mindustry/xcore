@@ -319,7 +319,7 @@ async def test_map_post_deleted_is_cancelled_and_bot_post_is_repaired():
     assert "thread_id" not in cancelled.discord
 
 
-async def test_rejected_map_post_is_locked_but_never_archived():
+async def test_rejected_map_post_is_neither_locked_nor_archived():
     flow = replace(DUMMY_FLOW, kind=CaseKind.MAP, panel=None, outcomes=None)
     service, _, bot = await core(flow=flow)
     created = await bot.channels[400].create_thread(
@@ -333,7 +333,7 @@ async def test_rejected_map_post_is_locked_but_never_archived():
     )
     assert case.status == CaseStatus.OPEN and len(bot.channels[400].all_threads) == 1
     await service.reject(case.number, member(101, (30,)), reason_code="broken")
-    assert created.thread.locked and not created.thread.archived
+    assert not created.thread.locked and not created.thread.archived
 
 
 async def test_deleted_threads_are_matched_by_parent_before_any_database_read():

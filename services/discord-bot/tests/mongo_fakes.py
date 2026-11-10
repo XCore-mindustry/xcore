@@ -270,6 +270,14 @@ class Cursor:
         return generate()
 
 
+def _index_name(keys, options=None):
+    """The name MongoDB gives an index: ``field_1`` for each key, joined by ``_``."""
+    if options and options.get("name"):
+        return options["name"]
+    pairs = [(keys, 1)] if isinstance(keys, str) else list(keys)
+    return "_".join(f"{key}_{direction}" for key, direction in pairs)
+
+
 class Collection:
     def __init__(self, db=None):
         self.db = db
@@ -330,9 +338,26 @@ class Collection:
         return found
 
     async def create_index(self, keys, **options):
+        name = _index_name(keys, options)
+        if any(_index_name(k, o) == name for k, o in self.indexes):
+            return name  # the server answers an index it already has this way
         self.indexes.append((keys, options))
         for doc in self.docs:
             self._unique(doc, ignore=doc)
+        return name
+
+    async def index_information(self):
+        info = {"_id_": {"key": [("_id", 1)]}}
+        for keys, options in self.indexes:
+            pairs = [(keys, 1)] if isinstance(keys, str) else list(keys)
+            info[_index_name(keys, options)] = {
+                "key": pairs,
+                **{k: v for k, v in options.items() if k != "name"},
+            }
+        return info
+
+    async def drop_index(self, name):
+        self.indexes = [(k, o) for k, o in self.indexes if _index_name(k, o) != name]
 
     def _unique(self, doc, ignore=None):
         for keys, options in [("_id", {"unique": True}), *self.indexes]:

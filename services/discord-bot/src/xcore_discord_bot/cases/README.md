@@ -275,6 +275,23 @@ can Reject an unresolved case; automatic acceptance requires its matching comple
 `pending_badge` is cleared only for a complete Map Maker result, with retries through 30 days
 after durable acceptance. Badge failures do not prevent map outcome delivery.
 
+A map post holds one case per reviewed revision. The first keeps `submission_id`
+`map:<thread id>`; each later one is `map:<thread id>:<attachment id>`. All share the
+`dedup_key` `map:<thread id>`, so one review per post is open at a time, and
+`discord.thread_id` is unique only among open cases (`THREAD_INDEX`, which replaces the
+unique index of earlier releases at start-up). A newer author file in a post whose newest case
+is closed opens the next revision (`intake`), with `payload.revision`, `payload.previous` (what
+the card compares with) and `payload.installed` (where the post's last accepted version is).
+`store.by_thread` returns the open case, else the newest; `store.map_cases` lists them all.
+Only the newest case drives the post's tags; rendering an older one updates its own card.
+Rejecting does not lock the post. The `changes` action records `payload.changes_requested`
+and pings the author; a newer file clears it.
+
+Accept chooses the creator after the target. A new map or the post's own update is the
+author's. Replacing a map with another recorded creator keeps that creator and stores the
+author as `payload.fixer`; a replaced map without a creator makes the reviewer choose. Neither
+an update nor a fix earns Map Maker, and each has its own outcome text.
+
 Map authors conflict with every case action, including senior actions. `CaseService.started_at`
 is the process timestamp; successful map startup stores `service.maps_enabled_at`, the actual
 intake boundary. Untracked posts older than that boundary are ignored until `/maps review`.
