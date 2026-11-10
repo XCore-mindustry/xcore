@@ -4,7 +4,6 @@ import arc.Core;
 import arc.Events;
 import arc.Settings;
 import arc.files.Fi;
-import arc.struct.ObjectMap;
 import arc.struct.StringMap;
 import mindustry.Vars;
 import mindustry.game.EventType.PlayEvent;
@@ -48,7 +47,7 @@ class SmartMapSelectorHistoryTest {
 
     private static SmartMapSelector selector() {
         var maps = mock(MapDataRepository.class);
-        when(maps.findAllAsMap()).thenReturn(new ObjectMap<>());
+        when(maps.findAll()).thenReturn(java.util.List.of());
         return new SmartMapSelector(new TomlXcoreConfig(), mock(EventDataRepository.class), maps, mock(EventService.class));
     }
 

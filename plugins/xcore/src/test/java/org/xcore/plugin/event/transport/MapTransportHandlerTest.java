@@ -137,7 +137,7 @@ class MapTransportHandlerTest {
         // thenMain completes exceptionally when the storage stage throws, and nothing
         // observes that future. Swallowing it would leave the peer waiting out its timeout
         // with no answer and nothing in the log.
-        when(mapDataRepository.find(anyString(), anyString(), anyString()))
+        when(mapDataRepository.find(anyString(), anyString(), anyString(), anyString()))
                 .thenThrow(new IllegalStateException("mongodb is unreachable"));
 
         Maps maps = mock(Maps.class);
@@ -163,7 +163,7 @@ class MapTransportHandlerTest {
 
         listener(listeners, MapsListRequestV1.class).get(new MapsListRequestV1("mini-pvp"));
 
-        verify(mapDataRepository).find(anyString(), anyString(), anyString());
+        verify(mapDataRepository).find(anyString(), anyString(), anyString(), anyString());
         var response = ArgumentCaptor.forClass(org.xcore.protocol.generated.messages.maps.MapsMessages.MapsListResponseV1.class);
         verify(network).respond(any(), response.capture());
         assertThat(response.getValue().maps().getFirst().discordUpload().uploadedBy().discordId()).isEqualTo("123");
@@ -177,7 +177,7 @@ class MapTransportHandlerTest {
         config.server.name = "mini-pvp";
         MapService mapService = mock(MapService.class);
         MapDataRepository mapDataRepository = mock(MapDataRepository.class);
-        when(mapDataRepository.find(anyString(), anyString(), anyString()))
+        when(mapDataRepository.find(anyString(), anyString(), anyString(), anyString()))
                 .thenThrow(new IllegalStateException("mongodb is unreachable"));
 
         mindustry.maps.Map first = realMap("Alpha");

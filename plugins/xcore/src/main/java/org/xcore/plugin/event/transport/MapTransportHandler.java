@@ -168,7 +168,8 @@ public class MapTransportHandler {
                         try {
                             MapData data = mapDataRepository
                                     .findByFileName(identity.fileName(), currentGameMode)
-                                    .or(() -> mapDataRepository.find(identity.plainName(), identity.author(), currentGameMode))
+                                    .or(() -> mapDataRepository.find(identity.plainName(), identity.author(),
+                                            currentGameMode, identity.fileName()))
                                     .orElse(null);
                             persisted.add(data);
                         } catch (RuntimeException lookupFailure) {

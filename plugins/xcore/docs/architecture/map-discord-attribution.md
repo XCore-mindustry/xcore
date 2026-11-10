@@ -36,9 +36,10 @@ claiming that an acknowledged current record was lost.
 
 Attribution writes never rename or overwrite documents in the statistics collection
 `maps`. After a successful installation, the existing `findOrCreate` path runs on a
-storage worker to keep voting available for fresh maps. Existing filename/name/author
-lookup behavior remains unchanged, including the
-legacy fallback when a renamed file has the same name and author. No automatic merging
+storage worker to keep voting available for fresh maps. Lookup is by filename, then by name and author for a renamed
+file; the second step never hands a record to another file while the file it is stored under is
+installed, so two installed files with the same name and author keep separate statistics
+(map-updates-design-spec.md, stage 3). No automatic merging
 based only on display names is introduced. Other servers and game-mode statistics cannot
 be modified by attribution writes.
 
