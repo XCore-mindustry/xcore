@@ -253,8 +253,18 @@ public class MapTransportHandler {
                         MapsRemoveResponseV1Status.CONFLICT, hash, null));
                 return;
             }
+            // Pruning reads every kept entry's sidecar: it runs on a storage worker, not here.
             var kept = trash.keep(map.file, MapTrash.Reason.removed, map.plainName(), map.plainAuthor(),
-                    mapService.discordUploadFor(map));
+                    mapService.discordUploadFor(map), false);
+            async.supply(() -> {
+                try {
+                    trash.prune();
+                } catch (RuntimeException failure) {
+                    // As inside keep(): an old copy left over is no reason to fail the removal.
+                    Log.warn("[Maps] Pruning the map trash failed: @", failure.toString());
+                }
+                return null;
+            });
             String removedName = map.file.name();
             installations.put(removedName, new DownloadedMap(null, installationSequence.incrementAndGet()));
             enqueueDiscordUpload("", removedName, "", "", null, null,
@@ -436,8 +446,8 @@ public class MapTransportHandler {
                             Object lock = fileLocks[(file.fileName().hashCode() & 0x7fffffff) % fileLocks.length];
                             synchronized (lock) {
                                 var target = customMapDirectory.child(file.fileName());
-                                String existing = target.exists()
-                                        ? MapContentHash.ofContent(target.readBytes()).asHex() : null;
+                                byte[] current = target.exists() ? target.readBytes() : null;
+                                String existing = current == null ? null : MapContentHash.ofContent(current).asHex();
                                 if (Boolean.TRUE.equals(file.expectAbsent()) && existing != null
                                         || file.expectedContentHash() != null && !file.expectedContentHash().equalsIgnoreCase(existing)) {
                                     // The reviewer decided on what they saw; the server holds something else now.
@@ -447,9 +457,10 @@ public class MapTransportHandler {
                                 }
                                 if (existing != null && !existing.equals(hash)) {
                                     var entry = mapService.catalogEntry(file.fileName());
-                                    var kept = trash.keep(target, MapTrash.Reason.replaced,
+                                    // The bytes read above: keeping them does not read or hash the file again.
+                                    var kept = trash.keep(file.fileName(), current, existing, MapTrash.Reason.replaced,
                                             entry == null ? null : entry.name(), entry == null ? null : entry.author(),
-                                            mapService.discordUploadFor(file.fileName()));
+                                            mapService.discordUploadFor(file.fileName()), true);
                                     replaced.put(file.fileName(), new Replaced(existing, kept.map(MapTrash.Entry::trashId).orElse(null)));
                                 }
                                 target.writeBytes(bytes, false);
@@ -531,8 +542,19 @@ public class MapTransportHandler {
             return;
         }
         Map installed = mapService.findMapByFileName(restored.fileName());
+        if (installed == null) {
+            // The engine did not load the file back. Take it out again, so the name stays free for
+            // another try, and keep the copy in the trash, so nothing is lost.
+            Object lock = fileLocks[(restored.fileName().hashCode() & 0x7fffffff) % fileLocks.length];
+            synchronized (lock) {
+                customMapDirectory.child(restored.fileName()).delete();
+            }
+            network.respond(request, (MapsRestoreResponseV1) restoreAnswer(request, MapsRestoreResponseV1Status.FAILED,
+                    restored.fileName(), entry.contentHash(), "The server could not read the restored map"));
+            return;
+        }
         String mode = state.rules.mode().name();
-        CompletionStage<?> attribution = entry.upload() == null || installed == null
+        CompletionStage<?> attribution = entry.upload() == null
                 ? CompletableFuture.completedFuture(null)
                 : enqueueDiscordUpload(installed.plainName(), restored.fileName(), installed.author(), mode,
                         entry.contentHash(), entry.upload(), () -> true);

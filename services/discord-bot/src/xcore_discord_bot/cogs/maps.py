@@ -101,6 +101,10 @@ class MapsCog(commands.Cog):
                 text = t(locale, "maps-review-nothing-new")
             else:
                 text = t(locale, "maps-review-no-file")
+            if (
+                installed and not case
+            ):  # The binding lives on a case: say it was dropped.
+                text += "\n" + t(locale, "maps-review-binding-unused")
             await interaction.followup.send(text, ephemeral=True)
         except ValueError as error:
             await interaction.followup.send(error_text(locale, error), ephemeral=True)

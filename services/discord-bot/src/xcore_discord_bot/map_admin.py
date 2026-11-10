@@ -890,6 +890,7 @@ class _SelectView(discord.ui.View):
     ) -> None:
         super().__init__(timeout=VIEW_TIMEOUT)
         self.requester_id, self.locale, self.on_choice = requester_id, locale, on_choice
+        self.done = False
         self.select: discord.ui.Select[_SelectView] = discord.ui.Select(
             placeholder=t(locale, "cases-choice-placeholder"), options=options[:25]
         )
@@ -902,6 +903,11 @@ class _SelectView(discord.ui.View):
                 t(self.locale, "error-not-allowed"), ephemeral=True
             )
             return
+        # The first choice wins: a second one must not roll back or restore twice.
+        if self.done:
+            await interaction.response.defer()
+            return
+        self.done = True
         self.stop()
         await self.on_choice(interaction, self.select.values[0])
 

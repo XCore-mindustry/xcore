@@ -510,3 +510,24 @@ async def test_remove_on_a_frozen_server_starts_with_the_freeze() -> None:
     assert question.content.startswith(
         "❄️ `mini-pvp` is frozen by <@7>: no reason given\n"
     )
+
+
+async def test_a_second_choice_in_a_select_does_nothing():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import discord
+
+    from xcore_discord_bot.map_admin import _SelectView
+
+    chosen = AsyncMock()
+    view = _SelectView(7, "en", [discord.SelectOption(label="a", value="a")], chosen)
+    view.select._values = ["a"]  # what discord.py sets from the interaction's data
+    clicks = [
+        SimpleNamespace(user=SimpleNamespace(id=7), response=AsyncMock())
+        for _ in range(2)
+    ]
+    for click in clicks:
+        await view._chosen(click)
+    chosen.assert_awaited_once_with(clicks[0], "a")
+    clicks[1].response.defer.assert_awaited_once()

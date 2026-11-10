@@ -676,6 +676,27 @@ async def test_old_posts_untouched_until_manual_review_even_on_new_author_messag
     assert interaction.events[0][0] == "defer"
 
 
+async def test_manual_review_says_when_the_named_map_was_not_saved(monkeypatch):
+    service, db, bot, _, _, _, thread, _, _ = await map_core()
+    first = Interaction(bot, user=reviewer())
+    first.channel = thread
+    await MapsCog.cmd_review_map.callback(MapsCog(bot), first)
+    (case,) = await service.store.map_cases(thread.id)
+    await service.reject(case.number, reviewer(), reason_code="other", reason_text="No")
+    # The post's file is reviewed already: a second run names a map but starts nothing.
+    interaction = Interaction(bot, user=reviewer())
+    interaction.channel = thread
+    binding = {"server": "mini-pvp", "file_name": "arena.msav"}
+    monkeypatch.setattr(MapsCog, "_binding", AsyncMock(return_value=binding))
+    await MapsCog.cmd_review_map.callback(
+        MapsCog(bot), interaction, server="mini-pvp", replaces="arena.msav"
+    )
+    assert len(db["cases"].docs) == 1
+    (text,) = interaction.followup.texts()
+    assert text.startswith(t("en", "maps-review-nothing-new"))
+    assert text.endswith(t("en", "maps-review-binding-unused"))
+
+
 async def test_feature_off_unset_ids_startup_and_events_do_not_touch_forum():
     service, db, bot, _, _, _, thread, starter, _ = await map_core()
     service.settings = service.settings.model_copy(

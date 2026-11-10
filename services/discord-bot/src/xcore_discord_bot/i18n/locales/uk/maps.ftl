@@ -245,6 +245,7 @@ maps-server-installed = { $server } — оновити { $file }
 maps-accept-plan = Карту буде встановлено як { $file } на `{ $server }`.
 maps-review-nothing-new = Від останньої перевірки автор не викладав у цей пост нових файлів.
 maps-review-binding-both = Вкажіть і `server`, і `replaces` — або нічого з цього.
+maps-review-binding-unused = `server` і `replaces` не збережено: перевірку не розпочато. Запустіть команду знову, коли в пості з’явиться новий файл.
 maps-outcome-updated = Оновлення вашої карти { $file } прийнято за заявкою №{ $number } і встановлено на сервері { $server }.
 maps-outcome-fixed = Ваше виправлення карти { $file } прийнято за заявкою №{ $number } і встановлено на сервері { $server }. Творець карти лишається тим самим, вас записано як того, хто її виправив.
 

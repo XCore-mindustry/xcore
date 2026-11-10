@@ -245,6 +245,7 @@ maps-server-installed = { $server } — update { $file }
 maps-accept-plan = It will be installed as { $file } on `{ $server }`.
 maps-review-nothing-new = This post has no newer file from its author since its last review.
 maps-review-binding-both = Give both `server` and `replaces`, or neither.
+maps-review-binding-unused = `server` and `replaces` were not saved: no review was started. Run the command again once the post has a new file.
 maps-outcome-updated = The update of your map { $file } was accepted in case #{ $number } and installed on { $server }.
 maps-outcome-fixed = Your fix of { $file } was accepted in case #{ $number } and installed on { $server }. The map keeps its creator; you are recorded as the one who fixed it.
 

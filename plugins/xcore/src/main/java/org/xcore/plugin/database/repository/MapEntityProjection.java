@@ -17,7 +17,9 @@ import org.xcore.plugin.model.MapUploadRecord;
 import java.util.ArrayList;
 import java.util.Set;
 
+import static com.mongodb.client.model.Filters.and;
 import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.lt;
 import static com.mongodb.client.model.Filters.nin;
 
 /**
@@ -47,12 +49,14 @@ public final class MapEntityProjection {
     }
 
     public static Result rebuild(MongoDatabase database) {
+        // Taken before the reads: an entity another server writes from data saved after them
+        // is stamped later, so the cleanup below cannot delete a map this snapshot missed.
+        long now = System.currentTimeMillis();
         var records = database.getCollection("maps", MapData.class).find().into(new ArrayList<>());
         var uploads = database.getCollection("map_uploads", MapUploadRecord.class).find().into(new ArrayList<>());
         MongoCollection<MapEntity> entities = database.getCollection(COLLECTION, MapEntity.class);
         var links = MapKeys.links(uploads);
         var groups = MapKeys.group(records, links);
-        long now = System.currentTimeMillis();
         var upsert = new ReplaceOptions().upsert(true);
         int written = 0;
         for (var group : groups.entrySet()) {
@@ -68,8 +72,9 @@ public final class MapEntityProjection {
             }
             written++;
         }
-        // Maps that no longer exist, and the slug-grouped documents of migration v3.
-        entities.deleteMany(nin("map_key", new ArrayList<>(groups.keySet())));
+        // Maps that no longer exist, and the slug-grouped documents of migration v3; only those
+        // last written before this snapshot (servers' clocks are assumed to roughly agree).
+        entities.deleteMany(and(nin("map_key", new ArrayList<>(groups.keySet())), lt("updated_at", now)));
         return new Result(records.size(), written, links.ambiguous());
     }
 }

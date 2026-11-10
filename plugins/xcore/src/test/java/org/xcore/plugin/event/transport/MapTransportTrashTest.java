@@ -257,4 +257,21 @@ class MapTransportTrashTest {
         assertThat(file.readBytes()).containsExactly(NEW);
         assertThat(trash.find(kept.trashId())).isPresent();
     }
+
+    @Test
+    void aKeptFileTheServerCannotReadStaysKeptAndLeavesNoFileBehind() {
+        var file = maps.child("starwars.msav");
+        file.writeBytes(OLD, false);
+        var kept = trash.keep(file, MapTrash.Reason.removed, null, null, null).orElseThrow();
+        file.delete();
+        // The engine skips a file it cannot parse: the reloaded registry does not have it.
+        when(service.findMapByFileName("starwars.msav")).thenReturn(null);
+
+        send(MapsRestoreRequestV1.class, new MapsRestoreRequestV1("mini-pvp", kept.trashId(), null));
+
+        assertThat(answer(MapsRestoreResponseV1.class).status()).isEqualTo(MapsRestoreResponseV1Status.FAILED);
+        assertThat(file.exists()).isFalse();
+        assertThat(trash.find(kept.trashId())).isPresent();
+        verify(uploads, never()).save(eq("starwars.msav"), anyString(), any());
+    }
 }

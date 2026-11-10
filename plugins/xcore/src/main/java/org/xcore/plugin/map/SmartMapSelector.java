@@ -111,7 +111,10 @@ public class SmartMapSelector implements MapProvider {
 
         // A record belongs to its own file while that file is installed; another file with the
         // same map name and author does not borrow its rating (MapDataRepository.resolve).
-        java.util.List<MapData> records = mapDataRepository.findAll();
+        // resolve() matches the mode anyway: only this mode's records are scanned per candidate.
+        String modeName = mode.name();
+        java.util.List<MapData> records = mapDataRepository.findAll().stream()
+                .filter(r -> modeName.equals(r.gameMode)).toList();
         java.util.Set<String> installed = new java.util.HashSet<>();
         for (Map m : allMaps) installed.add(m.file.name().toLowerCase(java.util.Locale.ROOT));
         java.util.function.Predicate<String> isInstalled =

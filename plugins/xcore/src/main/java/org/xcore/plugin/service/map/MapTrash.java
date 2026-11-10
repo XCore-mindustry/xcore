@@ -62,22 +62,48 @@ public class MapTrash {
      */
     public synchronized Optional<Entry> keep(Fi file, Reason reason, String name, String author,
                                              MapDiscordUpload upload) {
+        return keep(file, reason, name, author, upload, true);
+    }
+
+    /**
+     * {@link #keep(Fi, Reason, String, String, MapDiscordUpload)}; with {@code prune} false the
+     * caller prunes later ({@link #prune()} reads every sidecar), e.g. off the game thread.
+     */
+    public synchronized Optional<Entry> keep(Fi file, Reason reason, String name, String author,
+                                             MapDiscordUpload upload, boolean prune) {
         if (file == null || !file.exists() || file.isDirectory()) return Optional.empty();
+        byte[] bytes;
         try {
-            byte[] bytes = file.readBytes();
-            String hash = MapContentHash.ofContent(bytes).asHex();
+            bytes = file.readBytes();
+        } catch (RuntimeException failure) {
+            PLog.warn("Could not keep a copy of map @: @", file.name(), failure.toString());
+            return Optional.empty();
+        }
+        return keep(file.name(), bytes, null, reason, name, author, upload, prune);
+    }
+
+    /**
+     * Keeps {@code bytes} a caller already read from {@code fileName}, without reading the file
+     * again. {@code hash} is their SHA-256 when the caller has it, else {@code null}.
+     */
+    public synchronized Optional<Entry> keep(String fileName, byte[] bytes, String hash, Reason reason,
+                                             String name, String author, MapDiscordUpload upload,
+                                             boolean prune) {
+        if (fileName == null || bytes == null) return Optional.empty();
+        try {
+            if (hash == null) hash = MapContentHash.ofContent(bytes).asHex();
             long now = clock.getAsLong();
-            String id = trashId(now, hash, file.name());
+            String id = trashId(now, hash, fileName);
             Fi dir = directory();
             dir.mkdirs();
             dir.child(id + ".msav.kept").writeBytes(bytes, false);
-            var entry = new Entry(id, file.name(), hash, bytes.length, now, reason,
+            var entry = new Entry(id, fileName, hash, bytes.length, now, reason,
                     blankToNull(name), blankToNull(author), upload);
             dir.child(id + ".json").writeString(GSON.toJson(entry), false);
-            prune();
+            if (prune) prune();
             return Optional.of(entry);
         } catch (RuntimeException failure) {
-            PLog.warn("Could not keep a copy of map @: @", file.name(), failure.toString());
+            PLog.warn("Could not keep a copy of map @: @", fileName, failure.toString());
             return Optional.empty();
         }
     }

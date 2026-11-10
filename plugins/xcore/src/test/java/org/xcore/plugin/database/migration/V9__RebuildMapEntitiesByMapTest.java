@@ -94,6 +94,12 @@ class V9__RebuildMapEntitiesByMapTest {
         assertThat(arena.threadId).isEqualTo("100");
         assertThat(arena.fileNamesLower).containsExactly("arena-v2.msav", "arena.msav");
         assertThat(arena.likes).isEqualTo(5);
-        verify(entities).deleteMany(Filters.nin("map_key", List.of("post:100", "file:desert.msav")));
+        var cleanup = ArgumentCaptor.forClass(Bson.class);
+        verify(entities, times(2)).deleteMany(cleanup.capture());
+        // Only maps missing from the snapshot and last written before it: another server's
+        // newer map survives.
+        assertThat(cleanup.getAllValues().get(1).toBsonDocument().toJson())
+                .contains("\"$nin\": [\"post:100\", \"file:desert.msav\"]")
+                .contains("\"updated_at\": {\"$lt\": " + arena.editModelTime + "}");
     }
 }
