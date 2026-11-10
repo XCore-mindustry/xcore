@@ -73,10 +73,24 @@ async def test_case_thread_index_moves_to_one_open_case_per_thread() -> None:
         info = await cases.index_information()
         assert "discord.thread_id_1" not in info and THREAD_INDEX in info
         post = {"thread_id": "1"}
-        await cases.insert_one({"_id": 1, "active": False, "discord": post})
-        await cases.insert_one({"_id": 2, "active": True, "discord": post})
-        with pytest.raises(DuplicateKeyError):
-            await cases.insert_one({"_id": 3, "active": True, "discord": post})
+        for case_id, active in ((1, False), (2, True)):
+            await cases.insert_one(
+                {
+                    "_id": case_id,
+                    "active": active,
+                    "discord": post,
+                    "origin": {"submission_id": str(case_id)},
+                }
+            )
+        with pytest.raises(DuplicateKeyError, match=THREAD_INDEX):
+            await cases.insert_one(
+                {
+                    "_id": 3,
+                    "active": True,
+                    "discord": post,
+                    "origin": {"submission_id": "3"},
+                }
+            )
     finally:
         await store.close()
         await client.drop_database(database)
