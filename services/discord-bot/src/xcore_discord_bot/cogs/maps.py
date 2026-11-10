@@ -189,6 +189,47 @@ class MapsCog(commands.Cog):
         await map_admin.cmd_rollback(self.bot, interaction)
 
     @maps_group.command(
+        name="install",
+        description="Install this post's accepted map on one more server (map reviewer)",
+    )
+    @app_commands.describe(
+        server="Server name",
+        replace="Installed map it replaces there (when it looks like another map)",
+    )
+    @app_commands.autocomplete(server=_autocomplete_server_for_command)
+    @app_commands.autocomplete(replace=autocomplete_map_file)
+    @map_reviewer_check()
+    async def cmd_install(
+        self, interaction: Interaction, server: str, replace: str | None = None
+    ) -> None:
+        await map_admin.cmd_install(self.bot, interaction, server, replace)
+
+    @maps_group.command(
+        name="freeze",
+        description="Warn before any map change on a server; no server lists them (map reviewer)",
+    )
+    @app_commands.describe(server="Server name", reason="Why it is frozen")
+    @app_commands.autocomplete(server=_autocomplete_server_for_command)
+    @map_reviewer_check()
+    async def cmd_freeze(
+        self,
+        interaction: Interaction,
+        server: str | None = None,
+        reason: str | None = None,
+    ) -> None:
+        await map_admin.cmd_freeze(self.bot, interaction, server, reason)
+
+    @maps_group.command(
+        name="unfreeze",
+        description="Lift a server's map freeze (map reviewer)",
+    )
+    @app_commands.describe(server="Server name")
+    @app_commands.autocomplete(server=_autocomplete_server_for_command)
+    @map_reviewer_check()
+    async def cmd_unfreeze(self, interaction: Interaction, server: str) -> None:
+        await map_admin.cmd_unfreeze(self.bot, interaction, server)
+
+    @maps_group.command(
         name="upload",
         description="Upload .msav map files to a server (up to 3 per command)",
     )

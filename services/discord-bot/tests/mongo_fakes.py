@@ -393,7 +393,15 @@ class Collection:
         if target is None and not upsert:
             return SimpleNamespace(matched_count=0, modified_count=0, upserted_id=None)
         candidate = deepcopy(replacement)
-        candidate["_id"] = target["_id"] if target is not None else ObjectId()
+        if target is not None:
+            candidate["_id"] = target["_id"]
+        else:
+            # Like the server: the replacement's id, else the query's, else a new one.
+            query_id = query.get("_id")
+            candidate.setdefault(
+                "_id",
+                query_id if not isinstance(query_id, dict) and query_id else ObjectId(),
+            )
         self._unique(candidate, ignore=target)
         if target is None:
             self.docs.append(candidate)

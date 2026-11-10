@@ -638,3 +638,24 @@ async def test_a_replaced_file_kept_by_the_server_is_mentioned() -> None:
         "the earlier file is kept on the server (/maps trash)"
         in (interaction.replies[-1])
     )
+
+
+async def test_an_upload_to_a_frozen_server_waits_for_the_reviewer() -> None:
+    from xcore_discord_bot.map_freezes import MapFreezes
+
+    bot = await _bot()
+    reviewer = _Member(roles=[_Role(200)])
+    await MapFreezes(bot).freeze("mini-pvp", "event tonight", reviewer)
+    interaction = _Interaction(id=122, user=reviewer)
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID)],
+    )
+    assert _uploads(bot) == []
+    assert interaction.replies[-1].startswith("❄️ `mini-pvp` is frozen by <@")
+    assert "event tonight" in interaction.replies[-1]
+    await _press(interaction.views[-1], "Upload as is", reviewer)
+    ((_, files),) = _uploads(bot)
+    assert files[0]["filename"] == "asteroid.msav"

@@ -497,3 +497,16 @@ async def test_trash_of_a_server_with_nothing_kept_says_so() -> None:
     command = _Interaction()
     await cmd_trash(bot, command, "mini-pvp")
     assert command.sent[-1].content == "`mini-pvp` has no files set aside."
+
+
+async def test_remove_on_a_frozen_server_starts_with_the_freeze() -> None:
+    from xcore_discord_bot.map_freezes import MapFreezes
+
+    bot, _, _, _ = await _bot([_entry("arena.msav", STAR_WARS, "Arena", "anuke")], {})
+    command = _Interaction()
+    await MapFreezes(bot).freeze("mini-pvp", "", command.user)
+    await cmd_remove_map(bot, command, "mini-pvp", "arena.msav")
+    (question,) = command.sent
+    assert question.content.startswith(
+        "❄️ `mini-pvp` is frozen by <@7>: no reason given\n"
+    )

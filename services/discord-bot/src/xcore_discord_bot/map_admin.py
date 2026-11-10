@@ -13,7 +13,6 @@ of the file with a **Restore** button (``map_backups``) before the server delete
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import io
 import logging
 import secrets
@@ -36,6 +35,20 @@ from .map_backups import (
     restore_view,
 )
 from .map_card import find_map, map_card
+from .map_freezes import MapFreezes, frozen, frozen_line
+from .map_installs import (
+    FILE_GONE,
+    TIMEOUT,
+    UNCONFIRMED,
+    WRITTEN,
+    creator_of,
+    default_creator,
+    list_maps_or_none,
+    live_servers,
+    post_file,
+    revision_file,
+    write_revision,
+)
 from .map_list import map_text
 from .map_targets import (
     Candidate,
@@ -51,7 +64,6 @@ from .map_targets import (
 from .staff_actions import (
     Actor,
     InvalidMapUpload,
-    MapReview,
     MapUploadFailed,
     MapUploadFile,
     MapUploadTimeout,
@@ -96,19 +108,6 @@ def describe(candidate: Candidate, locale: str) -> str:
         author=author,
         reasons=reasons,
     )
-
-
-async def list_maps_or_none(
-    bot: XCoreDiscordBot, server: str
-) -> list[dict[str, str]] | None:
-    """The server's maps as it lists them now, or ``None`` when it does not answer."""
-    try:
-        return await bot.container.rpc.list_maps(
-            server=server, timeout_ms=bot.settings.rpc_timeout_ms
-        )
-    except RPC_FAILURES as error:
-        logger.info("Could not list the maps of %s: %r", server, error)
-        return None
 
 
 class _ChoiceButton(discord.ui.Button["ChoiceView"]):
@@ -379,14 +378,16 @@ async def cmd_upload_map(  # noqa: C901
             bot, edit, locale, server, chosen, uploader, creator_actor, interaction.user
         )
 
-    if replace is not None or not any(p.outcome == Outcome.CONFIRM for p in planned):
+    confirm = replace is None and any(p.outcome == Outcome.CONFIRM for p in planned)
+    freeze = await frozen(bot, server)
+    if not confirm and freeze is None:
         await finish(interaction.edit_original_response, planned)
         return
 
     choices: list[tuple[str, str, discord.ButtonStyle]] = []
     targets = (
         replacement_targets(planned[0].candidates, planned[0].upload.filename)
-        if len(planned) == 1
+        if len(planned) == 1 and confirm
         else []
     )
     for index, target in enumerate(targets[:3]):
@@ -437,7 +438,8 @@ async def cmd_upload_map(  # noqa: C901
 
     view = ChoiceView(interaction.user.id, locale, choices, on_choice)
     text = "\n".join(
-        [
+        ([frozen_line(locale, freeze)] if freeze else [])
+        + [
             t(
                 locale,
                 "maps-upload-confirm-title",
@@ -629,7 +631,9 @@ async def cmd_remove_map(
         return
     exact = item["file_name"] if item is not None else normalized
     backup = await fetch_backup(bot, server, exact)
-    lines = [
+    freeze = await frozen(bot, server)
+    lines = [frozen_line(locale, freeze)] if freeze else []
+    lines += [
         t(
             locale,
             "maps-remove-question",
@@ -958,8 +962,10 @@ async def cmd_rollback(bot: XCoreDiscordBot, interaction: Interaction) -> None:
         await pressed.edit_original_response(content=text, view=None)
 
     view = _SelectView(interaction.user.id, locale, options, on_choice)
+    freeze = await frozen(bot, server)
     await interaction.followup.send(
-        t(
+        (frozen_line(locale, freeze) + "\n" if freeze else "")
+        + t(
             locale,
             "maps-rollback-choose",
             file=_code(file_name),
@@ -983,61 +989,23 @@ async def _rollback(
 ) -> str:
     locale = reply_locale(bot, pressed)
     case = await bot.container.cases.store.get(number)
-    if case is None:
-        return t(locale, "maps-rollback-file-gone", number=number)
-    try:
-        message = await thread.fetch_message(int(case.payload["message_id"]))
-        attachment = next(
-            a for a in message.attachments if str(a.id) == case.payload["attachment_id"]
-        )
-        data = await attachment.read()
-    except (discord.HTTPException, StopIteration, KeyError, ValueError):
-        return t(locale, "maps-rollback-file-gone", number=number)
-    if hashlib.sha256(data).hexdigest() != case.payload.get("sha256"):
+    attachment = await revision_file(thread, case) if case is not None else None
+    if case is None or attachment is None:
         return t(locale, "maps-rollback-file-gone", number=number)
     # The map keeps the creator it has on the server now; the review is the old one.
     maps = await list_maps_or_none(bot, server)
-    item = find_map(maps or [], file_name) or {}
-    creator = (
-        Actor(
-            item["creator_discord_id"],
-            item.get("creator_name", ""),
-            item.get("creator_handle") or None,
-        )
-        if item.get("creator_discord_id")
-        else None
+    status = await write_revision(
+        bot,
+        case=case,
+        attachment=attachment,
+        thread_id=getattr(thread, "id", None),
+        server=server,
+        file_name=file_name,
+        maps=maps,
+        uploader=_identity(pressed.user),
+        creator=creator_of(find_map(maps or [], file_name)),
     )
-    fixer = case.payload.get("fixer") or None
-    expected, absent = expectation(maps, file_name)
-    try:
-        result = await perform_map_upload(
-            bot,
-            server,
-            [
-                MapUploadFile(
-                    attachment.url,
-                    file_name,
-                    expected_hash=expected,
-                    expect_absent=absent,
-                )
-            ],
-            _identity(pressed.user),
-            creator,
-            review=MapReview(
-                number,
-                str(getattr(thread, "id", "")) or None,
-                int(case.payload.get("revision") or 1),
-                Actor(fixer["discord_id"], fixer.get("name", ""), fixer.get("handle"))
-                if fixer
-                else None,
-            ),
-        )
-    except MapUploadTimeout:
-        return t(locale, "maps-upload-timeout")
-    except MapUploadFailed:
-        return t(locale, "maps-upload-unconfirmed")
-    status = result.results[0].status.value
-    if status in {"installed", "metadata_failed"}:
+    if status in WRITTEN:
         note = t(
             bot.settings.cases_staff_locale,
             "maps-rollback-note",
@@ -1048,11 +1016,28 @@ async def _rollback(
             file=_code(file_name),
             server=map_text(server, inline_code=True),
         )
-        try:
-            await thread.send(note, allowed_mentions=NO_MENTIONS)
-        except discord.HTTPException:
-            logger.warning("Could not note the rollback in %s", thread.id)
-        await post_maps_log(bot, note + f" <#{thread.id}>")
+        await _note(bot, thread, note)
+    return _write_text(locale, status, number, file_name, server)
+
+
+async def _note(bot: XCoreDiscordBot, thread: Any, note: str) -> None:
+    """Says in the post and in the maps log what was put on a server from it."""
+    try:
+        await thread.send(note, allowed_mentions=NO_MENTIONS)
+    except discord.HTTPException:
+        logger.warning("Could not note a map change in %s", thread.id)
+    await post_maps_log(bot, note + f" <#{thread.id}>")
+
+
+def _write_text(
+    locale: str, status: str, number: int, file_name: str, server: str
+) -> str:
+    if status == TIMEOUT:
+        return t(locale, "maps-upload-timeout")
+    if status == UNCONFIRMED:
+        return t(locale, "maps-upload-unconfirmed")
+    if status == FILE_GONE:
+        return t(locale, "maps-rollback-file-gone", number=number)
     return t(
         locale,
         "maps-restore-result",
@@ -1060,6 +1045,270 @@ async def _rollback(
         server=map_text(server, inline_code=True),
         status=t(locale, "maps-upload-label-" + status),
     )
+
+
+# --- /maps install ---------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _InstallPlan:
+    case: Any
+    file_name: str
+    kind: str  # "update", "replace" or "new"
+    creator: Actor | None
+    maps: list[dict[str, str]]
+
+
+async def _install_plan(
+    bot: XCoreDiscordBot,
+    locale: str,
+    thread: Any,
+    server: str,
+    replace: str | None,
+) -> _InstallPlan | str:
+    """What ``/maps install`` writes on ``server``, or why it writes nothing."""
+    if server not in live_servers(bot):
+        return t(locale, "maps-no-server")
+    accepted = _accepted(await bot.container.cases.store.map_cases(thread.id))
+    if not accepted:
+        return t(locale, "maps-install-nothing")
+    case = accepted[-1]
+    maps = await list_maps_or_none(bot, server)
+    if maps is None:
+        return t(
+            locale, "maps-install-unlisted", server=map_text(server, inline_code=True)
+        )
+    own = post_file(maps, thread.id)
+    item: dict[str, str] | None
+    if own is not None:
+        if str(own.get("content_hash", "")).lower() == case.payload.get("sha256"):
+            return t(
+                locale,
+                "maps-install-same",
+                file=_code(own["file_name"]),
+                server=map_text(server, inline_code=True),
+            )
+        target, kind, item = own["file_name"], "update", own
+    elif replace is not None:
+        item = find_map(maps, replace)
+        if item is None:
+            return t(
+                locale,
+                "maps-upload-replace-missing",
+                file=_code(replace),
+                server=map_text(server, inline_code=True),
+            )
+        target, kind = item["file_name"], "replace"
+    else:
+        fresh = _fresh_target(locale, server, case, maps)
+        if isinstance(fresh, str):
+            return fresh
+        target, kind, item = fresh
+    # The creator another server records goes with the map; see default_creator.
+    primary = None
+    if case.resolution.server != server:
+        primary = post_file(
+            await list_maps_or_none(bot, case.resolution.server), thread.id
+        )
+    return _InstallPlan(case, target, kind, default_creator(case, item, primary), maps)
+
+
+def _fresh_target(
+    locale: str, server: str, case: Any, maps: list[dict[str, str]]
+) -> tuple[str, str, dict[str, str] | None] | str:
+    """Where a server that has no file from the post gets it: the accepted file name,
+    unless the server already has that map or one like it (then a person decides)."""
+    target = case.resolution.file_name
+    info = case.payload.get("info", {})
+    candidates = find_candidates(
+        maps,
+        Incoming(
+            target, case.payload.get("sha256"), info.get("name"), info.get("author")
+        ),
+    )
+    result = outcome(candidates, target)
+    if result == Outcome.SAME:
+        return t(
+            locale,
+            "maps-install-same",
+            file=_code(target),
+            server=map_text(server, inline_code=True),
+        )
+    if result == Outcome.CONFIRM:
+        return "\n".join(
+            [
+                t(
+                    locale,
+                    "maps-install-confirm",
+                    server=map_text(server, inline_code=True),
+                )
+            ]
+            + ["  • " + describe(c, locale) for c in candidates[:5]]
+        )
+    # An earlier copy of the map under the same name keeps its creator.
+    existing = find_map(maps, target)
+    return target, "new" if existing is None else "update", existing
+
+
+async def cmd_install(
+    bot: XCoreDiscordBot, interaction: Interaction, server: str, replace: str | None
+) -> None:
+    """Install this post's newest accepted revision on one more server, or bring the
+    server's copy up to date."""
+    locale = reply_locale(bot, interaction)
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    thread = interaction.channel
+    if (
+        thread is None
+        or getattr(thread, "parent_id", None) != bot.settings.discord_maps_forum_id
+    ):
+        await interaction.followup.send(
+            t(locale, "maps-review-in-post"), ephemeral=True
+        )
+        return
+    plan = await _install_plan(
+        bot, locale, thread, server, (replace or "").strip() or None
+    )
+    if isinstance(plan, str):
+        await interaction.followup.send(
+            plan[:2000], ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return
+    case, file_name = plan.case, plan.file_name
+    revision = case.payload.get("revision") or 1
+
+    async def on_choice(pressed: Interaction, key: str) -> None:
+        if key == "cancel":
+            await pressed.response.edit_message(
+                content=t(locale, "maps-upload-cancelled"), view=None
+            )
+            return
+        await pressed.response.edit_message(
+            content=t(locale, "maps-install-running", file=_code(file_name)), view=None
+        )
+        attachment = await revision_file(thread, case)
+        status = FILE_GONE
+        if attachment is not None:
+            status = await write_revision(
+                bot,
+                case=case,
+                attachment=attachment,
+                thread_id=thread.id,
+                server=server,
+                file_name=file_name,
+                maps=plan.maps,
+                uploader=_identity(pressed.user),
+                creator=plan.creator,
+            )
+        if status in WRITTEN:
+            await _note(
+                bot,
+                thread,
+                t(
+                    bot.settings.cases_staff_locale,
+                    "maps-install-note",
+                    user=f"<@{pressed.user.id}>",
+                    revision=revision,
+                    number=case.number,
+                    file=_code(file_name),
+                    server=map_text(server, inline_code=True),
+                ),
+            )
+        await pressed.edit_original_response(
+            content=_write_text(locale, status, case.number, file_name, server),
+            view=None,
+        )
+
+    freeze = await frozen(bot, server)
+    question = t(
+        locale,
+        "maps-install-plan-" + plan.kind,
+        revision=revision,
+        number=case.number,
+        file=_code(file_name),
+        server=map_text(server, inline_code=True),
+    )
+    view = ChoiceView(
+        interaction.user.id,
+        locale,
+        [
+            ("install", t(locale, "maps-install-button"), discord.ButtonStyle.primary),
+            (
+                "cancel",
+                t(locale, "maps-upload-button-cancel"),
+                discord.ButtonStyle.secondary,
+            ),
+        ],
+        on_choice,
+    )
+    view.message = await interaction.followup.send(
+        ((frozen_line(locale, freeze) + "\n") if freeze else "") + question,
+        view=view,
+        ephemeral=True,
+        wait=True,
+        allowed_mentions=NO_MENTIONS,
+    )
+
+
+# --- /maps freeze ----------------------------------------------------------------------
+
+
+async def cmd_freeze(
+    bot: XCoreDiscordBot,
+    interaction: Interaction,
+    server: str | None,
+    reason: str | None,
+) -> None:
+    """Freeze ``server`` with a reason; without a server, list the frozen ones."""
+    locale = reply_locale(bot, interaction)
+    freezes = MapFreezes(bot)
+    if not server:
+        current = await freezes.all()
+        text = (
+            "\n".join(frozen_line(locale, freeze) for freeze in current)
+            if current
+            else t(locale, "maps-frozen-none")
+        )
+        await interaction.response.send_message(
+            text[:2000], ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return
+    await freezes.freeze(server, reason or "", interaction.user)
+    note = t(
+        locale,
+        "maps-freeze-done",
+        server=map_text(server, inline_code=True),
+    )
+    await interaction.response.send_message(
+        note, ephemeral=True, allowed_mentions=NO_MENTIONS
+    )
+    staff = bot.settings.cases_staff_locale
+    freeze = await freezes.get(server)
+    if freeze is not None:
+        await post_maps_log(bot, frozen_line(staff, freeze))
+
+
+async def cmd_unfreeze(
+    bot: XCoreDiscordBot, interaction: Interaction, server: str
+) -> None:
+    locale = reply_locale(bot, interaction)
+    removed = await MapFreezes(bot).unfreeze(server)
+    key = "maps-unfreeze-done" if removed else "maps-unfreeze-not-frozen"
+    await interaction.response.send_message(
+        t(locale, key, server=map_text(server, inline_code=True)),
+        ephemeral=True,
+        allowed_mentions=NO_MENTIONS,
+    )
+    if removed:
+        await post_maps_log(
+            bot,
+            t(
+                bot.settings.cases_staff_locale,
+                "maps-log-unfreeze",
+                user=f"<@{interaction.user.id}>",
+                server=map_text(server, inline_code=True),
+            ),
+        )
 
 
 # --- /maps trash ----------------------------------------------------------------------

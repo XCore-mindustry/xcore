@@ -97,8 +97,14 @@ A file source may say what the server must still hold for the write to go ahead:
 write; a mismatch is reported as `conflict` and nothing is written. `maps.remove.request`
 takes `expectedContentHash` the same way and its response carries `status`
 (`removed`/`not_found`/`conflict`/`failed`). The bot sends the expectation from the map list
-it showed: `/maps upload`, accepting a review, `/maps rollback`, `/maps remove` and
-**Restore**. A server whose list could not be read gets no expectation, as before.
+it showed: `/maps upload`, accepting a review, `/maps rollback`, `/maps install`,
+`/maps remove` and **Restore**. A server whose list could not be read gets no expectation, as
+before.
+
+The review's `threadId` is also how the bot finds every server that holds a post's map: it
+lists the maps of each live server and takes the file whose attribution names the post. Updating
+the other servers after an accepted update, and `/maps install`, write each server separately
+with that server's file name, expectation and creator.
 
 Instead of deleting a removed file or silently overwriting a replaced one, the server sets it
 aside in `<custom maps>/.trash` as `<trashId>.msav.kept` with a `<trashId>.json` sidecar (file

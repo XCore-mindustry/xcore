@@ -18,6 +18,8 @@ from ...bus.transport import RpcError
 from ...i18n import resolve_dm_locale, t
 from ...map_backups import RPC_FAILURES, post_maps_log
 from ...map_card import find_map
+from ...map_freezes import frozen, frozen_line
+from ...map_installs import WRITTEN, post_installs, update_installs
 from ...map_list import map_text
 from ...map_targets import (
     Incoming,
@@ -980,7 +982,10 @@ async def accept(context: ActionContext):  # noqa: C901
     if await _choose_creator(context, case, server, target_name):
         return None
     await _expect(context, server, target_name)
+    if await _choose_others(context, case, server, servers):
+        return None
     has_errors = any(f["severity"] == "error" for f in case.payload.get("findings", []))
+    freeze = await frozen(context.service.bot, server)
     warnings = [
         t(context.locale, key)
         for key, applies in (
@@ -988,7 +993,7 @@ async def accept(context: ActionContext):  # noqa: C901
             ("maps-accept-pending", "deep_checks_pending" in case.flags),
         )
         if applies
-    ]
+    ] + ([frozen_line(context.locale, freeze)] if freeze else [])
     if warnings and context.values.get("accept_anyway") != "yes":
         # One question for everything that is wrong, with what is about to happen.
         plan = t(
@@ -1171,7 +1176,7 @@ async def accept(context: ActionContext):  # noqa: C901
         )
 
     try:
-        return await context.run(upload)
+        closed = await context.run(upload)
     finally:
         current = await context.service.get(case.number)
         if current.actionable and not current.pending_action and not _unknown(current):
@@ -1180,6 +1185,112 @@ async def accept(context: ActionContext):  # noqa: C901
             if latest is not None:
                 await on_message(context.service, latest)
         await context.service.project(case.number)
+    if context.values.get("others") == "all":
+        await _update_others(context, closed, server)
+    return closed
+
+
+async def _choose_others(
+    context: ActionContext, case: Case, server: str, servers
+) -> bool:
+    """Whether the other servers that hold this post's map get the new revision too;
+    ``True`` when a person was asked. Nothing is asked when no other server has it."""
+    if "others" in context.values:
+        return False
+    thread_id = case.discord.get("thread_id")
+    others = [s.name for s in servers if s.name != server]
+    installs = (
+        await post_installs(context.service.bot, thread_id, others)
+        if thread_id and others
+        else []
+    )
+    if not installs:
+        context.values["others"] = "only"
+        return False
+    names = ", ".join(install.server for install in installs)
+    locale = context.locale
+    await context.choose(
+        t(
+            locale,
+            "maps-others-choose",
+            server=map_text(server, inline_code=True),
+            servers=map_text(names, 1000, inline_code=True),
+        ),
+        "others",
+        [
+            discord.SelectOption(
+                label=safe_text(t(locale, "maps-others-all", servers=names), limit=100),
+                value="all",
+            ),
+            discord.SelectOption(
+                label=safe_text(
+                    t(locale, "maps-others-only", server=server), limit=100
+                ),
+                value="only",
+            ),
+        ],
+    )
+    return True
+
+
+async def _update_others(context: ActionContext, closed: Case, server: str) -> None:
+    """After an accepted update: the same revision over the post's file on every other
+    server that holds it. Each server answers on its own; a frozen one is left alone, and
+    any that was not written is named with ``/maps install`` to retry."""
+    if not closed.resolution or closed.resolution.code != "accepted":
+        return
+    bot = context.service.bot
+    staff = context.service.settings.cases_staff_locale
+    try:
+        thread = await context.service.threads.channel(closed.discord["thread_id"])
+        others = [
+            s.name for s in bot.container.servers.get_all_servers() if s.name != server
+        ]
+        installs = await post_installs(bot, thread.id, others)
+        held = {i.server for i in installs if await frozen(bot, i.server) is not None}
+        results = await update_installs(
+            bot,
+            case=closed,
+            thread=thread,
+            installs=[i for i in installs if i.server not in held],
+            uploader=Actor(
+                str(context.member.id),
+                context.member.display_name,
+                getattr(context.member, "name", None),
+            ),
+        )
+        lines = [
+            t(
+                staff,
+                "maps-others-note",
+                user=f"<@{context.member.id}>",
+                number=closed.number,
+            )
+        ]
+        lines += [
+            "• "
+            + t(
+                staff,
+                "maps-others-row",
+                server=map_text(name, inline_code=True),
+                status=t(staff, "maps-upload-label-" + status),
+            )
+            for name, status in results
+        ]
+        lines += [
+            "• "
+            + t(staff, "maps-others-frozen", server=map_text(name, inline_code=True))
+            for name in sorted(held)
+        ]
+        if any(status not in WRITTEN for _, status in results) or held:
+            lines.append(t(staff, "maps-others-retry"))
+        text = "\n".join(lines)[:2000]
+        await thread.send(text, allowed_mentions=discord.AllowedMentions.none())
+        await post_maps_log(bot, text + f" <#{thread.id}>")
+    except Exception:  # The accepted upload stands; the others can be updated by hand.
+        logger.exception(
+            "Could not update the other servers of case #%s", closed.number
+        )
 
 
 async def _badge(service, case):

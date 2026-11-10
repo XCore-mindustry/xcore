@@ -37,6 +37,16 @@ Standalone Discord bot for XCore transport migration.
     map the post updates, for maps put on a server before their post was reviewed
   - `/maps rollback` (in a map post, map reviewer) → puts an earlier accepted revision of the
     post's map back under the installed name
+  - `/maps install <server> [replace]` (in a map post, map reviewer) → installs the post's
+    newest accepted revision on one more server, or updates that server's file from the post.
+    The file from the post (`thread_id` in its attribution) is updated in place; a server
+    without it gets the accepted file name, unless it has a map like it, then `replace` names
+    the map it replaces. Accepting an update offers to update every other server with the post's
+    map too, each written and reported separately
+  - `/maps freeze [server] [reason]`, `/maps unfreeze <server>` (map reviewer) → a frozen
+    server still takes changes, but accepting a review, `/maps upload`, `install`, `rollback`
+    and `remove` show the freeze and its reason first and wait for a confirmation; other servers
+    updated after an accepted update skip it. Without a server, `freeze` lists the frozen ones
   - `/maps upload <server> <file1> [file2] [file3] [creator] [creator1] [creator2] [creator3] [replace]`
     → per-file confirmed upload results; individual creators override the shared default.
     The uploader is recorded automatically; `creator` selects a Discord user for every attached map.

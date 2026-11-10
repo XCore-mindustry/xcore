@@ -299,6 +299,16 @@ Accept stores in its action values what the server held under that name (`expect
 instead of overwriting a file nobody reviewed. `conflict` is a nonterminal result like
 `superseded`.
 
+Where else the post's map is installed is read from the servers: every live server's
+`maps.list` item whose `thread_id` is the post (`map_installs.post_installs`). When other
+servers hold it, Accept asks once (`others`: `all` or `only`) before the upload. The case
+pipeline still runs one external operation for the chosen server; after it closes the case,
+`all` writes the same revision over the post's file on each other server separately (its own
+expectation, audit record and creator), skips frozen ones, and posts one note in the thread
+with each server's result. A server that was not written is retried with `/maps install`, so a
+partial success never reopens or fails the accepted case. A frozen target server
+(`map_freezes`) adds its freeze to Accept's confirmation.
+
 Map authors conflict with every case action, including senior actions. `CaseService.started_at`
 is the process timestamp; successful map startup stores `service.maps_enabled_at`, the actual
 intake boundary. Untracked posts older than that boundary are ignored until `/maps review`.
