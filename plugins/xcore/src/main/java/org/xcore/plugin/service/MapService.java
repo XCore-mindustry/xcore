@@ -409,6 +409,7 @@ public class MapService {
     public void rebuildIdentityCatalog() { rebuildIdentityCatalogAsync(); }
 
     public CompletionStage<Void> rebuildIdentityCatalogAsync() {
+        rememberInstalledCustomMaps();
         var catalog = this.identityCatalog;
         if (catalog == null) return CompletableFuture.completedFuture(null);
         var sources = new java.util.ArrayList<org.xcore.plugin.service.map.MapIdentityCatalog.Source>();
@@ -433,6 +434,17 @@ public class MapService {
         });
         catalogReady = ready;
         return ready;
+    }
+
+    /** Which custom map files are installed, for lookups off the game thread (no disk reads there). */
+    private void rememberInstalledCustomMaps() {
+        var engine = Vars.maps;
+        if (engine == null || mapDataRepository == null) return;
+        var names = new java.util.ArrayList<String>();
+        for (Map map : engine.customMaps()) {
+            if (map.file != null) names.add(map.file.name());
+        }
+        mapDataRepository.installedCustomMaps(names);
     }
 
     public void clearAttribution() {

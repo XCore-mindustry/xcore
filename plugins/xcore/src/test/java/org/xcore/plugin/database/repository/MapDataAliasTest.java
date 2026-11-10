@@ -103,4 +103,25 @@ class MapDataAliasTest {
         });
         return query;
     }
+
+    @Test
+    void installedFilesComeFromTheLastReloadNotTheDisk(@org.junit.jupiter.api.io.TempDir java.nio.file.Path folder) {
+        var previous = mindustry.Vars.customMapDirectory;
+        try {
+            var directory = new arc.files.Fi(folder.toFile());
+            mindustry.Vars.customMapDirectory = directory;
+            directory.child("on-disk.msav").writeBytes(new byte[] {1}, false);
+            var repository = new MapDataRepository(mock(MongoDatabase.class, RETURNS_DEEP_STUBS), new TomlSecretsConfig());
+
+            // Before the engine's first load, the folder is all there is.
+            assertThat(repository.customMapInstalled("on-disk.msav")).isTrue();
+
+            repository.installedCustomMaps(List.of("loaded.msav"));
+            assertThat(repository.customMapInstalled("loaded.msav")).isTrue();
+            assertThat(repository.customMapInstalled("on-disk.msav")).isFalse();
+            assertThat(repository.customMapInstalled(null)).isFalse();
+        } finally {
+            mindustry.Vars.customMapDirectory = previous;
+        }
+    }
 }

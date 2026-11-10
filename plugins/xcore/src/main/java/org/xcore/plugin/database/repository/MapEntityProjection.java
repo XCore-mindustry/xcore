@@ -15,10 +15,15 @@ import org.xcore.plugin.model.MapData;
 import org.xcore.plugin.model.MapUploadRecord;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import static com.mongodb.client.model.Filters.and;
 import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.in;
 import static com.mongodb.client.model.Filters.lt;
 import static com.mongodb.client.model.Filters.nin;
 
@@ -34,6 +39,7 @@ import static com.mongodb.client.model.Filters.nin;
 public final class MapEntityProjection {
     public static final String COLLECTION = "map_entities";
     private static final MapDataConsolidator CONSOLIDATOR = new MapDataConsolidator();
+    private static final ReplaceOptions UPSERT = new ReplaceOptions().upsert(true);
 
     private MapEntityProjection() {
     }
@@ -57,24 +63,79 @@ public final class MapEntityProjection {
         MongoCollection<MapEntity> entities = database.getCollection(COLLECTION, MapEntity.class);
         var links = MapKeys.links(uploads);
         var groups = MapKeys.group(records, links);
-        var upsert = new ReplaceOptions().upsert(true);
         int written = 0;
         for (var group : groups.entrySet()) {
-            MapEntity entity = CONSOLIDATOR.consolidate(group.getKey(), group.getValue());
-            if (entity == null) continue;
-            entity.editModelTime = now;
-            try {
-                entities.replaceOne(eq("map_key", group.getKey()), entity, upsert);
-            } catch (MongoWriteException race) {
-                // Another server inserted the same map between our match and insert.
-                if (race.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw race;
-                entities.replaceOne(eq("map_key", group.getKey()), entity);
-            }
-            written++;
+            if (write(entities, group.getKey(), group.getValue(), now)) written++;
         }
         // Maps that no longer exist, and the slug-grouped documents of migration v3; only those
         // last written before this snapshot (servers' clocks are assumed to roughly agree).
         entities.deleteMany(and(nin("map_key", new ArrayList<>(groups.keySet())), lt("updated_at", now)));
         return new Result(records.size(), written, links.ambiguous());
+    }
+
+    /**
+     * Brings up to date only the maps {@code fileNames} belong to, now and before the change
+     * that named them (an upload, a removal or a restore of those files). Reads the upload
+     * attribution, which has one small row per server and file, and only the statistics
+     * records of those maps. Returns the number of maps it looked at.
+     *
+     * <p>A record whose file name differs only in letter case from every name the maps know
+     * is picked up by the next full {@link #rebuild}, which runs at every startup.
+     */
+    public static int update(MongoDatabase database, Collection<String> fileNames) {
+        long now = System.currentTimeMillis();
+        var exact = new HashSet<String>();
+        var changed = new HashSet<String>();
+        for (String name : fileNames) {
+            if (!MapKeys.named(name)) continue;
+            exact.add(name.trim());
+            changed.add(MapKeys.lower(name));
+        }
+        if (changed.isEmpty()) return 0;
+        var uploads = database.getCollection("map_uploads", MapUploadRecord.class).find().into(new ArrayList<>());
+        MongoCollection<MapEntity> entities = database.getCollection(COLLECTION, MapEntity.class);
+        var links = MapKeys.links(uploads);
+
+        // The maps the files belong to now, and the ones they belonged to before.
+        var keys = new LinkedHashSet<String>();
+        for (String name : changed) keys.add(MapKeys.keyOfFile(name, links));
+        for (MapEntity before : entities.find(in("file_names_lower", new ArrayList<>(changed))).into(new ArrayList<>())) {
+            if (before.mapKey == null) continue;
+            keys.add(before.mapKey);
+            if (before.fileNames != null) exact.addAll(before.fileNames);
+        }
+        // Every file of those maps: the ones they had, and the ones their posts installed.
+        for (MapUploadRecord row : uploads) {
+            if (row != null && MapKeys.named(row.fileName) && keys.contains(MapKeys.keyOfFile(row.fileName, links))) {
+                exact.add(row.fileName.trim());
+            }
+        }
+        var records = database.getCollection("maps", MapData.class)
+                .find(in("file_name", new ArrayList<>(exact))).into(new ArrayList<>());
+        var groups = MapKeys.group(records, links);
+        for (String key : keys) {
+            var group = groups.get(key);
+            if (group == null || group.isEmpty()) {
+                // No record is left in this map; a newer write by another server stays.
+                entities.deleteOne(and(eq("map_key", key), lt("updated_at", now)));
+            } else {
+                write(entities, key, group, now);
+            }
+        }
+        return keys.size();
+    }
+
+    private static boolean write(MongoCollection<MapEntity> entities, String key, List<MapData> records, long now) {
+        MapEntity entity = CONSOLIDATOR.consolidate(key, records);
+        if (entity == null) return false;
+        entity.editModelTime = now;
+        try {
+            entities.replaceOne(eq("map_key", key), entity, UPSERT);
+        } catch (MongoWriteException race) {
+            // Another server inserted the same map between our match and insert.
+            if (race.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw race;
+            entities.replaceOne(eq("map_key", key), entity);
+        }
+        return true;
     }
 }

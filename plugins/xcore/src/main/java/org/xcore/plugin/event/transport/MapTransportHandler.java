@@ -131,7 +131,7 @@ public class MapTransportHandler {
                         catch (RuntimeException failure) { Log.err("[Maps] Could not initialize statistics for " + fileName, failure); }
                     }
                     // The file may now belong to another map (its post); relink in the background.
-                    if (entities != null) entities.refresh();
+                    if (entities != null) entities.refresh(fileName);
                     return true;
                 }).future());
         pendingUploads.put(fileName, write);

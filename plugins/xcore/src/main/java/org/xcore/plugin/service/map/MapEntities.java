@@ -38,6 +38,8 @@ public class MapEntities {
     private final TomlSecretsConfig secrets;
     private final AtomicBoolean running = new AtomicBoolean();
     private final AtomicBoolean dirty = new AtomicBoolean();
+    private final AtomicBoolean full = new AtomicBoolean();
+    private final java.util.Set<String> changedFiles = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     @Inject
     public MapEntities(MongoDatabase database, StorageExecutor worker, TomlSecretsConfig secrets) {
@@ -50,8 +52,23 @@ public class MapEntities {
     public record Totals(int likes, int dislikes, int reputation) {
     }
 
-    /** Rebuilds the entities soon on a storage worker; calls while one runs fold into one more. */
+    /** Rebuilds every entity soon on a storage worker (startup); calls while one runs fold into one more. */
     public void refresh() {
+        full.set(true);
+        schedule();
+    }
+
+    /**
+     * Brings up to date soon only the maps {@code fileName} belongs to, before and after a change
+     * to that file (upload, removal, restore). Names given while an update runs are batched.
+     */
+    public void refresh(String fileName) {
+        if (!MapKeys.named(fileName)) return;
+        changedFiles.add(fileName);
+        schedule();
+    }
+
+    private void schedule() {
         if (secrets.database.readOnly) return;
         dirty.set(true);
         if (!running.compareAndSet(false, true)) return;
@@ -67,9 +84,17 @@ public class MapEntities {
         try {
             while (dirty.getAndSet(false)) {
                 try {
-                    var result = MapEntityProjection.rebuild(database);
-                    if (!result.ambiguous().isEmpty()) {
-                        PLog.warn("Map files installed by two posts, kept apart: @", result.ambiguous());
+                    if (full.getAndSet(false)) {
+                        // The full rebuild reads after this point, so it covers every name so far.
+                        changedFiles.clear();
+                        var result = MapEntityProjection.rebuild(database);
+                        if (!result.ambiguous().isEmpty()) {
+                            PLog.warn("Map files installed by two posts, kept apart: @", result.ambiguous());
+                        }
+                    } else {
+                        var batch = List.copyOf(changedFiles);
+                        changedFiles.removeAll(batch);
+                        MapEntityProjection.update(database, batch);
                     }
                 } catch (RuntimeException failure) {
                     PLog.warn("Map entity refresh failed: @", failure.toString());
@@ -78,7 +103,7 @@ public class MapEntities {
         } finally {
             running.set(false);
         }
-        if (dirty.get()) refresh();
+        if (dirty.get()) schedule();
     }
 
     /**

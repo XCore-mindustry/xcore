@@ -9,6 +9,8 @@ import org.xcore.plugin.model.MapData;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 class MapEntitiesTest {
 
@@ -72,5 +74,43 @@ class MapEntitiesTest {
         assertThat(fresh.fileName).isEqualTo("arena-v2.msav");
         assertThat(fresh.gameMode).isEqualTo("pvp");
         assertThat(fresh.like).isEqualTo(9);
+    }
+
+    private static org.xcore.plugin.concurrent.StorageExecutor inline() {
+        var worker = mock(org.xcore.plugin.concurrent.StorageExecutor.class);
+        doAnswer(call -> {
+            ((Runnable) call.getArgument(0)).run();
+            return null;
+        }).when(worker).execute(any(Runnable.class));
+        return worker;
+    }
+
+    @Test
+    @DisplayName("a changed file updates only its maps, never reading every statistics record")
+    void refreshOfAFileUpdatesOnlyItsMaps() {
+        var database = mock(com.mongodb.client.MongoDatabase.class);
+        // Stops the update right after its first read: which read comes first is the point.
+        when(database.getCollection("map_uploads", org.xcore.plugin.model.MapUploadRecord.class))
+                .thenThrow(new IllegalStateException("stop here"));
+        var entities = new MapEntities(database, inline(), new org.xcore.plugin.config.TomlSecretsConfig());
+
+        entities.refresh("arena.msav");
+        verify(database).getCollection("map_uploads", org.xcore.plugin.model.MapUploadRecord.class);
+        verify(database, never()).getCollection("maps", MapData.class);
+
+        entities.refresh("Unknown");
+        verify(database, times(1)).getCollection("map_uploads", org.xcore.plugin.model.MapUploadRecord.class);
+    }
+
+    @Test
+    @DisplayName("a read-only server never rebuilds the shared collection")
+    void readOnlyServersDoNotWrite() {
+        var readOnly = new org.xcore.plugin.config.TomlSecretsConfig();
+        readOnly.database.readOnly = true;
+        var database = mock(com.mongodb.client.MongoDatabase.class);
+        var entities = new MapEntities(database, inline(), readOnly);
+        entities.refresh("arena.msav");
+        entities.refresh();
+        verifyNoInteractions(database);
     }
 }

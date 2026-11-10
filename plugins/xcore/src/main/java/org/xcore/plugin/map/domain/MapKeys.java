@@ -73,8 +73,13 @@ public final class MapKeys {
         if (!named(record.fileName)) {
             return RECORD + (record.id == null ? "" : record.id.toHexString());
         }
-        String thread = links.posts().get(lower(record.fileName));
-        return thread != null ? post(thread) : file(record.fileName);
+        return keyOfFile(record.fileName, links);
+    }
+
+    /** The map a named file belongs to: its post, else the file itself. */
+    public static String keyOfFile(String fileName, Links links) {
+        String thread = links.posts().get(lower(fileName));
+        return thread != null ? post(thread) : file(fileName);
     }
 
     /** The records of every map, in the order their first record appears. */

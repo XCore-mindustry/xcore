@@ -1,6 +1,5 @@
 package org.xcore.plugin.database.repository;
 
-import arc.struct.ObjectMap;
 import arc.util.Strings;
 import com.mongodb.MongoWriteException;
 import com.mongodb.client.MongoDatabase;
@@ -34,7 +33,14 @@ public class MapDataRepository extends DataRepository<MapData> {
      * belongs to that file while it is installed: another file with the same map name and
      * author does not share its statistics (map-updates-design-spec.md, stage 3).
      */
-    private Predicate<String> installedFile = MapDataRepository::customMapInstalled;
+    private Predicate<String> installedFile = this::customMapInstalled;
+
+    /**
+     * The custom map files the engine loaded, as of its last reload; {@code null} until the
+     * first one. Kept in memory so that lookups running on database driver threads do not
+     * touch the disk.
+     */
+    private volatile java.util.Set<String> installedCustomMaps;
 
     @Inject
     public MapDataRepository(MongoDatabase database, ReactiveMongoStore reactiveMongoStore, TomlSecretsConfig secretsConfig) {
@@ -56,10 +62,23 @@ public class MapDataRepository extends DataRepository<MapData> {
 
     /** For tests: what counts as an installed file. */
     void installedFiles(Predicate<String> installed) {
-        this.installedFile = installed == null ? MapDataRepository::customMapInstalled : installed;
+        this.installedFile = installed == null ? this::customMapInstalled : installed;
     }
 
-    static boolean customMapInstalled(String fileName) {
+    /** Called on the game thread after every map reload with the custom map files loaded. */
+    public void installedCustomMaps(java.util.Collection<String> fileNames) {
+        this.installedCustomMaps = java.util.Set.copyOf(fileNames);
+    }
+
+    boolean customMapInstalled(String fileName) {
+        if (fileName == null || fileName.isBlank()) return false;
+        var loaded = installedCustomMaps;
+        if (loaded != null) return loaded.contains(fileName);
+        // Before the engine's first load: look at the folder itself.
+        return fileOnDisk(fileName);
+    }
+
+    static boolean fileOnDisk(String fileName) {
         var directory = mindustry.Vars.customMapDirectory;
         return directory != null && fileName != null && !fileName.isBlank()
                 && !fileName.contains("/") && !fileName.contains("\\") && directory.child(fileName).exists();
@@ -354,18 +373,6 @@ public class MapDataRepository extends DataRepository<MapData> {
     public void decayInterest(double amount) {
         collection.updateMany(gt("interest", 0), Updates.inc("interest", -amount));
         collection.updateMany(lt("interest", 0), Updates.set("interest", 0.0));
-    }
-
-    public ObjectMap<String, MapData> findAllAsMap() {
-        ObjectMap<String, MapData> map = new ObjectMap<>();
-        for (MapData data : collection.find()) {
-            map.put(genKey(data.name, data.author, data.gameMode), data);
-        }
-        return map;
-    }
-
-    public static String genKey(String name, String author, String mode) {
-        return name + "|" + author + "|" + mode;
     }
 
     public void checkMapDecay() {

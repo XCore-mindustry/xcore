@@ -8,14 +8,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MapDataRepositoryLogicTest {
 
     @Test
-    @DisplayName("genKey builds expected composite key")
-    void genKey_buildsExpectedCompositeKey() {
-        var key = MapDataRepository.genKey("Ancient Ruins", "mapper", "hexed");
-
-        assertThat(key).isEqualTo("Ancient Ruins|mapper|hexed");
-    }
-
-    @Test
     @DisplayName("same name with different file or author must remain distinct identities")
     void duplicateDisplayNamesShouldRemainDistinct() {
         var first = new MapIdentity("Arena", "arena-v1.msav", "Author One", "pvp");
