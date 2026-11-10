@@ -135,9 +135,10 @@ async def published(bus: RedisTransport, stream: str) -> list[dict[str, Any]]:
 async def remember_maps(bot: XCoreDiscordBot, server: str = "mini-pvp") -> None:
     """Has the map catalog hold ``server``'s map list, as autocomplete leaves it."""
     maps = bot.container.maps_bus
-    maps.rpc_maps_list = create_autospec(  # type: ignore[method-assign]
-        maps.rpc_maps_list, return_value=[]
-    )
+    if not hasattr(maps.rpc_maps_list, "await_count"):
+        maps.rpc_maps_list = create_autospec(  # type: ignore[method-assign]
+            maps.rpc_maps_list, return_value=[]
+        )
     await bot.container.map_catalog.maps(server)
 
 

@@ -19,6 +19,7 @@ from .command_helpers import reply_locale
 from .container import ServiceContainer
 from .handlers_linking import find_code_player, link_with_code
 from .i18n import XCoreTranslator, resolve_dm_locale, t
+from .map_backups import MapRestoreButton
 from .mongo_store import MongoStore
 from .settings import Settings
 
@@ -119,7 +120,7 @@ class XCoreDiscordBot(commands.Bot):
             await self.add_cog(CasesCog(self))
         # Always registered: a button left on an old card answers "not available" instead
         # of "interaction failed" after its flow is switched off.
-        self.add_dynamic_items(CaseActionButton, PanelButton)
+        self.add_dynamic_items(CaseActionButton, PanelButton, MapRestoreButton)
         await self.tree.set_translator(XCoreTranslator())
 
         @self.tree.error

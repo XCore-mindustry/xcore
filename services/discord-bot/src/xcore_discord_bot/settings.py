@@ -79,6 +79,7 @@ class Settings(BaseSettings):
         "Tower Defence=tower-defense,PvP=pvp,Survival=survival,Attack=attack"
     )
     maps_max_file_bytes: int = 4194304
+    discord_maps_log_channel_id: int = 0
     discord_map_maker_role_id: int = 0
 
     @model_validator(mode="before")

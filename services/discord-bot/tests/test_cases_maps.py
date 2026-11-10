@@ -1251,3 +1251,159 @@ async def test_a_review_closed_while_drawing_gets_no_render(monkeypatch):
     await asyncio.gather(*maps._previews.values())
 
     assert renderer.files and _renders(thread) == []
+
+
+# --- What an accepted map replaces on the server -----------------------------------------
+
+
+def _installed(file_name, *, name="Arena", author="", sha="0" * 64):
+    return {"file_name": file_name, "name": name, "author": author, "content_hash": sha}
+
+
+async def _accept_until_target(service, case, bot):
+    interaction = Interaction(bot, user=reviewer())
+    await service.dispatch_action(
+        case.number,
+        "accept",
+        reviewer(),
+        "en",
+        {"server": "mini-pvp"},
+        interaction=interaction,
+    )
+    return interaction
+
+
+async def _choose(view, value, bot):
+    view.select._values = [value]
+    await view.select.callback(Interaction(bot, user=reviewer()))
+
+
+async def test_accept_with_nothing_like_it_installed_asks_nothing_more():
+    env, case = await opened()
+    service, _, bot, bus, _, _, _, _, _ = env
+    bot.bus.rpc_maps_list.return_value = [_installed("other.msav", name="Other")]
+    final = await do_accept(service, case)
+    assert final.resolution.file_name == "arena.msav"
+    assert bus.upload_calls[0][1][0]["filename"] == "arena.msav"
+
+
+async def test_accept_of_a_renamed_version_replaces_the_installed_map():
+    # The author's update came in as "arena_1.msav"; "Arena" is already installed as arena.msav.
+    service, db, bot, bus, _, author, thread, _, _ = await map_core()
+    renamed = Attachment(id=2100, filename="arena_1.msav")
+    thread.messages.clear()
+    authored_message(bot, thread, author, renamed, id=thread.id)
+    service.transport.rpc_inspect_map.side_effect = lambda **kw: inspect_payload(
+        renamed
+    )
+    await maps.on_thread_create(service, thread)
+    case = await service.store.by_submission(f"map:{thread.id}")
+    bot.bus.rpc_maps_list.return_value = [_installed("arena.msav")]
+
+    interaction = await _accept_until_target(service, case, bot)
+    assert not bus.upload_calls
+    text = interaction.events[-1][1]
+    assert "already installed" in text and "`arena.msav`" in text
+    view = last_view(interaction)
+    assert [o.value for o in view.select.options] == ["replace:arena.msav", "as-is"]
+    assert view.select.options[0].label == "Replace arena.msav"
+
+    await _choose(view, "replace:arena.msav", bot)
+    final = await service.get(case.number)
+    assert final.resolution.code == "accepted"
+    assert final.resolution.file_name == "arena.msav"
+    assert final.payload["target_file"] == "arena.msav"
+    ((_, files, _),) = bus.upload_calls
+    assert files[0]["filename"] == "arena.msav" and files[0]["url"] == renamed.url
+    audit = db["moderation_audit"].docs[0]["details"]["extra"]
+    assert audit["file_name"] == "arena.msav"
+
+
+async def test_accept_as_is_keeps_the_attachment_name():
+    service, _, bot, _, _, author, thread, _, _ = await map_core()
+    renamed = Attachment(id=2100, filename="arena_1.msav")
+    thread.messages.clear()
+    authored_message(bot, thread, author, renamed, id=thread.id)
+    service.transport.rpc_inspect_map.side_effect = lambda **kw: inspect_payload(
+        renamed
+    )
+    await maps.on_thread_create(service, thread)
+    case = await service.store.by_submission(f"map:{thread.id}")
+    bot.bus.rpc_maps_list.return_value = [_installed("arena.msav")]
+    interaction = await _accept_until_target(service, case, bot)
+    await _choose(last_view(interaction), "as-is", bot)
+    assert (await service.get(case.number)).resolution.file_name == "arena_1.msav"
+
+
+async def test_accept_over_a_different_map_with_the_same_file_name_asks():
+    env, case = await opened()
+    service, _, bot, bus, _, _, _, _, _ = env
+    bot.bus.rpc_maps_list.return_value = [_installed("arena.msav", name="Star Wars")]
+    interaction = await _accept_until_target(service, case, bot)
+    assert not bus.upload_calls
+    options = last_view(interaction).select.options
+    assert [o.value for o in options] == ["as-is"]
+    assert options[0].label == "Overwrite arena.msav (another map)"
+
+
+async def test_accept_when_the_server_does_not_list_its_maps_asks_to_go_on():
+    env, case = await opened()
+    service, _, bot, bus, _, _, _, _, _ = env
+    bot.bus.rpc_maps_list.side_effect = TimeoutError
+    interaction = await _accept_until_target(service, case, bot)
+    assert "duplicates were not checked" in interaction.events[-1][1]
+    assert not bus.upload_calls
+    await last_view(interaction).children[0].callback(Interaction(bot, user=reviewer()))
+    assert (await service.get(case.number)).resolution.file_name == "arena.msav"
+
+
+async def test_crash_after_a_replacing_upload_recovers_from_the_audit_of_the_target():
+    service, _, bot, bus, _, author, thread, _, _ = await map_core()
+    renamed = Attachment(id=2100, filename="arena_1.msav")
+    thread.messages.clear()
+    authored_message(bot, thread, author, renamed, id=thread.id)
+    service.transport.rpc_inspect_map.side_effect = lambda **kw: inspect_payload(
+        renamed
+    )
+    await maps.on_thread_create(service, thread)
+    case = await service.store.by_submission(f"map:{thread.id}")
+    bot.bus.rpc_maps_list.return_value = [_installed("arena.msav")]
+    original = service.actions._finish
+    service.actions._finish = AsyncMock(
+        side_effect=RuntimeError("crash before case write")
+    )
+    interaction = await _accept_until_target(service, case, bot)
+    # The choice's step reports the failure to the reviewer instead of raising.
+    await _choose(last_view(interaction), "replace:arena.msav", bot)
+    current = await service.get(case.number)
+    assert current.pending_action and current.actionable
+    assert current.payload["upload_attempt"]["state"] == "installed"
+    service.actions._finish = original
+    await reconcile_cases(service)
+    final = await service.get(case.number)
+    assert final.resolution.code == "accepted"
+    assert final.resolution.file_name == "arena.msav"
+    assert len(bus.upload_calls) == 1
+
+
+async def test_findings_do_not_repeat_the_translation_in_english():
+    case = SimpleNamespace(
+        payload={
+            "findings": [
+                {
+                    "code": "data-patches",
+                    "severity": "warning",
+                    "detail": "The map changes gameplay with data patches; these checks ignored them",
+                    "count": 1,
+                },
+                {
+                    "code": "requires-mods",
+                    "severity": "error",
+                    "detail": "Required mods: exotic",
+                },
+            ]
+        }
+    )
+    lines = [maps._finding(f, "ru") for f in case.payload["findings"]]
+    assert "these checks ignored them" not in lines[0]
+    assert "Required mods: exotic" in lines[1]

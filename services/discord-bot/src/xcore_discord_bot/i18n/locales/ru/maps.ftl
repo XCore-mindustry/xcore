@@ -126,3 +126,102 @@ maps-card-render-busy = Рендерер занят другими картам�
 maps-card-render-cooldown = Новый рендер можно запустить через { $seconds } с.
 maps-card-render-failed = Не удалось отрисовать эту карту.
 maps-card-render-unavailable = Рендерер сейчас не запущен. Попробуйте позже.
+
+# Comparing a file with the maps already installed
+
+maps-match-same-bytes = тот же файл
+maps-match-same-file = то же имя файла
+maps-match-same-title = то же название и автор
+maps-candidate = { $file } — { $name }, автор { $author } ({ $reasons })
+maps-choice-expired = Выбор не сделан вовремя; ничего не изменено.
+maps-target-choose = Похожая карта уже установлена на `{ $server }`. Что сделать с этим файлом?
+maps-target-replace = Заменить { $file }
+maps-target-new = Установить как новую карту { $file }
+maps-target-overwrite = Перезаписать { $file } (другая карта)
+maps-target-unlisted = Не удалось получить список карт `{ $server }`, дубликаты не проверены. Всё равно установить карту как { $file }?
+
+# /maps upload
+
+cmd-maps-upload-param-replace-description = Установленная карта, которую заменяет файл (только для одного файла)
+maps-upload-checking = Сверяю файлы карт ({ $count }) с `{ $server }`…
+maps-upload-uploading = Загружаю файлы карт ({ $count }) на `{ $server }`…
+maps-upload-invalid-no-files = Не прикреплено ни одного файла .msav.
+maps-upload-invalid-same-names = У всех вложений должны быть разные имена файлов.
+maps-upload-invalid-invalid = Данные загрузки некорректны; на сервер ничего не отправлено.
+maps-upload-replace-one = `replace` работает только с одним файлом .msav.
+maps-upload-replace-missing = На `{ $server }` нет карты { $file }, заменять нечего. Ничего не загружено.
+maps-upload-confirm-title = Проверьте перед загрузкой на `{ $server }`:
+maps-plan-new = { $file } — новая карта
+maps-plan-same = { $file } — точно такой же файл уже установлен
+maps-plan-update = { $file } — обновит установленную версию
+maps-plan-replace = { $source } → заменит { $file }
+maps-plan-unchecked = { $file } — не сверен с установленными картами
+maps-plan-overwrite = { $file } — ⚠️ перезапишет другую карту:
+maps-plan-duplicate = { $file } — ⚠️ похоже на уже установленную карту:
+maps-upload-button-replace = Заменить { $file }
+maps-upload-button-as-is = Загрузить как есть
+maps-upload-button-cancel = Отмена
+maps-upload-cancelled = Загрузка отменена; на сервер ничего не отправлено.
+maps-upload-result-title = Карты на `{ $server }`:
+maps-upload-row = { $status } — { $file }
+maps-upload-label-installed = ✅ Установлена, атрибуция сохранена
+maps-upload-label-download_failed = ❌ Не удалось скачать или записать файл
+maps-upload-label-invalid_map = ❌ Некорректный файл карты
+maps-upload-label-superseded = ⚠️ Заменена более новой загрузкой
+maps-upload-label-metadata_failed = ⚠️ Установлена, но атрибуция не сохранена
+maps-upload-label-rejected = ❌ Недопустимое имя файла
+maps-upload-note-new = новая карта
+maps-upload-note-update = обновлена установленная версия
+maps-upload-note-same = этот же файл уже был установлен
+maps-upload-note-replaced = из { $source }
+maps-upload-unchecked = Не удалось получить список карт `{ $server }`: дубликаты не проверены.
+maps-upload-timeout = Сервер ещё не подтвердил результат. Часть файлов уже может быть установлена; проверьте /maps list перед повтором.
+maps-upload-unconfirmed = Не удалось подтвердить результат загрузки. Проверьте /maps list перед повтором.
+
+# /maps remove
+
+maps-remove-empty = Имя файла карты не может быть пустым.
+maps-remove-question = Удалить { $file } с `{ $server }`?
+maps-remove-unlisted = ⚠️ Не удалось получить список карт сервера, поэтому карту показать нельзя.
+maps-remove-siblings = Эта же карта есть и в других файлах:
+maps-remove-backup = Копия файла будет опубликована в этом канале с кнопкой **Вернуть**.
+maps-remove-no-backup = ⚠️ Сервер не прислал копию файла: после удаления карту не вернуть.
+maps-remove-button-remove = Удалить
+maps-remove-button-cancel = Отмена
+maps-remove-cancelled = Удаление карты отменено.
+maps-remove-removing = Удаляю { $file }…
+maps-remove-duplicate = Это удаление карты уже обработано.
+maps-remove-timeout = Сервер не ответил (тайм-аут).
+maps-remove-done = 🗑️ `{ $server }`: { $file } удалена. { $detail }
+maps-remove-failed = ❌ `{ $server }`: { $file } не удалена. { $detail }
+maps-remove-public-pending = 🗑️ { $user } удаляет { $file } с `{ $server }`…
+maps-remove-public-done = 🗑️ { $user } удалил(а) { $file } с `{ $server }`. Копия файла приложена.
+maps-remove-public-failed = { $user } пытался(-ась) удалить { $file } с `{ $server }`; ничего не удалено.
+maps-remove-public-no-backup = Копия файла не сохранена.
+
+# Restore
+
+maps-restore-button = Вернуть
+maps-restore-denied = Возвращать карты могут только проверяющие карт.
+maps-restore-gone = Копия этой карты больше недоступна.
+maps-restore-done-already = Эта карта уже возвращена.
+maps-restore-busy = Эту карту возвращают прямо сейчас.
+maps-restore-no-server = `{ $server }` не ответил; ничего не возвращено.
+maps-restore-present = На `{ $server }` уже есть файл { $file }. Сначала удалите его или загрузите эту копию через /maps upload.
+maps-restore-present-same = На `{ $server }` уже есть точно этот файл: { $file }.
+maps-restore-result = { $file } на `{ $server }`: { $status }
+
+# /maps duplicates
+
+cmd-maps-duplicates-description = Найти карты, установленные дважды (проверяющий карт)
+maps-duplicates-title = Возможные дубликаты на { $server }
+maps-duplicates-none = На `{ $server }` дубликатов карт не найдено.
+maps-duplicates-same-bytes = **Один и тот же файл под разными именами:**
+maps-duplicates-same-title = **Одинаковые название и автор:**
+
+# Maps log
+
+maps-log-upload = ⬆ { $user } использовал(а) /maps upload.
+maps-log-accepted = ✅ { $user } принял(а) заявку №{ $number }: { $file } на `{ $server }`
+maps-log-removed = 🗑️ { $user } удалил(а) { $file } с `{ $server }`.
+maps-log-restored = ♻️ { $user } вернул(а) { $file } на `{ $server }`.

@@ -16,6 +16,11 @@ from xcore_protocol.generated.maps import MapsInspectResponseV1
 
 from ...bus.transport import RpcError
 from ...i18n import resolve_dm_locale, t
+from ...map_backups import RPC_FAILURES, post_maps_log
+from ...map_list import map_text
+from ...map_targets import Incoming, Match, find_candidates, replacement_targets
+from ...map_targets import Outcome as Install
+from ...map_targets import outcome as install_outcome
 from ...retry import TRANSIENT_EXCEPTIONS
 from ...rpc.mindustry_rpc import NoLiveServerError
 from ...services.map_images import (
@@ -83,6 +88,10 @@ KNOWN_FINDINGS = frozenset(
         "invalid-map",
         "inspection-mismatch",
     )
+)
+# Findings whose server detail only says the same as the translated text, in English.
+PLAIN_FINDINGS = frozenset(
+    ("missing-name", "missing-author", "data-patches", "no-spawn", "pvp-single-team")
 )
 
 
@@ -304,6 +313,7 @@ async def _refresh(service, case, *, message=None):  # noqa: C901
         if any(payload.get(key) != value for key, value in identity.items()):
             for key in (
                 "server",
+                "target_file",
                 "upload_attempt",
                 "last_upload",
                 "badge_state",
@@ -545,6 +555,118 @@ def _ready(case, locale):
         raise ActionFailed(t(locale, "maps-not-valid"))
 
 
+def _target_name(case, values) -> str:
+    """The name the map gets on the server: its own, or the name of the map it replaces."""
+    target = values.get("target", "as-is")
+    return (
+        target.removeprefix("replace:")
+        if target.startswith("replace:")
+        else case.payload["file_name"]
+    )
+
+
+def _target_option(locale, candidate) -> discord.SelectOption | None:
+    value = "replace:" + candidate.file_name
+    if len(value) > 100:
+        return None
+    reasons = ", ".join(
+        t(locale, "maps-match-" + match.value)
+        for match in (Match.SAME_BYTES, Match.SAME_FILE, Match.SAME_TITLE)
+        if match in candidate.reasons
+    )
+    return discord.SelectOption(
+        label=safe_text(
+            t(locale, "maps-target-replace", file=candidate.file_name), limit=100
+        ),
+        value=value,
+        description=safe_text(reasons, limit=100) or None,
+    )
+
+
+async def _choose_target(context: ActionContext, case: Case, server: str) -> bool:
+    """Decides what the map replaces on ``server``; ``True`` when a person was asked.
+
+    A map with nothing like it installed, or that replaces only its own earlier version under
+    the same name, needs no question. One that looks like another installed map, or would
+    overwrite a different map, waits for the reviewer's choice.
+    """
+    if "target" in context.values:
+        return False
+    locale, file_name = context.locale, case.payload["file_name"]
+    try:
+        maps = await context.service.bot.container.rpc.list_maps(
+            server=server, timeout_ms=context.service.settings.rpc_timeout_ms
+        )
+    except RPC_FAILURES:
+        if context.values.get("unlisted") != "yes":
+            await context.confirm(
+                t(
+                    locale,
+                    "maps-target-unlisted",
+                    server=map_text(server, inline_code=True),
+                    file=map_text(file_name, 100, inline_code=True),
+                ),
+                name="unlisted",
+            )
+            return True
+        context.values["target"] = "as-is"
+        return False
+    info = case.payload.get("info", {})
+    candidates = find_candidates(
+        maps,
+        Incoming(
+            file_name, case.payload.get("sha256"), info.get("name"), info.get("author")
+        ),
+    )
+    if install_outcome(candidates, file_name) != Install.CONFIRM:
+        context.values["target"] = "as-is"
+        return False
+    by_name = {c.file_name: c for c in candidates}
+    options = [
+        option
+        for name in replacement_targets(candidates, file_name)[:24]
+        if (option := _target_option(locale, by_name[name])) is not None
+    ]
+    overwrites = any(
+        c.overwritten_foreign
+        for c in candidates
+        if c.file_name.casefold() == file_name.casefold()
+    )
+    options.append(
+        discord.SelectOption(
+            label=safe_text(
+                t(
+                    locale,
+                    "maps-target-overwrite" if overwrites else "maps-target-new",
+                    file=file_name,
+                ),
+                limit=100,
+            ),
+            value="as-is",
+        )
+    )
+    lines = [t(locale, "maps-target-choose", server=map_text(server, inline_code=True))]
+    for candidate in candidates[:10]:
+        item = candidate.item
+        lines.append(
+            "• "
+            + t(
+                locale,
+                "maps-candidate",
+                file="`" + map_text(candidate.file_name, 100, inline_code=True) + "`",
+                name=map_text(safe_text(item.get("name"), limit=60) or "?", 60),
+                author=map_text(safe_text(item.get("author"), limit=40) or "?", 40),
+                reasons=", ".join(
+                    t(locale, "maps-match-" + match.value)
+                    for match in (Match.SAME_BYTES, Match.SAME_FILE, Match.SAME_TITLE)
+                    if match in candidate.reasons
+                ),
+            )
+        )
+    await context.choose("\n".join(lines)[:2000], "target", options)
+    return True
+
+
 async def accept(context: ActionContext):  # noqa: C901
     case = context.case
     _ready(case, context.locale)
@@ -571,6 +693,15 @@ async def accept(context: ActionContext):  # noqa: C901
     server = context.values["server"]
     if server not in {s.name for s in servers}:
         raise ActionFailed(t(context.locale, "maps-no-server"))
+    if await _choose_target(context, case, server):
+        return None
+    target_name = _target_name(case, context.values)
+    if (
+        not target_name.lower().endswith(".msav")
+        or "/" in target_name
+        or "\\" in target_name
+    ):
+        raise ActionFailed(t(context.locale, "maps-review-changed"))
     has_errors = any(f["severity"] == "error" for f in case.payload.get("findings", []))
     if has_errors and context.values.get("accept_anyway") != "yes":
         await context.confirm(
@@ -602,7 +733,7 @@ async def accept(context: ActionContext):  # noqa: C901
             claimed.opener.discord_name or "",
             claimed.payload.get("creator_handle"),
         )
-        files = [MapUploadFile(attachment.url, attachment.filename)]
+        files = [MapUploadFile(attachment.url, target_name)]
         uploader = Actor(
             str(context.member.id),
             context.member.display_name,
@@ -616,6 +747,7 @@ async def accept(context: ActionContext):  # noqa: C901
             action_token=token,
             set_fields={
                 "payload.server": server,
+                "payload.target_file": target_name,
                 "payload.upload_attempt": {
                     "state": "unknown",
                     "token": token,
@@ -634,7 +766,11 @@ async def accept(context: ActionContext):  # noqa: C901
             await context.service.checkpoint(
                 claimed.number,
                 action_token=token,
-                unset_fields=("payload.upload_attempt", "payload.server"),
+                unset_fields=(
+                    "payload.upload_attempt",
+                    "payload.server",
+                    "payload.target_file",
+                ),
             )
             raise ActionFailed(t(context.locale, "maps-review-changed"))
         try:
@@ -685,6 +821,31 @@ async def accept(context: ActionContext):  # noqa: C901
                 "payload.pending_badge": True,
             },
             unset_fields=("payload.last_upload",),
+        )
+        staff = context.service.settings.cases_staff_locale
+        await post_maps_log(
+            context.service.bot,
+            t(
+                staff,
+                "maps-log-accepted",
+                user=f"<@{context.member.id}>",
+                number=claimed.number,
+                file="`" + map_text(status.fileName, 100, inline_code=True) + "`",
+                server=map_text(server, inline_code=True),
+            )
+            + (
+                " · "
+                + t(
+                    staff,
+                    "maps-upload-note-replaced",
+                    source="`"
+                    + map_text(attachment.filename, 100, inline_code=True)
+                    + "`",
+                )
+                if target_name != attachment.filename
+                else ""
+            )
+            + f" <#{claimed.discord['thread_id']}>",
         )
         return Resolution(
             "accepted",
@@ -848,7 +1009,7 @@ def _finding(finding, locale):
         text += f" ({finding['x']}, {finding['y']})"
     if finding.get("count") is not None:
         text += " · " + t(locale, "maps-finding-count", count=finding["count"])
-    if finding.get("detail"):
+    if finding.get("detail") and code not in PLAIN_FINDINGS:
         text += " — " + safe_text(finding["detail"], limit=180)
     return text[:350]
 

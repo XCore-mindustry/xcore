@@ -6,7 +6,7 @@ import discord
 from discord import Interaction, app_commands
 from discord.ext import commands
 
-from .. import handlers_maps
+from .. import handlers_maps, map_admin
 from ..cases.flows.maps import intake
 from ..cases.modals import error_text
 from ..cases.model import AccessDenied, ActionFailed, CaseKind
@@ -113,7 +113,17 @@ class MapsCog(commands.Cog):
         server: str,
         file_name: str,
     ) -> None:
-        await handlers_maps.cmd_remove_map(self.bot, interaction, server, file_name)
+        await map_admin.cmd_remove_map(self.bot, interaction, server, file_name)
+
+    @maps_group.command(
+        name="duplicates",
+        description="Find maps installed twice on a server (map reviewer)",
+    )
+    @app_commands.describe(server="Server name")
+    @app_commands.autocomplete(server=_autocomplete_server_for_command)
+    @map_reviewer_check()
+    async def cmd_duplicates(self, interaction: Interaction, server: str) -> None:
+        await map_admin.cmd_duplicates(self.bot, interaction, server)
 
     @maps_group.command(
         name="upload",
@@ -128,8 +138,10 @@ class MapsCog(commands.Cog):
         creator1="Creator of file1 (overrides the default)",
         creator2="Creator of file2 (overrides the default)",
         creator3="Creator of file3 (overrides the default)",
+        replace="Installed map this file replaces (one file only)",
     )
     @app_commands.autocomplete(server=_autocomplete_server_for_command)
+    @app_commands.autocomplete(replace=autocomplete_map_file)
     @map_reviewer_check()
     async def cmd_upload_map(
         self,
@@ -142,12 +154,14 @@ class MapsCog(commands.Cog):
         creator1: discord.User | None = None,
         creator2: discord.User | None = None,
         creator3: discord.User | None = None,
+        replace: str | None = None,
     ) -> None:
-        await handlers_maps.cmd_upload_map(
+        await map_admin.cmd_upload_map(
             self.bot,
             interaction,
             server,
             [file1, file2, file3],
             creator=creator,
             creators=[creator1, creator2, creator3],
+            replace=replace,
         )

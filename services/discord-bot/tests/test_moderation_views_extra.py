@@ -9,7 +9,6 @@ import pytest
 from xcore_discord_bot.dto import PlayerRecord
 from xcore_discord_bot.moderation_views import (
     BanConfirmView,
-    MapRemoveConfirmView,
     MuteUndoView,
 )
 
@@ -73,56 +72,6 @@ async def test_ban_confirm_view_cancel_disables_buttons() -> None:
 
     assert interaction.response.edits[0]["content"] == "Ban cancelled."
     assert all(getattr(child, "disabled", False) for child in view.children)
-
-
-@pytest.mark.asyncio
-async def test_map_remove_confirm_view_cancel_edits_message() -> None:
-    view = MapRemoveConfirmView(
-        requester_id=7,
-        server="mini-pvp",
-        file_name="arena.msav",
-        request_nonce="nonce-1",
-        perform_remove_map=lambda **kwargs: None,
-    )
-    interaction = _Interaction(user=_User(id=7))
-
-    callback = view.children[1].callback
-    assert callback is not None
-    await callback(interaction)
-
-    assert interaction.response.edits[0]["content"] == "Map removal cancelled."
-    assert all(getattr(child, "disabled", False) for child in view.children)
-
-
-@pytest.mark.asyncio
-async def test_map_remove_confirm_view_confirm_without_message_only_defers() -> None:
-    calls: list[dict[str, str]] = []
-
-    async def perform_remove_map(**kwargs: str) -> str:
-        calls.append(kwargs)
-        return "removed"
-
-    view = MapRemoveConfirmView(
-        requester_id=7,
-        server="mini-pvp",
-        file_name="arena.msav",
-        request_nonce="nonce-2",
-        perform_remove_map=perform_remove_map,
-    )
-    interaction = _Interaction(user=_User(id=7), message=None)
-
-    callback = view.children[0].callback
-    assert callback is not None
-    await callback(interaction)
-
-    assert interaction.response.deferred == 1
-    assert calls == [
-        {
-            "server": "mini-pvp",
-            "file_name": "arena.msav",
-            "request_nonce": "nonce-2",
-        }
-    ]
 
 
 @pytest.mark.asyncio

@@ -254,6 +254,13 @@ ordered filenames, only `installed` writes a `NOTE` with `kind="map_uploaded"` a
 completion `audit_id`. Return `Resolution("accepted", audit_id=result.audit_id, server=server,
 file_name=result.results[0].fileName)` only for that status. All other statuses write a
 nonterminal `map_upload_result` note and must raise localized `ActionFailed` rather than accept.
+Before the upload, Accept compares the reviewed file with the server's map list
+(`map_targets`). When the file looks like an installed map under another name, or would
+overwrite a different map, the reviewer chooses `replace:<installed file>` or `as-is`; the map
+is then installed under that name. The checkpoint that records `upload_attempt` also stores the
+name as `payload.target_file`, and recovery matches the audit's `file_name` against it (or
+`payload.file_name` when there is none). A newer author file drops `target_file` with the rest
+of the upload state.
 `metadata_failed` means the map file may be installed but attribution failed; it remains open,
 as does `superseded`. Legacy slash uploads remain multifile and add no case audits. Map Maker
 grants belong in the post-close/reconcile hook and cannot prove map acceptance.

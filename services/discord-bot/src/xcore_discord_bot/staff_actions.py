@@ -73,7 +73,11 @@ class BadgeGrantUnconfirmed(StaffActionError):
 
 
 class InvalidMapUpload(StaffActionError):
-    pass
+    """``code`` names the problem for the reply: ``no-files``, ``same-names`` or ``invalid``."""
+
+    def __init__(self, message: str, *, code: str = "invalid") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class MapUploadTimeout(StaffActionError):
@@ -743,9 +747,11 @@ def prepare_map_upload(
             {"url": file.url, "filename": file.filename, "discordUpload": upload}
         )
     if not payload:
-        raise InvalidMapUpload("No valid .msav files attached.")
+        raise InvalidMapUpload("No valid .msav files attached.", code="no-files")
     if len({item["filename"] for item in payload}) != len(payload):
-        raise InvalidMapUpload("Each attachment must have a different filename.")
+        raise InvalidMapUpload(
+            "Each attachment must have a different filename.", code="same-names"
+        )
     try:
         build_maps_upload_request(server, payload)
     except (ValueError, TypeError) as error:

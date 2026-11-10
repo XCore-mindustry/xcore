@@ -16,7 +16,8 @@ from xcore_protocol.generated.maps import (
 )
 
 from xcore_discord_bot.bot import XCoreDiscordBot
-from xcore_discord_bot.handlers_maps import cmd_maps, perform_remove_map
+from xcore_discord_bot.handlers_maps import cmd_maps
+from xcore_discord_bot.map_admin import RemoveOutcome, perform_remove_map
 from xcore_discord_bot.server_views import MapsListView
 
 
@@ -76,7 +77,8 @@ async def _maps_bot(
             "messageType": MapsRemoveResponseV1.MESSAGE_TYPE,
             "messageVersion": 1,
             "server": payload["server"],
-            "result": f"removed {payload['fileName']}",
+            # The plugin's own wording; the bot reads success from its first words.
+            "result": f"Successfully removed map Arena ({payload['fileName']})",
         }
     )
     return bot, game
@@ -195,15 +197,20 @@ async def test_cmd_maps_defaults_to_reputation_sort() -> None:
 async def test_perform_remove_map_runs_once_per_request() -> None:
     bot, game = await _maps_bot()
 
-    async def remove(nonce: str) -> str:
+    async def remove(nonce: str) -> RemoveOutcome:
         return await perform_remove_map(
             bot, server="mini-pvp", file_name="arena.msav", request_nonce=nonce
         )
 
-    assert await remove("nonce-1") == (
-        "🗑️ `mini-pvp` remove-map `arena.msav`: removed arena.msav"
+    first = await remove("nonce-1")
+    assert first == RemoveOutcome(
+        "🗑️ `mini-pvp`: removed `arena.msav`. "
+        "Successfully removed map Arena (arena.msav)",
+        True,
     )
-    assert await remove("nonce-1") == "This map removal was already processed."
+    assert await remove("nonce-1") == RemoveOutcome(
+        "This map removal was already processed.", False
+    )
     assert (
         590
         < await bot.bus.redis.ttl("xcore:idmp:remove-map:mini-pvp:arena.msav:nonce-1")
@@ -231,7 +238,7 @@ async def test_perform_remove_map_returns_timeout_message() -> None:
         request_nonce="nonce-2",
     )
 
-    assert result == "No response from target server (timeout)."
+    assert result == RemoveOutcome("No response from target server (timeout).", False)
     # A removal is a write: it may have been applied, so it is not sent again.
     assert [request["timeout_ms"] for request in game.requests] == ["50"]
 

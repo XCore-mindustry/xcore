@@ -126,3 +126,102 @@ maps-card-render-busy = Рендерер зайнятий іншими мапа�
 maps-card-render-cooldown = Новий рендер можна запустити через { $seconds } с.
 maps-card-render-failed = Не вдалося відмалювати цю мапу.
 maps-card-render-unavailable = Рендерер зараз не запущений. Спробуйте пізніше.
+
+# Comparing a file with the maps already installed
+
+maps-match-same-bytes = той самий файл
+maps-match-same-file = та сама назва файлу
+maps-match-same-title = та сама назва карти й автор
+maps-candidate = { $file } — { $name }, автор { $author } ({ $reasons })
+maps-choice-expired = Вибір не зроблено вчасно; нічого не змінено.
+maps-target-choose = Схожа карта вже встановлена на `{ $server }`. Що зробити з цим файлом?
+maps-target-replace = Замінити { $file }
+maps-target-new = Встановити як нову карту { $file }
+maps-target-overwrite = Перезаписати { $file } (інша карта)
+maps-target-unlisted = Не вдалося отримати список карт `{ $server }`, дублікати не перевірено. Все одно встановити карту як { $file }?
+
+# /maps upload
+
+cmd-maps-upload-param-replace-description = Встановлена карта, яку замінює файл (лише для одного файлу)
+maps-upload-checking = Звіряю файли карт ({ $count }) з `{ $server }`…
+maps-upload-uploading = Завантажую файли карт ({ $count }) на `{ $server }`…
+maps-upload-invalid-no-files = Не прикріплено жодного файлу .msav.
+maps-upload-invalid-same-names = Усі вкладення мають мати різні назви файлів.
+maps-upload-invalid-invalid = Дані завантаження некоректні; на сервер нічого не надіслано.
+maps-upload-replace-one = `replace` працює лише з одним файлом .msav.
+maps-upload-replace-missing = На `{ $server }` немає карти { $file }, замінювати нічого. Нічого не завантажено.
+maps-upload-confirm-title = Перевірте перед завантаженням на `{ $server }`:
+maps-plan-new = { $file } — нова карта
+maps-plan-same = { $file } — точно такий самий файл уже встановлено
+maps-plan-update = { $file } — оновить встановлену версію
+maps-plan-replace = { $source } → замінить { $file }
+maps-plan-unchecked = { $file } — не звірено зі встановленими картами
+maps-plan-overwrite = { $file } — ⚠️ перезапише іншу карту:
+maps-plan-duplicate = { $file } — ⚠️ схоже на вже встановлену карту:
+maps-upload-button-replace = Замінити { $file }
+maps-upload-button-as-is = Завантажити як є
+maps-upload-button-cancel = Скасувати
+maps-upload-cancelled = Завантаження скасовано; на сервер нічого не надіслано.
+maps-upload-result-title = Карти на `{ $server }`:
+maps-upload-row = { $status } — { $file }
+maps-upload-label-installed = ✅ Встановлено, атрибуцію збережено
+maps-upload-label-download_failed = ❌ Не вдалося завантажити або записати файл
+maps-upload-label-invalid_map = ❌ Некоректний файл карти
+maps-upload-label-superseded = ⚠️ Замінено новішим завантаженням
+maps-upload-label-metadata_failed = ⚠️ Встановлено, але атрибуцію не збережено
+maps-upload-label-rejected = ❌ Неприпустима назва файлу
+maps-upload-note-new = нова карта
+maps-upload-note-update = оновлено встановлену версію
+maps-upload-note-same = цей самий файл уже було встановлено
+maps-upload-note-replaced = з { $source }
+maps-upload-unchecked = Не вдалося отримати список карт `{ $server }`: дублікати не перевірено.
+maps-upload-timeout = Сервер ще не підтвердив результат. Частину файлів уже може бути встановлено; перевірте /maps list перед повтором.
+maps-upload-unconfirmed = Не вдалося підтвердити результат завантаження. Перевірте /maps list перед повтором.
+
+# /maps remove
+
+maps-remove-empty = Назва файлу карти не може бути порожньою.
+maps-remove-question = Видалити { $file } з `{ $server }`?
+maps-remove-unlisted = ⚠️ Не вдалося отримати список карт сервера, тому карту показати не можна.
+maps-remove-siblings = Ця сама карта є й в інших файлах:
+maps-remove-backup = Копію файлу буде опубліковано в цьому каналі з кнопкою **Повернути**.
+maps-remove-no-backup = ⚠️ Сервер не надіслав копію файлу: після видалення карту не повернути.
+maps-remove-button-remove = Видалити
+maps-remove-button-cancel = Скасувати
+maps-remove-cancelled = Видалення карти скасовано.
+maps-remove-removing = Видаляю { $file }…
+maps-remove-duplicate = Це видалення карти вже оброблено.
+maps-remove-timeout = Сервер не відповів (тайм-аут).
+maps-remove-done = 🗑️ `{ $server }`: { $file } видалено. { $detail }
+maps-remove-failed = ❌ `{ $server }`: { $file } не видалено. { $detail }
+maps-remove-public-pending = 🗑️ { $user } видаляє { $file } з `{ $server }`…
+maps-remove-public-done = 🗑️ { $user } видалив(-ла) { $file } з `{ $server }`. Копію файлу додано.
+maps-remove-public-failed = { $user } намагався(-лася) видалити { $file } з `{ $server }`; нічого не видалено.
+maps-remove-public-no-backup = Копію файлу не збережено.
+
+# Restore
+
+maps-restore-button = Повернути
+maps-restore-denied = Повертати карти можуть лише перевіряльники карт.
+maps-restore-gone = Копія цієї карти більше недоступна.
+maps-restore-done-already = Цю карту вже повернуто.
+maps-restore-busy = Цю карту повертають просто зараз.
+maps-restore-no-server = `{ $server }` не відповів; нічого не повернуто.
+maps-restore-present = На `{ $server }` уже є файл { $file }. Спочатку видаліть його або завантажте цю копію через /maps upload.
+maps-restore-present-same = На `{ $server }` уже є саме цей файл: { $file }.
+maps-restore-result = { $file } на `{ $server }`: { $status }
+
+# /maps duplicates
+
+cmd-maps-duplicates-description = Знайти карти, встановлені двічі (перевіряльник карт)
+maps-duplicates-title = Можливі дублікати на { $server }
+maps-duplicates-none = На `{ $server }` дублікатів карт не знайдено.
+maps-duplicates-same-bytes = **Той самий файл під різними назвами:**
+maps-duplicates-same-title = **Однакові назва карти й автор:**
+
+# Maps log
+
+maps-log-upload = ⬆ { $user } використав(-ла) /maps upload.
+maps-log-accepted = ✅ { $user } прийняв(-ла) заявку №{ $number }: { $file } на `{ $server }`
+maps-log-removed = 🗑️ { $user } видалив(-ла) { $file } з `{ $server }`.
+maps-log-restored = ♻️ { $user } повернув(-ла) { $file } на `{ $server }`.

@@ -126,3 +126,102 @@ maps-card-render-busy = The renderer is busy with other maps. Try again in a min
 maps-card-render-cooldown = You can start a new render in { $seconds } s.
 maps-card-render-failed = Could not draw this map.
 maps-card-render-unavailable = The renderer is not running right now. Try again later.
+
+# Comparing a file with the maps already installed
+
+maps-match-same-bytes = same file contents
+maps-match-same-file = same file name
+maps-match-same-title = same map name and author
+maps-candidate = { $file } — { $name } by { $author } ({ $reasons })
+maps-choice-expired = No choice was made in time; nothing was changed.
+maps-target-choose = A map like this one is already installed on `{ $server }`. Choose what this file does:
+maps-target-replace = Replace { $file }
+maps-target-new = Install as a new map { $file }
+maps-target-overwrite = Overwrite { $file } (another map)
+maps-target-unlisted = Could not read the map list of `{ $server }`, so duplicates were not checked. Install the map as { $file } anyway?
+
+# /maps upload
+
+cmd-maps-upload-param-replace-description = Installed map this file replaces (one file only)
+maps-upload-checking = Checking { $count } map file(s) against `{ $server }`…
+maps-upload-uploading = Uploading { $count } map file(s) to `{ $server }`…
+maps-upload-invalid-no-files = No valid .msav files attached.
+maps-upload-invalid-same-names = Each attachment must have a different filename.
+maps-upload-invalid-invalid = The upload details are invalid; nothing was sent to the server.
+maps-upload-replace-one = `replace` works with exactly one .msav file.
+maps-upload-replace-missing = There is no map { $file } on `{ $server }` to replace. Nothing was uploaded.
+maps-upload-confirm-title = Check before uploading to `{ $server }`:
+maps-plan-new = { $file } — a new map
+maps-plan-same = { $file } — this exact file is already installed
+maps-plan-update = { $file } — updates the installed version
+maps-plan-replace = { $source } → replaces { $file }
+maps-plan-unchecked = { $file } — not checked against the installed maps
+maps-plan-overwrite = { $file } — ⚠️ overwrites a different map:
+maps-plan-duplicate = { $file } — ⚠️ looks like a map that is already installed:
+maps-upload-button-replace = Replace { $file }
+maps-upload-button-as-is = Upload as is
+maps-upload-button-cancel = Cancel
+maps-upload-cancelled = Upload cancelled; nothing was sent to the server.
+maps-upload-result-title = Maps on `{ $server }`:
+maps-upload-row = { $status } — { $file }
+maps-upload-label-installed = ✅ Installed; attribution saved
+maps-upload-label-download_failed = ❌ Download or file write failed
+maps-upload-label-invalid_map = ❌ Invalid map file
+maps-upload-label-superseded = ⚠️ Replaced by a newer upload
+maps-upload-label-metadata_failed = ⚠️ Installed; attribution was not saved
+maps-upload-label-rejected = ❌ Rejected filename
+maps-upload-note-new = new map
+maps-upload-note-update = updated the installed version
+maps-upload-note-same = the same file was already installed
+maps-upload-note-replaced = from { $source }
+maps-upload-unchecked = Could not read the map list of `{ $server }`: duplicates were not checked.
+maps-upload-timeout = The server has not confirmed the result yet. Some files may already be installed; check /maps list before retrying.
+maps-upload-unconfirmed = Could not confirm the upload result. Check /maps list before retrying.
+
+# /maps remove
+
+maps-remove-empty = Map file name must not be empty.
+maps-remove-question = Remove { $file } from `{ $server }`?
+maps-remove-unlisted = ⚠️ Could not read the map list of the server, so this map could not be shown.
+maps-remove-siblings = Other installed files hold the same map:
+maps-remove-backup = A copy of the file is posted in this channel with a **Restore** button.
+maps-remove-no-backup = ⚠️ The server could not send a copy of the file: once removed, it cannot be restored.
+maps-remove-button-remove = Remove
+maps-remove-button-cancel = Cancel
+maps-remove-cancelled = Map removal cancelled.
+maps-remove-removing = Removing { $file }…
+maps-remove-duplicate = This map removal was already processed.
+maps-remove-timeout = No response from target server (timeout).
+maps-remove-done = 🗑️ `{ $server }`: removed { $file }. { $detail }
+maps-remove-failed = ❌ `{ $server }`: { $file } was not removed. { $detail }
+maps-remove-public-pending = 🗑️ { $user } is removing { $file } from `{ $server }`…
+maps-remove-public-done = 🗑️ { $user } removed { $file } from `{ $server }`. A copy of the file is attached.
+maps-remove-public-failed = { $user } tried to remove { $file } from `{ $server }`; nothing was removed.
+maps-remove-public-no-backup = No copy of the file was kept.
+
+# Restore
+
+maps-restore-button = Restore
+maps-restore-denied = Only map reviewers can restore maps.
+maps-restore-gone = The copy of this map is no longer available.
+maps-restore-done-already = This map has already been restored.
+maps-restore-busy = This map is being restored right now.
+maps-restore-no-server = `{ $server }` did not answer; nothing was restored.
+maps-restore-present = `{ $server }` already has a file { $file }. Remove it first, or upload this copy with /maps upload.
+maps-restore-present-same = `{ $server }` already has this exact file as { $file }.
+maps-restore-result = { $file } on `{ $server }`: { $status }
+
+# /maps duplicates
+
+cmd-maps-duplicates-description = Find maps installed twice on a server (map reviewer)
+maps-duplicates-title = Possible duplicates on { $server }
+maps-duplicates-none = No duplicate maps found on `{ $server }`.
+maps-duplicates-same-bytes = **The same file under different names:**
+maps-duplicates-same-title = **The same map name and author:**
+
+# Maps log
+
+maps-log-upload = ⬆ { $user } used /maps upload.
+maps-log-accepted = ✅ { $user } accepted case #{ $number }: { $file } on `{ $server }`
+maps-log-removed = 🗑️ { $user } removed { $file } from `{ $server }`.
+maps-log-restored = ♻️ { $user } restored { $file } on `{ $server }`.

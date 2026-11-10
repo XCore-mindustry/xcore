@@ -33,6 +33,8 @@ async def map_core(**kwargs):
     service.registry.register(MAP_FLOW)
     service.registry.enable(CaseKind.MAP)
     bot.bus.rpc_upload_maps = game.rpc_upload_maps
+    # The maps on the server before the review's upload; tests set their own.
+    bot.bus.rpc_maps_list = AsyncMock(return_value=[])
     # Tests swap the upload RPC on bot.bus while a case runs.
     bot.container.servers = LiveServerRegistry()
     bot.container.servers.update_server("mini-pvp", 1, 0, 20, "v1", mode="pvp")
