@@ -41,7 +41,8 @@ class PluginStartupCoordinatorTest {
                 metricsSnapshotPublisher,
                 autoHostService,
                 sessionService,
-                mock(MetricsService.class)
+                mock(MetricsService.class),
+                mock(org.xcore.plugin.service.map.MapEntities.class)
         );
 
         boolean started = coordinator.start();
@@ -78,7 +79,8 @@ class PluginStartupCoordinatorTest {
                 metricsSnapshotPublisher,
                 autoHostService,
                 sessionService,
-                mock(MetricsService.class)
+                mock(MetricsService.class),
+                mock(org.xcore.plugin.service.map.MapEntities.class)
         );
 
         boolean started = coordinator.start();
@@ -109,7 +111,8 @@ class PluginStartupCoordinatorTest {
                 metricsSnapshotPublisher,
                 autoHostService,
                 sessionService,
-                mock(MetricsService.class)
+                mock(MetricsService.class),
+                mock(org.xcore.plugin.service.map.MapEntities.class)
         );
 
         boolean started = coordinator.start();

@@ -64,6 +64,8 @@ public class MapTransportHandler {
     private final MapUploadRepository uploadRepository;
     private final MapInspectionService inspection;
     private final MapTrash trash;
+    /** {@code null} in tests that build the handler by hand: lists then show each file's own record. */
+    private final org.xcore.plugin.service.map.MapEntities entities;
     private final AtomicInteger inspectionsInFlight = new AtomicInteger();
     private static final int MAX_INSPECTIONS = 4;
     private final Object[] fileLocks = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Object()).toArray();
@@ -79,7 +81,7 @@ public class MapTransportHandler {
                                MapService mapService,
                                MapDataRepository mapDataRepository,
                                Async async, MapUploadRepository uploadRepository, MapInspectionService inspection,
-                               MapTrash trash) {
+                               MapTrash trash, org.xcore.plugin.service.map.MapEntities entities) {
         this.network = network;
         this.config = config;
         this.mapService = mapService;
@@ -88,6 +90,13 @@ public class MapTransportHandler {
         this.uploadRepository = uploadRepository;
         this.inspection = inspection;
         this.trash = trash;
+        this.entities = entities;
+    }
+
+    public MapTransportHandler(NetworkService network, TomlXcoreConfig config, MapService mapService,
+                               MapDataRepository mapDataRepository, Async async,
+                               MapUploadRepository uploadRepository, MapInspectionService inspection, MapTrash trash) {
+        this(network, config, mapService, mapDataRepository, async, uploadRepository, inspection, trash, null);
     }
 
     /** Keeps removed and replaced files aside with the default retention. */
@@ -121,6 +130,8 @@ public class MapTransportHandler {
                         try { mapDataRepository.findOrCreate(name, fileName, author, mode); }
                         catch (RuntimeException failure) { Log.err("[Maps] Could not initialize statistics for " + fileName, failure); }
                     }
+                    // The file may now belong to another map (its post); relink in the background.
+                    if (entities != null) entities.refresh();
                     return true;
                 }).future());
         pendingUploads.put(fileName, write);
@@ -132,6 +143,26 @@ public class MapTransportHandler {
             mapService.refreshAttribution();
         }));
         return write;
+    }
+
+    /** Each file's record with the ratings of its whole map (all revisions and modes), when known. */
+    private List<MapData> withMapTotals(List<MapIdentity> snapshot, List<MapData> persisted, String mode) {
+        if (entities == null) return persisted;
+        java.util.Map<String, org.xcore.plugin.service.map.MapEntities.Totals> totals;
+        try {
+            totals = entities.totals(snapshot.stream().map(MapIdentity::fileName).toList());
+        } catch (RuntimeException failure) {
+            Log.err("[Maps] Map totals lookup failed; listing each file's own record", failure);
+            return persisted;
+        }
+        List<MapData> shown = new ArrayList<>(persisted.size());
+        for (int i = 0; i < snapshot.size(); i++) {
+            String fileName = snapshot.get(i).fileName();
+            var map = org.xcore.plugin.map.domain.MapKeys.named(fileName)
+                    ? totals.get(org.xcore.plugin.map.domain.MapKeys.lower(fileName)) : null;
+            shown.add(org.xcore.plugin.service.map.MapEntities.withTotals(persisted.get(i), map, fileName, mode));
+        }
+        return shown;
     }
 
     /** Re-captures map identity after any engine maps.reload() (upload/remove paths). */
@@ -178,7 +209,7 @@ public class MapTransportHandler {
                             persisted.add(null);
                         }
                     }
-                    return persisted;
+                    return withMapTotals(snapshot, persisted, currentGameMode);
                 })
                 .thenMain((persisted, error) -> {
                     // thenMain completes exceptionally on a storage failure or a dispatch

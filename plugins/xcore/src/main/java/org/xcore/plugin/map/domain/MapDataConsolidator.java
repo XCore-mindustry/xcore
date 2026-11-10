@@ -13,6 +13,21 @@ import java.util.Map;
  */
 public class MapDataConsolidator {
 
+    /** The entity of the map {@code key} (see {@link MapKeys}) from all of its records. */
+    public MapEntity consolidate(String key, List<MapData> records) {
+        MapEntity entity = consolidate(records);
+        if (entity == null) return null;
+        var names = new java.util.TreeSet<String>();
+        for (MapData record : records) {
+            if (MapKeys.named(record.fileName)) names.add(record.fileName);
+        }
+        entity.mapKey = key;
+        entity.threadId = key.startsWith(MapKeys.POST) ? key.substring(MapKeys.POST.length()) : null;
+        entity.fileNames = new java.util.ArrayList<>(names);
+        entity.fileNamesLower = names.stream().map(MapKeys::lower).distinct().toList();
+        return entity;
+    }
+
     public MapEntity consolidate(List<MapData> records) {
         if (records == null || records.isEmpty()) {
             return null;

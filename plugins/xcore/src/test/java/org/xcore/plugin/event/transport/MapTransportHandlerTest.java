@@ -207,6 +207,54 @@ class MapTransportHandlerTest {
         assertThat(response.getValue().toString()).contains("Alpha", "Beta");
     }
 
+    @Test
+    @DisplayName("the list shows the ratings of the whole map, not only this file and mode")
+    void mapsListRequest_showsTheTotalsOfTheMap() {
+        NetworkService network = mock(NetworkService.class);
+        TomlXcoreConfig config = new TomlXcoreConfig();
+        config.server.name = "mini-pvp";
+        MapService mapService = mock(MapService.class);
+        MapDataRepository mapDataRepository = mock(MapDataRepository.class);
+        var own = new org.xcore.plugin.model.MapData("Alpha", "alpha.msav", "somebody", "pvp");
+        own.like = 2;
+        own.popularity = 4.5;
+        when(mapDataRepository.findByFileName("alpha.msav", "pvp")).thenReturn(java.util.Optional.of(own));
+        var entities = mock(org.xcore.plugin.service.map.MapEntities.class);
+        when(entities.totals(List.of("alpha.msav", "beta.msav")))
+                .thenReturn(Map.of("alpha.msav", new org.xcore.plugin.service.map.MapEntities.Totals(9, 1, 7)));
+
+        Maps maps = mock(Maps.class);
+        Vars.maps = maps;
+        mindustry.maps.Map alpha = realMap("Alpha");
+        mindustry.maps.Map beta = realMap("Beta");
+        when(maps.customMaps()).thenReturn(Seq.with(alpha, beta));
+        Vars.state = new mindustry.core.GameState();
+        Vars.state.rules = mock(Rules.class);
+        when(Vars.state.rules.mode()).thenReturn(Gamemode.pvp);
+
+        MapTransportHandler handler = new MapTransportHandler(network, config, mapService, mapDataRepository,
+                new Async(InlineStorageExecutor.create(), Runnable::run), uploadRepository,
+                mock(org.xcore.plugin.service.map.MapInspectionService.class),
+                new org.xcore.plugin.service.map.MapTrash(new org.xcore.plugin.config.TomlSecretsConfig()), entities);
+        Map<Class<?>, Cons<?>> listeners = new HashMap<>();
+        captureListeners(network, listeners);
+        handler.registerListeners();
+
+        listener(listeners, MapsListRequestV1.class).get(new MapsListRequestV1("mini-pvp"));
+
+        var response = ArgumentCaptor.forClass(org.xcore.protocol.generated.messages.maps.MapsMessages.MapsListResponseV1.class);
+        verify(network).respond(any(), response.capture());
+        var listed = response.getValue().maps();
+        assertThat(listed.get(0).like()).isEqualTo(9);
+        assertThat(listed.get(0).dislike()).isEqualTo(1);
+        assertThat(listed.get(0).reputation()).isEqualTo(7);
+        assertThat(listed.get(0).popularity()).isEqualTo(4.5);
+        assertThat(listed.get(0).gameMode()).isEqualTo("pvp");
+        // A file whose map is not known yet keeps what it had: here, no record at all.
+        assertThat(listed.get(1).like()).isNull();
+        assertThat(own.like).isEqualTo(2);
+    }
+
     /**
      * A real Map, not a mock: {@code file} is a final field, so Mockito cannot populate it
      * and the mapper would dereference null while reading the file name.

@@ -106,6 +106,12 @@ lists the maps of each live server and takes the file whose attribution names th
 the other servers after an accepted update, and `/maps install`, write each server separately
 with that server's file name, expectation and creator.
 
+The plugin uses the same `threadId` to know which files are one map: every `map_uploads` row
+with a thread links its file name to that post, on any server, and `map_entities` holds one
+document per map (`post:<threadId>`, else `file:<name>`). `maps.list` reports a file's likes,
+dislikes and reputation summed over the whole map. See
+[map-updates-design-spec.md](map-updates-design-spec.md), stage 3.
+
 Instead of deleting a removed file or silently overwriting a replaced one, the server sets it
 aside in `<custom maps>/.trash` as `<trashId>.msav.kept` with a `<trashId>.json` sidecar (file
 name, hash, size, time, reason and the attribution it had). The engine only loads `*.msav`
