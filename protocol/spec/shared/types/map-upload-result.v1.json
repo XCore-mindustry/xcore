@@ -22,12 +22,28 @@
         "invalid_map",
         "superseded",
         "metadata_failed",
-        "rejected"
+        "rejected",
+        "conflict"
       ]
     },
     "detail": {
       "type": "string",
       "minLength": 1
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 of the installed file."
+    },
+    "replacedContentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 of the file this upload replaced."
+    },
+    "trashId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,160}$",
+      "description": "Where the replaced file was kept (maps.trash.list, maps.restore)."
     }
   }
 }

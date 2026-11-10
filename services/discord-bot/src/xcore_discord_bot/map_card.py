@@ -65,6 +65,8 @@ def _credits(item: dict[str, str]) -> str:
     credits = []
     if item.get("creator_discord_id"):
         credits.append(f"🎨 {map_contributor(item, 'creator')}")
+    if item.get("fixed_by_discord_id"):
+        credits.append(f"🔧 {map_contributor(item, 'fixed_by')}")
     credits.append(f"⬆ {map_contributor(item, 'uploaded_by')}")
     uploaded_at = item.get("uploaded_at", "")
     if uploaded_at.isascii() and uploaded_at.isdigit():

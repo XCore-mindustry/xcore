@@ -238,6 +238,12 @@ def build_maps_load_command(
                         if "discordUpload" in item
                         else {}
                     ),
+                    # Conditions the server checks before writing (protocol 0.19.0).
+                    **{
+                        key: item[key]
+                        for key in ("expectedContentHash", "expectAbsent")
+                        if item.get(key) is not None
+                    },
                 }
             )
             for item in files
@@ -264,10 +270,12 @@ def build_maps_list_request(
 def build_maps_remove_request(
     server: str,
     file_name: str,
+    expected_content_hash: str | None = None,
 ) -> MapsRemoveRequestV1:
     return MapsRemoveRequestV1(
         server=server,
         fileName=file_name,
+        expectedContentHash=expected_content_hash,
     )
 
 

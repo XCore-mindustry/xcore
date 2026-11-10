@@ -1864,7 +1864,7 @@ dev = [
 
 [[package]]
 name = "xcore-protocol"
-version = "0.18.0"
+version = "0.19.0"
 source = { editable = "protocol" }
 dependencies = [
     { name = "jsonschema" },

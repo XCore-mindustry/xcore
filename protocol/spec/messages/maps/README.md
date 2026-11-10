@@ -14,6 +14,8 @@ Maps request/response contracts belong here.
 - `maps.load.command` — command one server to download and load uploaded `.msav` files.
 - `maps.preview.request` / `maps.preview.response` — the thumbnail of one installed map, as a blob.
 - `maps.file.request` / `maps.file.response` — one installed map file, published as a blob.
+- `maps.trash.list.request` / `maps.trash.list.response` — the map files a server set aside instead of deleting (removed, or replaced by an upload).
+- `maps.restore.request` / `maps.restore.response` — put one of them back, under its own name or another.
 - `maps.render.request` / `maps.render.response` — a detailed render from the map renderer service (`xcore:rpc:req:map-renderer`).
 
 ## Blobs
@@ -26,6 +28,9 @@ it holds itself (a file submitted for review), always under the bytes' own SHA-2
 The map renderer keeps the Redis string `xcore:service:map-renderer` (JSON with `version`,
 `concurrency` and `inFlight`) with a 30 s TTL while it consumes requests. Clients may skip
 `maps.render` while the key is absent instead of waiting out the RPC timeout.
+
+## Conditional writes
+An upload file may carry `expectedContentHash` (replace only that exact file) or `expectAbsent` (install only under a free name), and a removal `expectedContentHash`. When the condition does not hold, the server changes nothing and answers `conflict`, so a reviewer never overwrites or removes a file other than the one they looked at. Removed and replaced files are kept aside (`trashId`).
 
 ## Field Policy
 - Payload fields use camelCase.

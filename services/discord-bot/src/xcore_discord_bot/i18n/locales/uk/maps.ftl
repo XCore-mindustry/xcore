@@ -84,7 +84,7 @@ maps-list-title = Карти на `{ $server }`
 maps-list-footer = Сортування: { $sort } • Сторінка { $page }/{ $pages } • усього карт: { $total } • на сторінці: { $shown }
 maps-list-open = Відкрити мапу…
 maps-list-open-gone = Цієї мапи більше немає у списку.
-maps-list-legend = 🎨 заявлений автор • ⬆ додано через Discord
+maps-list-legend = 🎨 заявлений автор • 🔧 виправив(-ла) • ⬆ додано через Discord
 maps-list-sort-reputation = за репутацією
 maps-list-sort-popularity = за популярністю
 maps-list-sort-name = за назвою
@@ -275,3 +275,24 @@ maps-rollback-option = Ревізія { $revision } · заявка №{ $number
 maps-rollback-running = Повертаю попередню ревізію як { $file }…
 maps-rollback-file-gone = Файлу заявки №{ $number } більше немає в цьому пості, або він змінився. Нічого не завантажено.
 maps-rollback-note = ↩️ { $user } повернув(-ла) ревізію { $revision } (заявка №{ $number }) замість заявки №{ $current }: { $file } на `{ $server }`.
+
+# Protocol 0.19.0: conditional writes and files kept aside
+
+maps-upload-label-conflict = ⚠️ Не записано: на сервері вже інший файл
+maps-upload-status-conflict = не записано: на сервері вже інший файл. Натисніть «Прийняти» знову, щоб побачити, що там
+maps-upload-note-conflict = перевірте /maps list і повторіть
+maps-upload-note-kept = попередній файл збережено на сервері (/maps trash)
+maps-remove-conflict = ⚠️ `{ $server }`: { $file } змінилася відтоді, як ви її дивилися; нічого не видалено.
+maps-remove-public-server-copy = Сервер зберіг копію файлу.
+maps-restore-status-restored = ♻️ повернуто разом з атрибуцією
+maps-restore-status-not_found = у сервера більше немає цієї копії
+maps-restore-status-conflict = назва зайнята; нічого не змінено
+maps-restore-status-failed = сервер не зміг її повернути
+maps-list-revision = рев. { $revision }
+cmd-maps-trash-description = Карти, які сервер відклав під час видалення чи заміни (перевіряльник карт)
+maps-trash-title = Файли, які `{ $server }` відклав замість видалення. Оберіть, який повернути:
+maps-trash-empty = У `{ $server }` немає відкладених файлів.
+maps-trash-row = { $file } — { $name } · { $reason } · { $date }
+maps-trash-reason-removed = видалено
+maps-trash-reason-replaced = замінено завантаженням
+maps-trash-restoring = Повертаю { $file }…

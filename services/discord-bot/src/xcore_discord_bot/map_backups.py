@@ -159,6 +159,12 @@ class MapRemovals:
             }
         await self._collection.update_one({"_id": ObjectId(removal_id)}, update)
 
+    async def set_trash(self, removal_id: str, trash_id: str) -> None:
+        """Where the server kept its own copy of the removed file (protocol 0.19.0)."""
+        await self._collection.update_one(
+            {"_id": ObjectId(removal_id)}, {"$set": {"trash_id": trash_id}}
+        )
+
     async def set_message(
         self, removal_id: str, channel_id: int, message_id: int
     ) -> None:
@@ -217,70 +223,73 @@ def restore_view(
     return view
 
 
-async def restore_map(  # noqa: C901
-    bot: XCoreDiscordBot, interaction: discord.Interaction, removal_id: str
-) -> None:
-    locale = reply_locale(bot, interaction)
-    if not has_any_role(interaction.user, map_reviewer_role_ids(bot.settings)):
-        await interaction.response.send_message(
-            t(locale, "maps-restore-denied"), ephemeral=True
-        )
-        return
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    removals = MapRemovals(bot)
-    row = await removals.get(removal_id)
-    if row is None:
-        await interaction.followup.send(t(locale, "maps-restore-gone"), ephemeral=True)
-        return
+def _quoted(file_name: str) -> str:
+    return "`" + map_text(file_name, 100, inline_code=True) + "`"
+
+
+async def _taken(bot: XCoreDiscordBot, locale: str, row: dict[str, Any]) -> str | None:
+    """Why the file cannot go back now, or ``None`` when its name is free."""
     server, file_name = row["server"], row["file_name"]
-    if row.get("restored_at") is not None:
-        await interaction.followup.send(
-            t(locale, "maps-restore-done-already"), ephemeral=True
-        )
-        return
-    message = interaction.message
-    attachment = next(
-        (
-            a
-            for a in (message.attachments if message else [])
-            if a.filename == file_name
-        ),
-        None,
-    )
-    if attachment is None:
-        await interaction.followup.send(t(locale, "maps-restore-gone"), ephemeral=True)
-        return
     try:
         maps = await bot.container.rpc.list_maps(
             server=server, timeout_ms=bot.settings.rpc_timeout_ms
         )
     except RPC_FAILURES:
-        await interaction.followup.send(
-            t(
-                locale,
-                "maps-restore-no-server",
-                server=map_text(server, inline_code=True),
-            ),
-            ephemeral=True,
+        return t(
+            locale, "maps-restore-no-server", server=map_text(server, inline_code=True)
         )
-        return
     present = find_map(maps, file_name)
-    if present is not None:
-        # Restoring would overwrite whatever took the name since; that is a new decision.
-        same = str(present.get("content_hash", "")).lower() == row.get("sha256")
-        await interaction.followup.send(
-            t(
-                locale,
-                "maps-restore-present-same" if same else "maps-restore-present",
-                file="`" + map_text(file_name, 100, inline_code=True) + "`",
-                server=map_text(server, inline_code=True),
-            ),
-            ephemeral=True,
+    if present is None:
+        return None
+    # Restoring would overwrite whatever took the name since; that is a new decision.
+    same = str(present.get("content_hash", "")).lower() == row.get("sha256")
+    return t(
+        locale,
+        "maps-restore-present-same" if same else "maps-restore-present",
+        file=_quoted(file_name),
+        server=map_text(server, inline_code=True),
+    )
+
+
+async def _from_server(
+    bot: XCoreDiscordBot, locale: str, row: dict[str, Any]
+) -> tuple[bool, str] | None:
+    """Puts the server's own copy back, with its attribution; ``None`` when it has none."""
+    if not row.get("trash_id"):
+        return None
+    try:
+        answer = await bot.container.rpc.restore_map(
+            server=row["server"],
+            trash_id=row["trash_id"],
+            file_name=row["file_name"],
+            timeout_ms=bot.settings.rpc_timeout_ms,
         )
-        return
-    if not await removals.claim_restore(removal_id, interaction.user):
-        await interaction.followup.send(t(locale, "maps-restore-busy"), ephemeral=True)
-        return
+    except TimeoutError:
+        return False, t(locale, "maps-upload-timeout")
+    except RPC_FAILURES:
+        return None
+    status = answer.status.value
+    if status in {"not_found", "failed"}:
+        return None  # the Discord copy is the way left
+    bot.container.map_catalog.forget(row["server"])
+    bot.container.map_images.forget(row["server"])
+    return status == "restored", t(
+        locale,
+        "maps-restore-result",
+        file=_quoted(row["file_name"]),
+        server=map_text(row["server"], inline_code=True),
+        status=t(locale, "maps-restore-status-" + status),
+    )
+
+
+async def _from_discord(
+    bot: XCoreDiscordBot,
+    locale: str,
+    row: dict[str, Any],
+    attachment: Any,
+    user: discord.abc.User,
+) -> tuple[bool, str]:
+    """Uploads the copy posted in Discord, with the creator the map had."""
     creator_row = row.get("creator") or None
     creator = (
         Actor(
@@ -292,47 +301,111 @@ async def restore_map(  # noqa: C901
         else None
     )
     uploader = Actor(
-        str(interaction.user.id),
-        getattr(interaction.user, "display_name", "") or interaction.user.name,
-        getattr(interaction.user, "name", None),
+        str(user.id),
+        getattr(user, "display_name", "") or user.name,
+        getattr(user, "name", None),
     )
-    restored = False
+    file_name = row["file_name"]
     try:
         result = await perform_map_upload(
-            bot, server, [MapUploadFile(attachment.url, file_name)], uploader, creator
-        )
-        status = result.results[0].status.value
-        restored = status in {"installed", "metadata_failed"}
-        text = t(
-            locale,
-            "maps-restore-result",
-            file="`" + map_text(file_name, 100, inline_code=True) + "`",
-            server=map_text(server, inline_code=True),
-            status=t(locale, "maps-upload-label-" + status),
+            bot,
+            row["server"],
+            [MapUploadFile(attachment.url, file_name, expect_absent=True)],
+            uploader,
+            creator,
         )
     except MapUploadTimeout:
-        text = t(locale, "maps-upload-timeout")
+        return False, t(locale, "maps-upload-timeout")
     except StaffActionError:
-        text = t(locale, "maps-upload-unconfirmed")
+        return False, t(locale, "maps-upload-unconfirmed")
+    status = result.results[0].status.value
+    return status in {"installed", "metadata_failed"}, t(
+        locale,
+        "maps-restore-result",
+        file=_quoted(file_name),
+        server=map_text(row["server"], inline_code=True),
+        status=t(locale, "maps-upload-label-" + status),
+    )
+
+
+async def restore_map(
+    bot: XCoreDiscordBot, interaction: discord.Interaction, removal_id: str
+) -> None:
+    """**Restore**: the server's own copy first, else the copy posted in Discord."""
+    locale = reply_locale(bot, interaction)
+    if not has_any_role(interaction.user, map_reviewer_role_ids(bot.settings)):
+        await interaction.response.send_message(
+            t(locale, "maps-restore-denied"), ephemeral=True
+        )
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    removals = MapRemovals(bot)
+    row = await removals.get(removal_id)
+    if row is not None and row.get("restored_at") is not None:
+        await interaction.followup.send(
+            t(locale, "maps-restore-done-already"), ephemeral=True
+        )
+        return
+    message = interaction.message
+    attachment = next(
+        (
+            a
+            for a in (message.attachments if message else [])
+            if row is not None and a.filename == row["file_name"]
+        ),
+        None,
+    )
+    if row is None or (attachment is None and not row.get("trash_id")):
+        await interaction.followup.send(t(locale, "maps-restore-gone"), ephemeral=True)
+        return
+    problem = await _taken(bot, locale, row)
+    if problem is not None:
+        await interaction.followup.send(problem, ephemeral=True)
+        return
+    if not await removals.claim_restore(removal_id, interaction.user):
+        await interaction.followup.send(t(locale, "maps-restore-busy"), ephemeral=True)
+        return
+    restored = False
+    try:
+        outcome = await _from_server(bot, locale, row)
+        if outcome is None and attachment is not None:
+            outcome = await _from_discord(
+                bot, locale, row, attachment, interaction.user
+            )
+        restored, text = outcome or (False, t(locale, "maps-restore-gone"))
     finally:
         await removals.finish_restore(removal_id, interaction.user, restored=restored)
     await interaction.followup.send(text, ephemeral=True)
     if restored:
-        if message is not None:
-            try:
-                await message.edit(view=restore_view(removal_id, locale, disabled=True))
-            except discord.HTTPException:
-                logger.warning("Could not disable the restore button of %s", removal_id)
-        await post_maps_log(
+        await _restored(
             bot,
-            t(
-                bot.settings.cases_staff_locale,
-                "maps-log-restored",
-                user=f"<@{interaction.user.id}>",
-                file="`" + map_text(file_name, 100, inline_code=True) + "`",
-                server=map_text(server, inline_code=True),
-            ),
+            locale,
+            interaction,
+            message,
+            removal_id,
+            row["file_name"],
+            row["server"],
         )
+
+
+async def _restored(
+    bot, locale, interaction, message, removal_id, file_name, server
+) -> None:
+    if message is not None:
+        try:
+            await message.edit(view=restore_view(removal_id, locale, disabled=True))
+        except discord.HTTPException:
+            logger.warning("Could not disable the restore button of %s", removal_id)
+    await post_maps_log(
+        bot,
+        t(
+            bot.settings.cases_staff_locale,
+            "maps-log-restored",
+            user=f"<@{interaction.user.id}>",
+            file=_quoted(file_name),
+            server=map_text(server, inline_code=True),
+        ),
+    )
 
 
 async def post_maps_log(

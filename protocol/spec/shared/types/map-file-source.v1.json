@@ -19,6 +19,15 @@
     },
     "discordUpload": {
       "$ref": "urn:xcore:protocol:shared:types:map-discord-upload:v1"
+    },
+    "expectedContentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Install only if the file now under fileName has this SHA-256; otherwise the result is conflict."
+    },
+    "expectAbsent": {
+      "type": "boolean",
+      "description": "Install only if no file has this name; otherwise the result is conflict."
     }
   }
 }

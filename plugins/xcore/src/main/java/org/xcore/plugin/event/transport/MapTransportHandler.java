@@ -8,6 +8,12 @@ import mindustry.maps.Map;
 import org.xcore.protocol.generated.messages.maps.MapsMessages.MapsListRequestV1;
 import org.xcore.protocol.generated.messages.maps.MapsMessages.MapsLoadCommandV1;
 import org.xcore.protocol.generated.messages.maps.MapsMessages.MapsRemoveRequestV1;
+import org.xcore.protocol.generated.messages.maps.MapsMessages.MapsRestoreRequestV1;
+import org.xcore.protocol.generated.messages.maps.MapsMessages.MapsRestoreResponseV1;
+import org.xcore.protocol.generated.messages.maps.MapsMessages.MapsTrashListRequestV1;
+import org.xcore.protocol.generated.messages.maps.MapsMessages.MapsTrashListResponseV1;
+import org.xcore.protocol.generated.messages.maps.MapsRemoveResponseV1Status;
+import org.xcore.protocol.generated.messages.maps.MapsRestoreResponseV1Status;
 import org.xcore.protocol.generated.shared.MapFileSourceV1;
 import org.xcore.protocol.generated.shared.MapEntryV1;
 import org.xcore.protocol.generated.shared.MapUploadResultV1;
@@ -26,6 +32,7 @@ import org.xcore.plugin.service.MapService;
 import org.xcore.plugin.service.NetworkService;
 import org.xcore.plugin.service.network.MapsProtocolMapper;
 import org.xcore.plugin.service.map.MapInspectionService;
+import org.xcore.plugin.service.map.MapTrash;
 import org.xcore.protocol.generated.messages.maps.MapsMessages.MapsInspectRequestV1;
 
 import java.util.concurrent.CompletableFuture;
@@ -56,6 +63,7 @@ public class MapTransportHandler {
     private final Async async;
     private final MapUploadRepository uploadRepository;
     private final MapInspectionService inspection;
+    private final MapTrash trash;
     private final AtomicInteger inspectionsInFlight = new AtomicInteger();
     private static final int MAX_INSPECTIONS = 4;
     private final Object[] fileLocks = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Object()).toArray();
@@ -70,7 +78,8 @@ public class MapTransportHandler {
                                TomlXcoreConfig config,
                                MapService mapService,
                                MapDataRepository mapDataRepository,
-                               Async async, MapUploadRepository uploadRepository, MapInspectionService inspection) {
+                               Async async, MapUploadRepository uploadRepository, MapInspectionService inspection,
+                               MapTrash trash) {
         this.network = network;
         this.config = config;
         this.mapService = mapService;
@@ -78,7 +87,19 @@ public class MapTransportHandler {
         this.async = async;
         this.uploadRepository = uploadRepository;
         this.inspection = inspection;
+        this.trash = trash;
     }
+
+    /** Keeps removed and replaced files aside with the default retention. */
+    public MapTransportHandler(NetworkService network, TomlXcoreConfig config, MapService mapService,
+                               MapDataRepository mapDataRepository, Async async,
+                               MapUploadRepository uploadRepository, MapInspectionService inspection) {
+        this(network, config, mapService, mapDataRepository, async, uploadRepository, inspection,
+                new MapTrash(new org.xcore.plugin.config.TomlSecretsConfig()));
+    }
+
+    /** What an upload replaced: the earlier file's hash, and where it was kept. */
+    private record Replaced(String contentHash, String trashId) {}
 
     /** A map plus the identity fields read from the engine, captured on the game thread. */
     private record MapIdentity(Map map, String fileName, String plainName, String author, MapDiscordUpload upload,
@@ -183,26 +204,49 @@ public class MapTransportHandler {
             if (!request.server().equals(config.server.name)) return;
 
             // findMapByFileName reads the engine map registry and removeMap/reload write
-            // it, so the whole decision belongs on the game thread. There is no I/O here.
+            // it, so the whole decision belongs on the game thread. The only I/O is the copy
+            // kept aside below (and hashing a file the catalog has not hashed yet): one small
+            // file, on a rare admin action, in order with the removal it protects.
             var map = mapService.findMapByFileName(request.fileName());
-            if (map != null) {
-                String removedName = map.file.name();
-                installations.put(removedName, new DownloadedMap(null, installationSequence.incrementAndGet()));
-                enqueueDiscordUpload("", removedName, "", "", null, null,
-                        () -> true); // Queue order, rather than a download token, defines this removal.
-                mapService.clearAttribution();
-                maps.removeMap(map);
-                maps.reload();
-                onMapsReloaded();
+            if (map == null) {
+                network.respond(request, MapsProtocolMapper.toMapsRemoveResponse(request.server(), "Map file not found",
+                        MapsRemoveResponseV1Status.NOT_FOUND, null, null));
+                return;
             }
+            String hash = installedHash(map);
+            if (request.expectedContentHash() != null && !request.expectedContentHash().equalsIgnoreCase(hash)) {
+                // Someone changed the file since the bot looked at it: remove nothing.
+                network.respond(request, MapsProtocolMapper.toMapsRemoveResponse(request.server(),
+                        "The installed file is not the one expected; nothing was removed",
+                        MapsRemoveResponseV1Status.CONFLICT, hash, null));
+                return;
+            }
+            var kept = trash.keep(map.file, MapTrash.Reason.removed, map.plainName(), map.plainAuthor(),
+                    mapService.discordUploadFor(map));
+            String removedName = map.file.name();
+            installations.put(removedName, new DownloadedMap(null, installationSequence.incrementAndGet()));
+            enqueueDiscordUpload("", removedName, "", "", null, null,
+                    () -> true); // Queue order, rather than a download token, defines this removal.
+            mapService.clearAttribution();
+            maps.removeMap(map);
+            maps.reload();
+            onMapsReloaded();
 
-            String result = map == null
-                    ? "Map file not found"
-                    : "Successfully removed map " + map.plainName() + " (" + map.file.name() + ")";
-            network.respond(request, MapsProtocolMapper.toMapsRemoveResponse(request.server(), result));
-
-            if (map != null) info("Removed map @", map.plainName());
+            String result = "Successfully removed map " + map.plainName() + " (" + map.file.name() + ")";
+            network.respond(request, MapsProtocolMapper.toMapsRemoveResponse(request.server(), result,
+                    MapsRemoveResponseV1Status.REMOVED, hash, kept.map(MapTrash.Entry::trashId).orElse(null)));
+            info("Removed map @", map.plainName());
         }));
+
+        network.subscribe(MapsTrashListRequestV1.class, request -> {
+            if (!config.server.name.equals(request.server())) return;
+            async.supply(() -> trash.list().stream().limit(100).map(MapsProtocolMapper::toTrashEntry).toList())
+                    .future().whenComplete((entries, error) -> {
+                        if (error != null) network.respondError(request, "FAILED", "Map trash could not be read");
+                        else network.respond(request, new MapsTrashListResponseV1(request.server(), entries));
+                    });
+        });
+        network.subscribe(MapsRestoreRequestV1.class, this::restore);
 
         network.subscribe(MapsUploadRequestV1.class, request -> {
             if (!config.server.name.equals(request.server())) return;
@@ -284,6 +328,7 @@ public class MapTransportHandler {
         };
         if (accepted.isEmpty()) { async.main(respond); return; }
         var downloaded = new ConcurrentHashMap<String, DownloadedMap>();
+        var replaced = new ConcurrentHashMap<String, Replaced>();
         AtomicInteger completed = new AtomicInteger();
         Runnable finishIfDone = () -> {
             if (completed.incrementAndGet() != accepted.size()) return;
@@ -324,8 +369,12 @@ public class MapTransportHandler {
                                 var status = !download.equals(installations.get(source.fileName())) ? MapUploadResultV1Status.SUPERSEDED
                                         : error != null || !Boolean.TRUE.equals(saved) ? MapUploadResultV1Status.METADATA_FAILED
                                         : MapUploadResultV1Status.INSTALLED;
-                                results.put(source.fileName(), outcome(source.fileName(), status,
-                                        status == MapUploadResultV1Status.METADATA_FAILED ? "Map installed, but attribution could not be saved" : null));
+                                var earlier = replaced.get(source.fileName());
+                                results.put(source.fileName(), new MapUploadResultV1(source.fileName(), status,
+                                        status == MapUploadResultV1Status.METADATA_FAILED ? "Map installed, but attribution could not be saved" : null,
+                                        status == MapUploadResultV1Status.SUPERSEDED ? null : download.hash(),
+                                        earlier == null ? null : earlier.contentHash(),
+                                        earlier == null ? null : earlier.trashId()));
                                 return (Void) null;
                             });
                     writes.add(write);
@@ -354,7 +403,24 @@ public class MapTransportHandler {
                             // Fixed stripes bound memory and keep disk I/O outside ConcurrentHashMap.compute.
                             Object lock = fileLocks[(file.fileName().hashCode() & 0x7fffffff) % fileLocks.length];
                             synchronized (lock) {
-                                customMapDirectory.child(file.fileName()).writeBytes(bytes, false);
+                                var target = customMapDirectory.child(file.fileName());
+                                String existing = target.exists()
+                                        ? MapContentHash.ofContent(target.readBytes()).asHex() : null;
+                                if (Boolean.TRUE.equals(file.expectAbsent()) && existing != null
+                                        || file.expectedContentHash() != null && !file.expectedContentHash().equalsIgnoreCase(existing)) {
+                                    // The reviewer decided on what they saw; the server holds something else now.
+                                    results.put(file.fileName(), outcome(file.fileName(), MapUploadResultV1Status.CONFLICT,
+                                            existing == null ? "No installed file has this name" : "The installed file is not the one expected"));
+                                    return;
+                                }
+                                if (existing != null && !existing.equals(hash)) {
+                                    var entry = mapService.catalogEntry(file.fileName());
+                                    var kept = trash.keep(target, MapTrash.Reason.replaced,
+                                            entry == null ? null : entry.name(), entry == null ? null : entry.author(),
+                                            mapService.discordUploadFor(file.fileName()));
+                                    replaced.put(file.fileName(), new Replaced(existing, kept.map(MapTrash.Entry::trashId).orElse(null)));
+                                }
+                                target.writeBytes(bytes, false);
                                 var token = new DownloadedMap(hash, installationSequence.incrementAndGet());
                                 installations.put(file.fileName(), token);
                                 downloaded.put(file.fileName(), token);
@@ -372,6 +438,78 @@ public class MapTransportHandler {
     }
 
     private static MapUploadResultV1 outcome(String fileName, MapUploadResultV1Status status, String detail) {
-        return new MapUploadResultV1(fileName, status, detail);
+        return new MapUploadResultV1(fileName, status, detail, null, null, null);
+    }
+
+    /** The installed file's SHA-256: the catalog's, or read now while the catalog has not hashed it. */
+    private String installedHash(Map map) {
+        String hash = mapService.contentHashFor(map);
+        if (hash != null || map.file == null || !map.file.exists()) return hash;
+        return MapContentHash.ofContent(map.file.readBytes()).asHex();
+    }
+
+    private record Restored(MapTrash.Entry entry, String fileName) {}
+
+    /** Puts a kept file back under a free name, with the attribution it had, then refreshes the catalog. */
+    void restore(MapsRestoreRequestV1 request) {
+        if (!config.server.name.equals(request.server())) return;
+        async.supply(() -> {
+            var entry = trash.find(request.trashId()).orElse(null);
+            if (entry == null) return restoreAnswer(request, MapsRestoreResponseV1Status.NOT_FOUND, null, null, "Nothing is kept under this id");
+            String target = request.fileName() != null ? request.fileName() : entry.fileName();
+            try { MapFileNameSanitizer.requireSafeName(target); }
+            catch (IllegalArgumentException unsafe) { return restoreAnswer(request, MapsRestoreResponseV1Status.FAILED, null, null, "Unsafe filename"); }
+            byte[] bytes = trash.bytes(entry).orElse(null);
+            if (bytes == null) return restoreAnswer(request, MapsRestoreResponseV1Status.FAILED, null, null, "The kept copy is damaged");
+            Object lock = fileLocks[(target.hashCode() & 0x7fffffff) % fileLocks.length];
+            synchronized (lock) {
+                var file = customMapDirectory.child(target);
+                if (file.exists()) return restoreAnswer(request, MapsRestoreResponseV1Status.CONFLICT, target, null, target + " is taken");
+                file.writeBytes(bytes, false);
+            }
+            return new Restored(entry, target);
+        }).future().whenComplete((outcome, error) -> {
+            if (error != null) {
+                Log.err("[Maps] Restore failed", error);
+                network.respondError(request, "FAILED", "Map restore failed");
+            } else if (outcome instanceof MapsRestoreResponseV1 answer) {
+                network.respond(request, answer);
+            } else if (outcome instanceof Restored restored) {
+                async.main(() -> finishRestore(request, restored));
+            }
+        });
+    }
+
+    private Object restoreAnswer(MapsRestoreRequestV1 request, MapsRestoreResponseV1Status status, String fileName,
+                                 String hash, String detail) {
+        return new MapsRestoreResponseV1(request.server(), request.trashId(), status, fileName, hash, detail);
+    }
+
+    private void finishRestore(MapsRestoreRequestV1 request, Restored restored) {
+        var entry = restored.entry();
+        CompletionStage<Void> catalogReady;
+        try {
+            maps.reload();
+            catalogReady = mapService.rebuildIdentityCatalogAsync();
+            if (catalogReady == null) catalogReady = CompletableFuture.completedFuture(null);
+        } catch (RuntimeException reloadFailure) {
+            Log.err("[Maps] Map registry reload failed after a restore", reloadFailure);
+            network.respond(request, (MapsRestoreResponseV1) restoreAnswer(request, MapsRestoreResponseV1Status.FAILED,
+                    restored.fileName(), entry.contentHash(), "Map registry reload failed"));
+            return;
+        }
+        Map installed = mapService.findMapByFileName(restored.fileName());
+        String mode = state.rules.mode().name();
+        CompletionStage<?> attribution = entry.upload() == null || installed == null
+                ? CompletableFuture.completedFuture(null)
+                : enqueueDiscordUpload(installed.plainName(), restored.fileName(), installed.author(), mode,
+                        entry.contentHash(), entry.upload(), () -> true);
+        final var ready = catalogReady;
+        attribution.thenCompose(ignored -> ready).whenComplete((ignored, error) -> {
+            async.supply(() -> { trash.forget(entry.trashId()); return null; });
+            network.respond(request, (MapsRestoreResponseV1) restoreAnswer(request, MapsRestoreResponseV1Status.RESTORED,
+                    restored.fileName(), entry.contentHash(), null));
+            info("Restored map @", restored.fileName());
+        });
     }
 }

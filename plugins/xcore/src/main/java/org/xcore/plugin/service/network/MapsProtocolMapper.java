@@ -26,7 +26,27 @@ public final class MapsProtocolMapper {
     }
 
     public static MapsRemoveResponseV1 toMapsRemoveResponse(String server, String result) {
-        return new MapsRemoveResponseV1(server, result);
+        return new MapsRemoveResponseV1(server, result, null, null, null);
+    }
+
+    public static MapsRemoveResponseV1 toMapsRemoveResponse(String server, String result,
+            org.xcore.protocol.generated.messages.maps.MapsRemoveResponseV1Status status, String contentHash, String trashId) {
+        return new MapsRemoveResponseV1(server, result, status, contentHash, trashId);
+    }
+
+    public static org.xcore.protocol.generated.shared.MapTrashEntryV1 toTrashEntry(
+            org.xcore.plugin.service.map.MapTrash.Entry entry) {
+        return new org.xcore.protocol.generated.shared.MapTrashEntryV1(entry.trashId(), entry.fileName(),
+                entry.contentHash(), entry.sizeBytes(), entry.trashedAt(),
+                entry.reason() == org.xcore.plugin.service.map.MapTrash.Reason.removed
+                        ? org.xcore.protocol.generated.shared.MapTrashEntryV1Reason.REMOVED
+                        : org.xcore.protocol.generated.shared.MapTrashEntryV1Reason.REPLACED,
+                truncate(entry.name()), truncate(entry.author()));
+    }
+
+    private static String truncate(String value) {
+        if (value == null || value.isBlank()) return null;
+        return value.length() > 256 ? value.substring(0, 256) : value;
     }
 
     public static MapsInspectResponseV1 toInspectResponse(String server, MapInspectionResult result) {

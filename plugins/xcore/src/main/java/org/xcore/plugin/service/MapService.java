@@ -458,6 +458,20 @@ public class MapService {
         return map == null || map.file == null ? null : uploads.get(map.file.name());
     }
 
+    /** The same lookup by file name; safe on any thread, as it reads an immutable snapshot. */
+    public MapDiscordUpload discordUploadFor(String fileName) {
+        return fileName == null ? null : uploads.get(fileName);
+    }
+
+    /** The catalog's entry for a file (name, author, hash), or null; safe on any thread. */
+    public org.xcore.plugin.service.map.MapIdentityCatalog.Entry catalogEntry(String fileName) {
+        var catalog = identityCatalog;
+        var snapshot = catalog == null || fileName == null ? null : catalog.snapshot();
+        if (snapshot == null) return null;
+        for (var entry : snapshot.entries()) if (fileName.equals(entry.fileName())) return entry;
+        return null;
+    }
+
     /**
      * The SHA-256 of the map's file as the identity catalog last hashed it, lower-case hex, or
      * {@code null} before the catalog has hashed it or without a catalog.
@@ -472,8 +486,9 @@ public class MapService {
      */
     public java.util.Map<String, String> contentHashes() {
         var catalog = identityCatalog;
-        if (catalog == null) return java.util.Map.of();
-        var entries = catalog.snapshot().entries();
+        var snapshot = catalog == null ? null : catalog.snapshot();
+        if (snapshot == null) return java.util.Map.of();
+        var entries = snapshot.entries();
         java.util.Map<String, String> hashes = new java.util.HashMap<>(entries.size() * 2);
         for (var entry : entries) {
             if (entry.hash() != null) hashes.putIfAbsent(entry.fileName(), entry.hash().asHex());

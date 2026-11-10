@@ -1513,6 +1513,8 @@ map-upload-file-author = Аўтар з файла: { $author }
 map-upload-creator = Указаны аўтар: { $person }
 map-upload-submitter = Дадаў праз Discord: { $person }
 map-upload-date = Загружана: [lightgray]{ $date }[] (UTC)
+map-upload-fixed-by = Выправіў(-ла): { $person }
+map-upload-review = Заяўка №{ $case }, рэвізія { $revision }
 
 map-upload-current-creator = [accent]{ $map }[] — { $creator }
 

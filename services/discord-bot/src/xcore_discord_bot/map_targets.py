@@ -163,3 +163,19 @@ def duplicate_groups(
         if len(items) > 1 and frozenset(id(item) for item in items) not in hashed:
             groups.append((Match.SAME_TITLE, items))
     return groups
+
+
+def expectation(
+    maps: list[dict[str, str]] | None, target: str
+) -> tuple[str | None, bool]:
+    """What the server must still hold for a write under ``target`` to go ahead: the hash
+    of the file the reviewer saw there, or no file at all; nothing when the list is unknown.
+
+    The server writes the exact name, so only the exact name counts here.
+    """
+    if maps is None:
+        return None, False
+    exact = next((item for item in maps if item.get("file_name") == target), None)
+    if exact is None:
+        return None, True
+    return (exact.get("content_hash") or None), False

@@ -292,6 +292,13 @@ author's. Replacing a map with another recorded creator keeps that creator and s
 author as `payload.fixer`; a replaced map without a creator makes the reviewer choose. Neither
 an update nor a fix earns Map Maker, and each has its own outcome text.
 
+With protocol 0.19.0 the upload records the review in the map's attribution (`caseNumber`,
+`threadId`, `revision`, and `fixedBy` for a fix) and is conditional: once the target is chosen,
+Accept stores in its action values what the server held under that name (`expect`: the hash,
+`absent`, or `none` when the list could not be read), and the server answers `conflict`
+instead of overwriting a file nobody reviewed. `conflict` is a nonterminal result like
+`superseded`.
+
 Map authors conflict with every case action, including senior actions. `CaseService.started_at`
 is the process timestamp; successful map startup stores `service.maps_enabled_at`, the actual
 intake boundary. Untracked posts older than that boundary are ignored until `/maps review`.

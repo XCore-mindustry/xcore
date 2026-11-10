@@ -22,6 +22,7 @@ from ...map_list import map_text
 from ...map_targets import (
     Incoming,
     Match,
+    expectation,
     find_candidates,
     replacement_targets,
     title_key,
@@ -39,6 +40,7 @@ from ...services.map_images import (
 )
 from ...staff_actions import (
     Actor,
+    MapReview,
     MapUploadFile,
     MapUploadTimeout,
     perform_map_upload,
@@ -753,6 +755,33 @@ def _own_installed(case: Case, server: str, maps: list[dict[str, str]]) -> str |
     return item["file_name"] if same_bytes or same_map or vouched else None
 
 
+async def _expect(context: ActionContext, server: str, target_name: str) -> None:
+    """Records what the server must still hold when the upload arrives: the file the
+    reviewer saw under that name, or none. A server that changed meanwhile answers
+    ``conflict`` instead of overwriting something nobody reviewed."""
+    if "expect" in context.values:
+        return
+    try:
+        maps = await context.service.bot.container.rpc.list_maps(
+            server=server, timeout_ms=context.service.settings.rpc_timeout_ms
+        )
+    except RPC_FAILURES:
+        maps = None
+    expected, absent = expectation(maps, target_name)
+    context.values["expect"] = (
+        "absent" if absent else f"hash:{expected}" if expected else "none"
+    )
+
+
+def _expected_file(values) -> dict:
+    expect = values.get("expect", "none")
+    if expect == "absent":
+        return {"expect_absent": True}
+    if expect.startswith("hash:"):
+        return {"expected_hash": expect.removeprefix("hash:")}
+    return {}
+
+
 async def _choose_creator(
     context: ActionContext, case: Case, server: str, target_name: str
 ) -> bool:
@@ -950,6 +979,7 @@ async def accept(context: ActionContext):  # noqa: C901
         raise ActionFailed(t(context.locale, "maps-review-changed"))
     if await _choose_creator(context, case, server, target_name):
         return None
+    await _expect(context, server, target_name)
     has_errors = any(f["severity"] == "error" for f in case.payload.get("findings", []))
     warnings = [
         t(context.locale, key)
@@ -1008,7 +1038,9 @@ async def accept(context: ActionContext):  # noqa: C901
             if mode == "unknown"
             else author
         )
-        files = [MapUploadFile(attachment.url, target_name)]
+        files = [
+            MapUploadFile(attachment.url, target_name, **_expected_file(context.values))
+        ]
         uploader = Actor(
             str(context.member.id),
             context.member.display_name,
@@ -1060,6 +1092,14 @@ async def accept(context: ActionContext):  # noqa: C901
                 case_action_token=token,
                 request_id=f"map:{claimed.number}:{token}",
                 reviewed_sha256=claimed.payload["sha256"],
+                review=MapReview(
+                    claimed.number,
+                    claimed.discord.get("thread_id"),
+                    _revision(claimed),
+                    Actor(fixer["discord_id"], fixer["name"], fixer.get("handle"))
+                    if fixer
+                    else None,
+                ),
             )
         except MapUploadTimeout as error:
             raise ActionFailed(t(context.locale, "maps-upload-unknown")) from error

@@ -222,6 +222,18 @@ RENDER_UNAVAILABLE = "maps-card-render-unavailable"
 REFUNDED = frozenset((RENDER_BUSY, RENDER_FAILED, RENDER_UNAVAILABLE))
 
 
+async def _card_review(
+    bot: XCoreDiscordBot, item: dict[str, str], content_hash: str
+) -> tuple[str | None, str | None]:
+    """The review post of the map and who fixed it, for its card."""
+    review_thread_id, fixed_by = await _review(bot, content_hash)
+    # Servers at protocol 0.19.0 keep the review in the map's own attribution.
+    review_thread_id = review_thread_id or item.get("thread_id") or None
+    if item.get("fixed_by_discord_id"):
+        fixed_by = None  # the credits line names them already
+    return review_thread_id, fixed_by
+
+
 async def send_map_card(
     bot: XCoreDiscordBot,
     interaction: Interaction,
@@ -235,7 +247,7 @@ async def send_map_card(
     images = bot.container.map_images
     ref = MapRef(server, item.get("file_name", ""), item.get("content_hash", ""))
 
-    review_thread_id, fixed_by = await _review(bot, ref.content_hash)
+    review_thread_id, fixed_by = await _card_review(bot, item, ref.content_hash)
     card = functools.partial(
         map_card,
         server,

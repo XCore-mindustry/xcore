@@ -280,9 +280,10 @@ async def test_accept_reuses_slash_payload_author_creator_and_installed_audit_th
     assert server == "mini-pvp" and timeout == 120_000
     expected = maps.prepare_map_upload(
         server,
-        [maps.MapUploadFile(attachment.url, attachment.filename)],
+        [maps.MapUploadFile(attachment.url, attachment.filename, expect_absent=True)],
         maps.Actor("101", "Staff 101", "reviewer-101"),
         maps.Actor("42", "Staff 42", case.payload["creator_handle"]),
+        maps.MapReview(case.number, str(thread.id), 1),
     )
     expected[0]["discordUpload"]["uploadedAt"] = files[0]["discordUpload"]["uploadedAt"]
     assert files == expected

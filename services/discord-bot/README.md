@@ -25,8 +25,13 @@ Standalone Discord bot for XCore transport migration.
     at once (see [docs/map-images.md](docs/map-images.md))
   - `/maps remove <server> <map>` → `maps.remove`. The private confirmation shows the map's card
     and other installed files with the same map. Before removing, the bot asks the server for the
-    file (`maps.file`) and posts it in the channel; its **Restore** button (map reviewers) uploads
-    that copy back under the same name, unless another file took the name since
+    file (`maps.file`) and posts it in the channel; it removes only the file the reviewer saw
+    (`expectedContentHash`), and a server at protocol 0.19.0 also sets the file aside in its
+    trash. The **Restore** button (map reviewers) asks the server to put its own copy back with
+    its attribution (`maps.restore`), else uploads the posted copy under the same name, unless
+    another file took the name since
+  - `/maps trash <server>` (map reviewer) → `maps.trash.list`: files the server set aside when
+    they were removed or replaced by an upload; picking one puts it back (`maps.restore`)
   - `/maps review [server] [replaces]` → starts the review of a post in the maps forum, or of
     its newest file when the last review is closed. `server` and `replaces` name the installed
     map the post updates, for maps put on a server before their post was reviewed
@@ -41,7 +46,9 @@ Standalone Discord bot for XCore transport migration.
     another name (the same name and author, or the same bytes), or that would overwrite a
     different map, waits for the reviewer: **Replace `<file>`**, **Upload as is** or **Cancel**.
     `replace:<installed file>` (one file only) installs the file under that name, so its rating,
-    statistics and attribution stay with the map and no second copy appears
+    statistics and attribution stay with the map and no second copy appears. Every write
+    carries what the server must still hold under that name (the hash the reviewer saw, or
+    nothing); a file that changed meanwhile is reported as not written (`conflict`)
   - `/maps duplicates <server>` → installed files that hold the same bytes, or the same map name
     and author (map reviewer)
   - Inside a map post, `/maps upload` of the file that post has under review uploads nothing

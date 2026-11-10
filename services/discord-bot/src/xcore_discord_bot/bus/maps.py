@@ -20,6 +20,10 @@ from xcore_protocol.generated.maps import (
     MapsRemoveResponseV1,
     MapsRenderRequestV1,
     MapsRenderResponseV1,
+    MapsRestoreRequestV1,
+    MapsRestoreResponseV1,
+    MapsTrashListRequestV1,
+    MapsTrashListResponseV1,
     MapsUploadRequestV1,
     MapsUploadResponseV1,
 )
@@ -91,20 +95,63 @@ class MapsBus:
             )
         return response
 
-    async def rpc_remove_map(self, server: str, file_name: str, timeout_ms: int) -> str:
+    async def rpc_remove_map(
+        self,
+        server: str,
+        file_name: str,
+        timeout_ms: int,
+        expected_content_hash: str | None = None,
+    ) -> MapsRemoveResponseV1:
         body = await self._transport.rpc_request(
             server=server,
             rpc_type=MapsRemoveRequestV1.MESSAGE_TYPE,
             payload=build_maps_remove_request(
-                server=server, file_name=file_name
+                server=server,
+                file_name=file_name,
+                expected_content_hash=expected_content_hash,
             ).to_payload(),
             timeout_ms=timeout_ms,
         )
 
         payload_json = body.get("payload_json", "{}")
         payload = json.loads(payload_json)
-        response = MapsRemoveResponseV1.from_payload(payload)
-        return response.result
+        return MapsRemoveResponseV1.from_payload(payload)
+
+    async def rpc_maps_trash_list(
+        self, *, server: str, timeout_ms: int
+    ) -> MapsTrashListResponseV1:
+        request = MapsTrashListRequestV1(server=server)
+        body = await self._transport.rpc_request(
+            server=server,
+            rpc_type=request.MESSAGE_TYPE,
+            payload=request.to_payload(),
+            timeout_ms=timeout_ms,
+        )
+        response = MapsTrashListResponseV1.from_payload(
+            json.loads(body.get("payload_json", "{}"))
+        )
+        if response.server != server:
+            raise ValueError("Map trash response does not match the request")
+        return response
+
+    async def rpc_maps_restore(
+        self, *, server: str, trash_id: str, file_name: str | None, timeout_ms: int
+    ) -> MapsRestoreResponseV1:
+        request = MapsRestoreRequestV1(
+            server=server, trashId=trash_id, fileName=file_name
+        )
+        body = await self._transport.rpc_request(
+            server=server,
+            rpc_type=request.MESSAGE_TYPE,
+            payload=request.to_payload(),
+            timeout_ms=timeout_ms,
+        )
+        response = MapsRestoreResponseV1.from_payload(
+            json.loads(body.get("payload_json", "{}"))
+        )
+        if response.server != server or response.trashId != trash_id:
+            raise ValueError("Map restore response does not match the request")
+        return response
 
     async def rpc_inspect_map(
         self, *, server: str, url: str, file_name: str, profile: str | None = None
@@ -253,6 +300,16 @@ class MapsBus:
                     "creator_name": entry.discordUpload.creator.discordUsername or ""
                     if entry.discordUpload.creator
                     else "",
+                    "case_number": str(entry.discordUpload.caseNumber or ""),
+                    "thread_id": entry.discordUpload.threadId or "",
+                    "revision": str(entry.discordUpload.revision or ""),
+                    "fixed_by_discord_id": entry.discordUpload.fixedBy.discordId
+                    if entry.discordUpload.fixedBy
+                    else "",
+                    "fixed_by_name": entry.discordUpload.fixedBy.discordUsername or ""
+                    if entry.discordUpload.fixedBy
+                    else "",
+                    "fixed_by_handle": entry.discordUpload.fixedByHandle or "",
                 }
                 if entry.discordUpload
                 else {}

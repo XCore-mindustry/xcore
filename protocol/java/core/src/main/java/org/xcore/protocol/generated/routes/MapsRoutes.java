@@ -215,6 +215,52 @@ public final class MapsRoutes {
             )
     );
 
+    public static final RouteDescriptor MAPS_TRASH_LIST_REQUEST_V1 = new RouteDescriptor(
+            "maps",
+            "mapsTrashListRequestV1Route",
+            "maps.trash.list.request",
+            1,
+            MapsMessages.MapsTrashListRequestV1.class,
+            "rpc-request",
+            "xcore:rpc:req:{server}",
+            Map.of("server", "payload.server"),
+            "server",
+            15000,
+            false,
+            false,
+            "maps",
+            new RouteResponseDescriptor(
+                    "maps.trash.list.response",
+                    1,
+                    MapsMessages.MapsTrashListResponseV1.class,
+                    "xcore:rpc:resp:{requester}",
+                    Map.of("requester", "rpc.requester")
+            )
+    );
+
+    public static final RouteDescriptor MAPS_RESTORE_REQUEST_V1 = new RouteDescriptor(
+            "maps",
+            "mapsRestoreRequestV1Route",
+            "maps.restore.request",
+            1,
+            MapsMessages.MapsRestoreRequestV1.class,
+            "rpc-request",
+            "xcore:rpc:req:{server}",
+            Map.of("server", "payload.server"),
+            "server",
+            15000,
+            false,
+            true,
+            "maps",
+            new RouteResponseDescriptor(
+                    "maps.restore.response",
+                    1,
+                    MapsMessages.MapsRestoreResponseV1.class,
+                    "xcore:rpc:resp:{requester}",
+                    Map.of("requester", "rpc.requester")
+            )
+    );
+
     public static final Map<MessageKey, RouteDescriptor> ROUTES_BY_MESSAGE = Map.ofEntries(
             entry(key("maps.list.request", 1), MAPS_LIST_REQUEST_V1),
             entry(key("maps.remove.request", 1), MAPS_REMOVE_REQUEST_V1),
@@ -223,7 +269,9 @@ public final class MapsRoutes {
             entry(key("maps.inspect.request", 1), MAPS_INSPECT_REQUEST_V1),
             entry(key("maps.preview.request", 1), MAPS_PREVIEW_REQUEST_V1),
             entry(key("maps.file.request", 1), MAPS_FILE_REQUEST_V1),
-            entry(key("maps.render.request", 1), MAPS_RENDER_REQUEST_V1)
+            entry(key("maps.render.request", 1), MAPS_RENDER_REQUEST_V1),
+            entry(key("maps.trash.list.request", 1), MAPS_TRASH_LIST_REQUEST_V1),
+            entry(key("maps.restore.request", 1), MAPS_RESTORE_REQUEST_V1)
     );
 
     public static final Map<MessageKey, RouteDescriptor> MAPS_ROUTES_BY_MESSAGE = ROUTES_BY_MESSAGE;

@@ -1535,6 +1535,8 @@ map-upload-file-author = Автор із файлу: { $author }
 map-upload-creator = Вказаний автор: { $person }
 map-upload-submitter = Додав через Discord: { $person }
 map-upload-date = Завантажена: [lightgray]{ $date }[] (UTC)
+map-upload-fixed-by = Виправив(-ла): { $person }
+map-upload-review = Заявка №{ $case }, ревізія { $revision }
 
 map-upload-current-creator = [accent]{ $map }[] — { $creator }
 discord-link-menu-website = Відкрити сайт облікового запису

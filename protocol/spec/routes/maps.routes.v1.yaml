@@ -130,3 +130,37 @@ messages:
       stream: xcore:rpc:resp:{requester}
       bindings:
         requester: rpc.requester
+  - messageType: maps.trash.list.request
+    messageVersion: 1
+    kind: rpc-request
+    stream: xcore:rpc:req:{server}
+    bindings:
+      server: payload.server
+    targetScope: server
+    ttlMs: 15000
+    replayable: false
+    idempotentConsumerRecommended: false
+    owner: maps
+    response:
+      messageType: maps.trash.list.response
+      messageVersion: 1
+      stream: xcore:rpc:resp:{requester}
+      bindings:
+        requester: rpc.requester
+  - messageType: maps.restore.request
+    messageVersion: 1
+    kind: rpc-request
+    stream: xcore:rpc:req:{server}
+    bindings:
+      server: payload.server
+    targetScope: server
+    ttlMs: 15000
+    replayable: false
+    idempotentConsumerRecommended: true
+    owner: maps
+    response:
+      messageType: maps.restore.response
+      messageVersion: 1
+      stream: xcore:rpc:resp:{requester}
+      bindings:
+        requester: rpc.requester

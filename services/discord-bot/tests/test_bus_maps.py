@@ -119,7 +119,7 @@ async def test_rpc_remove_map_uses_canonical_payload() -> None:
     bus.rpc_request = MethodType(fake_rpc_request, bus)
 
     result = await MapsBus(bus).rpc_remove_map("mini-pvp", "map-a.msav", 5000)
-    assert result == "ok"
+    assert result.result == "ok" and result.status is None
 
 
 @pytest.mark.asyncio

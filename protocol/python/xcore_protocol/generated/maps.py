@@ -16,9 +16,11 @@ from .shared import (
     MapFileSourceV1,
     MapInspectFindingV1,
     MapInspectInfoV1,
+    MapTrashEntryV1,
     MapUploadResultV1,
     MapBlobRefV1ContentType,
     MapInspectFindingV1Severity,
+    MapTrashEntryV1Reason,
     MapUploadResultV1Status,
 )
 
@@ -582,6 +584,7 @@ class MapsPreviewResponseV1:
 class MapsRemoveRequestV1:
     server: str
     fileName: str
+    expectedContentHash: str | None = None
 
     MESSAGE_TYPE: ClassVar[str] = 'maps.remove.request'
     MESSAGE_VERSION: ClassVar[int] = 1
@@ -592,6 +595,10 @@ class MapsRemoveRequestV1:
         _expect_str(self.fileName, 'fileName')
         if re.search('^[^/\\\\]+\\.[mM][sS][aA][vV]$', self.fileName) is None:
             raise ValueError("fileName does not match its pattern")
+        if self.expectedContentHash is not None:
+            _expect_str(self.expectedContentHash, 'expectedContentHash')
+            if re.search('^[a-f0-9]{64}$', self.expectedContentHash) is None:
+                raise ValueError("expectedContentHash does not match its pattern")
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "MapsRemoveRequestV1":
@@ -599,7 +606,7 @@ class MapsRemoveRequestV1:
         _expect_exact_keys(
             mapping,
             required=frozenset(('messageType', 'messageVersion', 'server', 'fileName')),
-            allowed=frozenset(('messageType', 'messageVersion', 'server', 'fileName')),
+            allowed=frozenset(('messageType', 'messageVersion', 'server', 'fileName', 'expectedContentHash')),
             model_name="MapsRemoveRequestV1",
         )
         if mapping['messageType'] != cls.MESSAGE_TYPE:
@@ -609,6 +616,7 @@ class MapsRemoveRequestV1:
         return cls(
             server=_expect_str(mapping['server'], 'server'),
             fileName=_expect_str(mapping['fileName'], 'fileName'),
+            expectedContentHash=(_expect_str(mapping['expectedContentHash'], 'expectedContentHash') if 'expectedContentHash' in mapping else None),
         )
 
     def to_payload(self) -> dict[str, Any]:
@@ -618,12 +626,23 @@ class MapsRemoveRequestV1:
         }
         payload['server'] = self.server
         payload['fileName'] = self.fileName
+        if self.expectedContentHash is not None:
+            payload['expectedContentHash'] = self.expectedContentHash
         return payload
+
+class MapsRemoveResponseV1Status(StrEnum):
+    REMOVED = 'removed'
+    NOT_FOUND = 'not_found'
+    CONFLICT = 'conflict'
+    FAILED = 'failed'
 
 @dataclass(frozen=True, slots=True)
 class MapsRemoveResponseV1:
     server: str
     result: str
+    status: MapsRemoveResponseV1Status | None = None
+    contentHash: str | None = None
+    trashId: str | None = None
 
     MESSAGE_TYPE: ClassVar[str] = 'maps.remove.response'
     MESSAGE_VERSION: ClassVar[int] = 1
@@ -634,6 +653,16 @@ class MapsRemoveResponseV1:
         _expect_str(self.result, 'result')
         if len(self.result) < 1:
             raise ValueError("result is too short")
+        if self.status is not None:
+            _expect_instance(self.status, 'status', MapsRemoveResponseV1Status)
+        if self.contentHash is not None:
+            _expect_str(self.contentHash, 'contentHash')
+            if re.search('^[a-f0-9]{64}$', self.contentHash) is None:
+                raise ValueError("contentHash does not match its pattern")
+        if self.trashId is not None:
+            _expect_str(self.trashId, 'trashId')
+            if re.search('^[A-Za-z0-9._-]{1,160}$', self.trashId) is None:
+                raise ValueError("trashId does not match its pattern")
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "MapsRemoveResponseV1":
@@ -641,7 +670,7 @@ class MapsRemoveResponseV1:
         _expect_exact_keys(
             mapping,
             required=frozenset(('messageType', 'messageVersion', 'server', 'result')),
-            allowed=frozenset(('messageType', 'messageVersion', 'server', 'result')),
+            allowed=frozenset(('messageType', 'messageVersion', 'server', 'result', 'status', 'contentHash', 'trashId')),
             model_name="MapsRemoveResponseV1",
         )
         if mapping['messageType'] != cls.MESSAGE_TYPE:
@@ -651,6 +680,9 @@ class MapsRemoveResponseV1:
         return cls(
             server=_expect_str(mapping['server'], 'server'),
             result=_expect_str(mapping['result'], 'result'),
+            status=(_expect_enum(mapping['status'], 'status', MapsRemoveResponseV1Status) if 'status' in mapping else None),
+            contentHash=(_expect_str(mapping['contentHash'], 'contentHash') if 'contentHash' in mapping else None),
+            trashId=(_expect_str(mapping['trashId'], 'trashId') if 'trashId' in mapping else None),
         )
 
     def to_payload(self) -> dict[str, Any]:
@@ -660,6 +692,12 @@ class MapsRemoveResponseV1:
         }
         payload['server'] = self.server
         payload['result'] = self.result
+        if self.status is not None:
+            payload['status'] = str(self.status)
+        if self.contentHash is not None:
+            payload['contentHash'] = self.contentHash
+        if self.trashId is not None:
+            payload['trashId'] = self.trashId
         return payload
 
 @dataclass(frozen=True, slots=True)
@@ -825,6 +863,211 @@ class MapsRenderResponseV1:
         return payload
 
 @dataclass(frozen=True, slots=True)
+class MapsRestoreRequestV1:
+    server: str
+    trashId: str
+    fileName: str | None = None
+
+    MESSAGE_TYPE: ClassVar[str] = 'maps.restore.request'
+    MESSAGE_VERSION: ClassVar[int] = 1
+    def __post_init__(self) -> None:
+        _expect_str(self.server, 'server')
+        if len(self.server) < 1:
+            raise ValueError("server is too short")
+        _expect_str(self.trashId, 'trashId')
+        if re.search('^[A-Za-z0-9._-]{1,160}$', self.trashId) is None:
+            raise ValueError("trashId does not match its pattern")
+        if self.fileName is not None:
+            _expect_str(self.fileName, 'fileName')
+            if re.search('^[^/\\\\]+\\.[mM][sS][aA][vV]$', self.fileName) is None:
+                raise ValueError("fileName does not match its pattern")
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "MapsRestoreRequestV1":
+        mapping = _expect_mapping(payload, "MapsRestoreRequestV1")
+        _expect_exact_keys(
+            mapping,
+            required=frozenset(('messageType', 'messageVersion', 'server', 'trashId')),
+            allowed=frozenset(('messageType', 'messageVersion', 'server', 'trashId', 'fileName')),
+            model_name="MapsRestoreRequestV1",
+        )
+        if mapping['messageType'] != cls.MESSAGE_TYPE:
+            raise ValueError('messageType' + " must equal " + repr(cls.MESSAGE_TYPE))
+        if mapping['messageVersion'] != cls.MESSAGE_VERSION:
+            raise ValueError('messageVersion' + " must equal " + repr(cls.MESSAGE_VERSION))
+        return cls(
+            server=_expect_str(mapping['server'], 'server'),
+            trashId=_expect_str(mapping['trashId'], 'trashId'),
+            fileName=(_expect_str(mapping['fileName'], 'fileName') if 'fileName' in mapping else None),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            'messageType': self.MESSAGE_TYPE,
+            'messageVersion': self.MESSAGE_VERSION,
+        }
+        payload['server'] = self.server
+        payload['trashId'] = self.trashId
+        if self.fileName is not None:
+            payload['fileName'] = self.fileName
+        return payload
+
+class MapsRestoreResponseV1Status(StrEnum):
+    RESTORED = 'restored'
+    NOT_FOUND = 'not_found'
+    CONFLICT = 'conflict'
+    FAILED = 'failed'
+
+@dataclass(frozen=True, slots=True)
+class MapsRestoreResponseV1:
+    server: str
+    trashId: str
+    status: MapsRestoreResponseV1Status
+    fileName: str | None = None
+    contentHash: str | None = None
+    detail: str | None = None
+
+    MESSAGE_TYPE: ClassVar[str] = 'maps.restore.response'
+    MESSAGE_VERSION: ClassVar[int] = 1
+    def __post_init__(self) -> None:
+        _expect_str(self.server, 'server')
+        if len(self.server) < 1:
+            raise ValueError("server is too short")
+        _expect_str(self.trashId, 'trashId')
+        if re.search('^[A-Za-z0-9._-]{1,160}$', self.trashId) is None:
+            raise ValueError("trashId does not match its pattern")
+        _expect_instance(self.status, 'status', MapsRestoreResponseV1Status)
+        if self.fileName is not None:
+            _expect_str(self.fileName, 'fileName')
+            if re.search('^[^/\\\\]+\\.[mM][sS][aA][vV]$', self.fileName) is None:
+                raise ValueError("fileName does not match its pattern")
+        if self.contentHash is not None:
+            _expect_str(self.contentHash, 'contentHash')
+            if re.search('^[a-f0-9]{64}$', self.contentHash) is None:
+                raise ValueError("contentHash does not match its pattern")
+        if self.detail is not None:
+            _expect_str(self.detail, 'detail')
+            if len(self.detail) < 1:
+                raise ValueError("detail is too short")
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "MapsRestoreResponseV1":
+        mapping = _expect_mapping(payload, "MapsRestoreResponseV1")
+        _expect_exact_keys(
+            mapping,
+            required=frozenset(('messageType', 'messageVersion', 'server', 'trashId', 'status')),
+            allowed=frozenset(('messageType', 'messageVersion', 'server', 'trashId', 'status', 'fileName', 'contentHash', 'detail')),
+            model_name="MapsRestoreResponseV1",
+        )
+        if mapping['messageType'] != cls.MESSAGE_TYPE:
+            raise ValueError('messageType' + " must equal " + repr(cls.MESSAGE_TYPE))
+        if mapping['messageVersion'] != cls.MESSAGE_VERSION:
+            raise ValueError('messageVersion' + " must equal " + repr(cls.MESSAGE_VERSION))
+        return cls(
+            server=_expect_str(mapping['server'], 'server'),
+            trashId=_expect_str(mapping['trashId'], 'trashId'),
+            status=_expect_enum(mapping['status'], 'status', MapsRestoreResponseV1Status),
+            fileName=(_expect_str(mapping['fileName'], 'fileName') if 'fileName' in mapping else None),
+            contentHash=(_expect_str(mapping['contentHash'], 'contentHash') if 'contentHash' in mapping else None),
+            detail=(_expect_str(mapping['detail'], 'detail') if 'detail' in mapping else None),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            'messageType': self.MESSAGE_TYPE,
+            'messageVersion': self.MESSAGE_VERSION,
+        }
+        payload['server'] = self.server
+        payload['trashId'] = self.trashId
+        payload['status'] = str(self.status)
+        if self.fileName is not None:
+            payload['fileName'] = self.fileName
+        if self.contentHash is not None:
+            payload['contentHash'] = self.contentHash
+        if self.detail is not None:
+            payload['detail'] = self.detail
+        return payload
+
+@dataclass(frozen=True, slots=True)
+class MapsTrashListRequestV1:
+    server: str
+
+    MESSAGE_TYPE: ClassVar[str] = 'maps.trash.list.request'
+    MESSAGE_VERSION: ClassVar[int] = 1
+    def __post_init__(self) -> None:
+        _expect_str(self.server, 'server')
+        if len(self.server) < 1:
+            raise ValueError("server is too short")
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "MapsTrashListRequestV1":
+        mapping = _expect_mapping(payload, "MapsTrashListRequestV1")
+        _expect_exact_keys(
+            mapping,
+            required=frozenset(('messageType', 'messageVersion', 'server')),
+            allowed=frozenset(('messageType', 'messageVersion', 'server')),
+            model_name="MapsTrashListRequestV1",
+        )
+        if mapping['messageType'] != cls.MESSAGE_TYPE:
+            raise ValueError('messageType' + " must equal " + repr(cls.MESSAGE_TYPE))
+        if mapping['messageVersion'] != cls.MESSAGE_VERSION:
+            raise ValueError('messageVersion' + " must equal " + repr(cls.MESSAGE_VERSION))
+        return cls(
+            server=_expect_str(mapping['server'], 'server'),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            'messageType': self.MESSAGE_TYPE,
+            'messageVersion': self.MESSAGE_VERSION,
+        }
+        payload['server'] = self.server
+        return payload
+
+@dataclass(frozen=True, slots=True)
+class MapsTrashListResponseV1:
+    server: str
+    entries: tuple[MapTrashEntryV1, ...]
+
+    MESSAGE_TYPE: ClassVar[str] = 'maps.trash.list.response'
+    MESSAGE_VERSION: ClassVar[int] = 1
+    def __post_init__(self) -> None:
+        _expect_str(self.server, 'server')
+        if len(self.server) < 1:
+            raise ValueError("server is too short")
+        if not isinstance(self.entries, tuple):
+            raise TypeError("entries must be a tuple")
+        for item in self.entries:
+            _expect_instance(item, 'entries[]', MapTrashEntryV1)
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "MapsTrashListResponseV1":
+        mapping = _expect_mapping(payload, "MapsTrashListResponseV1")
+        _expect_exact_keys(
+            mapping,
+            required=frozenset(('messageType', 'messageVersion', 'server', 'entries')),
+            allowed=frozenset(('messageType', 'messageVersion', 'server', 'entries')),
+            model_name="MapsTrashListResponseV1",
+        )
+        if mapping['messageType'] != cls.MESSAGE_TYPE:
+            raise ValueError('messageType' + " must equal " + repr(cls.MESSAGE_TYPE))
+        if mapping['messageVersion'] != cls.MESSAGE_VERSION:
+            raise ValueError('messageVersion' + " must equal " + repr(cls.MESSAGE_VERSION))
+        return cls(
+            server=_expect_str(mapping['server'], 'server'),
+            entries=tuple(MapTrashEntryV1.from_payload(_expect_mapping(item, 'entries[]')) for item in _expect_list(mapping['entries'], 'entries')),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            'messageType': self.MESSAGE_TYPE,
+            'messageVersion': self.MESSAGE_VERSION,
+        }
+        payload['server'] = self.server
+        payload['entries'] = [item.to_payload() for item in self.entries]
+        return payload
+
+@dataclass(frozen=True, slots=True)
 class MapsUploadRequestV1:
     server: str
     files: tuple[MapFileSourceV1, ...]
@@ -928,10 +1171,16 @@ __all__ = [
     "MapsRemoveResponseV1",
     "MapsRenderRequestV1",
     "MapsRenderResponseV1",
+    "MapsRestoreRequestV1",
+    "MapsRestoreResponseV1",
+    "MapsTrashListRequestV1",
+    "MapsTrashListResponseV1",
     "MapsUploadRequestV1",
     "MapsUploadResponseV1",
     "MapsFileResponseV1Status",
     "MapsInspectResponseV1Status",
     "MapsPreviewResponseV1Status",
+    "MapsRemoveResponseV1Status",
     "MapsRenderResponseV1Status",
+    "MapsRestoreResponseV1Status",
 ]

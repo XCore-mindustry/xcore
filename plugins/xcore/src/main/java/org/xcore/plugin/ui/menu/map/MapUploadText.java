@@ -25,7 +25,14 @@ public final class MapUploadText {
         if (upload.creatorDiscordId != null) {
             lines.add(locale.t("map-upload-creator", args("person", person(upload.creatorName, upload.creatorDiscordId, upload.creatorHandle, showIds))));
         }
+        if (upload.fixedByDiscordId != null) {
+            lines.add(locale.t("map-upload-fixed-by", args("person", person(upload.fixedByName, upload.fixedByDiscordId, upload.fixedByHandle, showIds))));
+        }
         lines.add(locale.t("map-upload-submitter", args("person", person(upload.uploadedByName, upload.uploadedByDiscordId, upload.uploadedByHandle, showIds))));
+        if (upload.caseNumber != null && upload.caseNumber > 0) {
+            lines.add(locale.t("map-upload-review", args("case", upload.caseNumber,
+                    "revision", upload.revision == null || upload.revision < 1 ? 1 : upload.revision)));
+        }
         String date = DateTimeFormatter.ISO_LOCAL_DATE.withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(upload.uploadedAt));
         lines.add(locale.t("map-upload-date", args("date", date)));
         return String.join("\n", lines);

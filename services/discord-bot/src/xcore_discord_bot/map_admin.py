@@ -18,7 +18,7 @@ import io
 import logging
 import secrets
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 import discord
@@ -43,6 +43,7 @@ from .map_targets import (
     Match,
     Outcome,
     duplicate_groups,
+    expectation,
     find_candidates,
     outcome,
     replacement_targets,
@@ -50,6 +51,7 @@ from .map_targets import (
 from .staff_actions import (
     Actor,
     InvalidMapUpload,
+    MapReview,
     MapUploadFailed,
     MapUploadFile,
     MapUploadTimeout,
@@ -230,7 +232,11 @@ def _result_text(
             status=t(locale, "maps-upload-label-" + status),
             file=_code(result.fileName),
         )
+        if status == "conflict":
+            row += " · " + t(locale, "maps-upload-note-conflict")
         if status in {"installed", "metadata_failed"}:
+            if getattr(result, "trashId", None):
+                row += " · " + t(locale, "maps-upload-note-kept")
             if file.source != file.upload.filename:
                 row += " · " + t(
                     locale, "maps-upload-note-replaced", source=_code(file.source)
@@ -368,6 +374,7 @@ async def cmd_upload_map(  # noqa: C901
     async def finish(
         edit: Callable[..., Awaitable[Any]], chosen: list[PlannedFile]
     ) -> None:
+        chosen = [with_expectation(maps, file) for file in chosen]
         await _finish_upload(
             bot, edit, locale, server, chosen, uploader, creator_actor, interaction.user
         )
@@ -471,6 +478,16 @@ async def _review_of(
     return case if case.payload["sha256"] in hashes else None
 
 
+def with_expectation(
+    maps: list[dict[str, str]] | None, file: PlannedFile
+) -> PlannedFile:
+    expected, absent = expectation(maps, file.upload.filename)
+    return replace(
+        file,
+        upload=replace(file.upload, expected_hash=expected, expect_absent=absent),
+    )
+
+
 async def _finish_upload(
     bot: XCoreDiscordBot,
     edit: Callable[..., Awaitable[Any]],
@@ -516,6 +533,9 @@ async def _finish_upload(
 class RemoveOutcome:
     text: str
     removed: bool
+    # Where the server kept the removed file, and its hash (servers at protocol 0.19.0).
+    trash_id: str | None = None
+    content_hash: str | None = None
 
 
 async def perform_remove_map(
@@ -525,31 +545,46 @@ async def perform_remove_map(
     file_name: str,
     request_nonce: str,
     locale: str = "en",
+    expected_hash: str | None = None,
 ) -> RemoveOutcome:
     claim_key = f"remove-map:{server}:{file_name}:{request_nonce}"
     if not await bot.bus.claim_idempotency(claim_key, ttl_seconds=600):
         return RemoveOutcome(t(locale, "maps-remove-duplicate"), False)
     try:
-        result = await bot.container.rpc.remove_map(
+        response = await bot.container.rpc.remove_map(
             server=server,
             file_name=file_name,
             timeout_ms=bot.settings.rpc_timeout_ms,
+            expected_content_hash=expected_hash,
         )
     except TimeoutError:
         return RemoveOutcome(t(locale, "maps-remove-timeout"), False)
     finally:
         bot.container.map_catalog.forget(server)
         bot.container.map_images.forget(server)
-    removed = result.startswith(REMOVED_PREFIX)
+    # A server before protocol 0.19.0 answers in words only.
+    status = (
+        response.status.value
+        if response.status is not None
+        else "removed"
+        if response.result.startswith(REMOVED_PREFIX)
+        else "failed"
+    )
+    key = {
+        "removed": "maps-remove-done",
+        "conflict": "maps-remove-conflict",
+    }.get(status, "maps-remove-failed")
     return RemoveOutcome(
         t(
             locale,
-            "maps-remove-done" if removed else "maps-remove-failed",
+            key,
             server=map_text(server, inline_code=True),
             file=_code(file_name),
-            detail=map_text(result, 300),
+            detail=map_text(response.result, 300),
         ),
-        removed,
+        status == "removed",
+        response.trashId,
+        response.contentHash,
     )
 
 
@@ -652,6 +687,77 @@ async def cmd_remove_map(
     view.message = await interaction.followup.send("\n".join(lines)[:2000], **kwargs)
 
 
+async def _post_copy(
+    bot: XCoreDiscordBot,
+    pressed: Interaction,
+    locale: str,
+    server: str,
+    file_name: str,
+    item: dict[str, str] | None,
+    backup: Backup,
+) -> tuple[str | None, Any]:
+    """Records the removal and posts the copy before anything is removed."""
+    try:
+        record_id = await MapRemovals(bot).record(
+            server=server,
+            file_name=file_name,
+            sha256=backup.sha256,
+            item=item,
+            removed_by=pressed.user,
+        )
+        public = await pressed.followup.send(
+            t(
+                locale,
+                "maps-remove-public-pending",
+                user=f"<@{pressed.user.id}>",
+                file=_code(file_name),
+                server=map_text(server, inline_code=True),
+            ),
+            file=discord.File(io.BytesIO(backup.data), filename=file_name),
+            allowed_mentions=NO_MENTIONS,
+            wait=True,
+        )
+    except Exception:  # No copy is kept; removing is still the person's call.
+        logger.warning(
+            "Could not keep a copy of %s from %s", file_name, server, exc_info=True
+        )
+        return None, None
+    return record_id, public
+
+
+async def _publish_removal(
+    bot: XCoreDiscordBot,
+    pressed: Interaction,
+    locale: str,
+    text: str,
+    result: RemoveOutcome,
+    record_id: str | None,
+    public: Any,
+) -> Any:
+    """The public record of the removal: with Restore when a copy was kept somewhere."""
+    removals = MapRemovals(bot)
+    if public is not None and result.removed and record_id is not None:
+        await public.edit(content=text, view=restore_view(record_id, locale))
+    elif public is not None:
+        await public.edit(content=text, attachments=[])
+    elif result.removed and record_id is not None:
+        # No Discord copy, but the server kept one.
+        public = await pressed.followup.send(
+            text + "\n" + t(locale, "maps-remove-public-server-copy"),
+            view=restore_view(record_id, locale),
+            allowed_mentions=NO_MENTIONS,
+            wait=True,
+        )
+    elif result.removed:
+        await pressed.followup.send(
+            text + "\n" + t(locale, "maps-remove-public-no-backup"),
+            allowed_mentions=NO_MENTIONS,
+        )
+    if public is not None and result.removed and record_id is not None:
+        await removals.set_message(record_id, public.channel.id, public.id)
+    return public
+
+
 async def _remove_with_backup(
     bot: XCoreDiscordBot,
     pressed: Interaction,
@@ -663,39 +769,31 @@ async def _remove_with_backup(
     nonce: str,
 ) -> str:
     """Posts the copy in the channel first, then removes; the copy is dropped if nothing was removed."""
-    staff = bot.settings.cases_staff_locale
-    record_id: str | None = None
-    public: Any = None
-    if backup is not None:
-        try:
+    record_id, public = (
+        await _post_copy(bot, pressed, locale, server, file_name, item, backup)
+        if backup is not None
+        else (None, None)
+    )
+    result = await perform_remove_map(
+        bot,
+        server=server,
+        file_name=file_name,
+        request_nonce=nonce,
+        locale=locale,
+        expected_hash=(item or {}).get("content_hash") or None,
+    )
+    if result.removed and result.trash_id:
+        # The server kept the file too: Restore works even if the Discord copy is gone.
+        if record_id is None:
             record_id = await MapRemovals(bot).record(
                 server=server,
                 file_name=file_name,
-                sha256=backup.sha256,
+                sha256=result.content_hash or "",
                 item=item,
                 removed_by=pressed.user,
             )
-            public = await pressed.followup.send(
-                t(
-                    locale,
-                    "maps-remove-public-pending",
-                    user=f"<@{pressed.user.id}>",
-                    file=_code(file_name),
-                    server=map_text(server, inline_code=True),
-                ),
-                file=discord.File(io.BytesIO(backup.data), filename=file_name),
-                allowed_mentions=NO_MENTIONS,
-                wait=True,
-            )
-        except Exception:  # No copy is kept; removing is still the person's call.
-            logger.warning(
-                "Could not keep a copy of %s from %s", file_name, server, exc_info=True
-            )
-            public = None
-    result = await perform_remove_map(
-        bot, server=server, file_name=file_name, request_nonce=nonce, locale=locale
-    )
-    public_text = t(
+        await MapRemovals(bot).set_trash(record_id, result.trash_id)
+    text = t(
         locale,
         "maps-remove-public-done" if result.removed else "maps-remove-public-failed",
         user=f"<@{pressed.user.id}>",
@@ -703,16 +801,9 @@ async def _remove_with_backup(
         server=map_text(server, inline_code=True),
     )
     try:
-        if public is not None and result.removed and record_id is not None:
-            await public.edit(content=public_text, view=restore_view(record_id, locale))
-            await MapRemovals(bot).set_message(record_id, public.channel.id, public.id)
-        elif public is not None:
-            await public.edit(content=public_text, attachments=[])
-        elif result.removed:
-            await pressed.followup.send(
-                public_text + "\n" + t(locale, "maps-remove-public-no-backup"),
-                allowed_mentions=NO_MENTIONS,
-            )
+        public = await _publish_removal(
+            bot, pressed, locale, text, result, record_id, public
+        )
     except discord.HTTPException:
         logger.warning(
             "Could not update the record of removing %s", file_name, exc_info=True
@@ -721,7 +812,7 @@ async def _remove_with_backup(
         await post_maps_log(
             bot,
             t(
-                staff,
+                bot.settings.cases_staff_locale,
                 "maps-log-removed",
                 user=f"<@{pressed.user.id}>",
                 file=_code(file_name),
@@ -904,9 +995,9 @@ async def _rollback(
         return t(locale, "maps-rollback-file-gone", number=number)
     if hashlib.sha256(data).hexdigest() != case.payload.get("sha256"):
         return t(locale, "maps-rollback-file-gone", number=number)
-    # The map keeps the creator it has on the server now.
-    maps = await list_maps_or_none(bot, server) or []
-    item = find_map(maps, file_name) or {}
+    # The map keeps the creator it has on the server now; the review is the old one.
+    maps = await list_maps_or_none(bot, server)
+    item = find_map(maps or [], file_name) or {}
     creator = (
         Actor(
             item["creator_discord_id"],
@@ -916,13 +1007,30 @@ async def _rollback(
         if item.get("creator_discord_id")
         else None
     )
+    fixer = case.payload.get("fixer") or None
+    expected, absent = expectation(maps, file_name)
     try:
         result = await perform_map_upload(
             bot,
             server,
-            [MapUploadFile(attachment.url, file_name)],
+            [
+                MapUploadFile(
+                    attachment.url,
+                    file_name,
+                    expected_hash=expected,
+                    expect_absent=absent,
+                )
+            ],
             _identity(pressed.user),
             creator,
+            review=MapReview(
+                number,
+                str(getattr(thread, "id", "")) or None,
+                int(case.payload.get("revision") or 1),
+                Actor(fixer["discord_id"], fixer.get("name", ""), fixer.get("handle"))
+                if fixer
+                else None,
+            ),
         )
     except MapUploadTimeout:
         return t(locale, "maps-upload-timeout")
@@ -951,4 +1059,103 @@ async def _rollback(
         file=_code(file_name),
         server=map_text(server, inline_code=True),
         status=t(locale, "maps-upload-label-" + status),
+    )
+
+
+# --- /maps trash ----------------------------------------------------------------------
+
+
+async def cmd_trash(
+    bot: XCoreDiscordBot, interaction: Interaction, server: str
+) -> None:
+    """The files a server set aside instead of deleting them, and putting one back."""
+    locale = reply_locale(bot, interaction)
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        answer = await bot.container.rpc.trash_list(
+            server=server, timeout_ms=bot.settings.rpc_timeout_ms
+        )
+    except RPC_FAILURES:
+        await interaction.followup.send(t(locale, "maps-list-timeout"), ephemeral=True)
+        return
+    entries = list(answer.entries)[:25]
+    if not entries:
+        await interaction.followup.send(
+            t(locale, "maps-trash-empty", server=map_text(server, inline_code=True)),
+            ephemeral=True,
+        )
+        return
+    lines = [t(locale, "maps-trash-title", server=map_text(server, inline_code=True))]
+    for entry in entries:
+        lines.append(
+            "• "
+            + t(
+                locale,
+                "maps-trash-row",
+                file=_code(entry.fileName),
+                name=map_text(strip_mindustry_colors(entry.name or ""), 60) or "—",
+                reason=t(locale, "maps-trash-reason-" + entry.reason.value),
+                date=f"<t:{entry.trashedAt // 1000}:f>",
+            )
+        )
+    options = [
+        discord.SelectOption(
+            label=entry.fileName[:100],
+            value=str(index),
+            description=t(locale, "maps-trash-reason-" + entry.reason.value)[:100],
+        )
+        for index, entry in enumerate(entries)
+    ]
+
+    async def on_choice(pressed: Interaction, value: str) -> None:
+        entry = entries[int(value)]
+        await pressed.response.edit_message(
+            content=t(locale, "maps-trash-restoring", file=_code(entry.fileName)),
+            view=None,
+        )
+        text = await _restore_kept(bot, pressed, locale, server, entry)
+        await pressed.edit_original_response(content=text, view=None)
+
+    await interaction.followup.send(
+        "\n".join(lines)[:2000],
+        view=_SelectView(interaction.user.id, locale, options, on_choice),
+        ephemeral=True,
+        allowed_mentions=NO_MENTIONS,
+    )
+
+
+async def _restore_kept(
+    bot: XCoreDiscordBot, pressed: Interaction, locale: str, server: str, entry: Any
+) -> str:
+    try:
+        answer = await bot.container.rpc.restore_map(
+            server=server,
+            trash_id=entry.trashId,
+            file_name=None,
+            timeout_ms=bot.settings.rpc_timeout_ms,
+        )
+    except TimeoutError:
+        return t(locale, "maps-upload-timeout")
+    except RPC_FAILURES:
+        return t(locale, "maps-upload-unconfirmed")
+    bot.container.map_catalog.forget(server)
+    bot.container.map_images.forget(server)
+    status = answer.status.value
+    if status == "restored":
+        await post_maps_log(
+            bot,
+            t(
+                bot.settings.cases_staff_locale,
+                "maps-log-restored",
+                user=f"<@{pressed.user.id}>",
+                file=_code(answer.fileName or entry.fileName),
+                server=map_text(server, inline_code=True),
+            ),
+        )
+    return t(
+        locale,
+        "maps-restore-result",
+        file=_code(answer.fileName or entry.fileName),
+        server=map_text(server, inline_code=True),
+        status=t(locale, "maps-restore-status-" + status),
     )

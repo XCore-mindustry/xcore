@@ -171,6 +171,16 @@ class MapsCog(commands.Cog):
         await map_admin.cmd_duplicates(self.bot, interaction, server)
 
     @maps_group.command(
+        name="trash",
+        description="Maps a server set aside when they were removed or replaced (map reviewer)",
+    )
+    @app_commands.describe(server="Server name")
+    @app_commands.autocomplete(server=_autocomplete_server_for_command)
+    @map_reviewer_check()
+    async def cmd_trash(self, interaction: Interaction, server: str) -> None:
+        await map_admin.cmd_trash(self.bot, interaction, server)
+
+    @maps_group.command(
         name="rollback",
         description="Put an earlier accepted revision of this post's map back (map reviewer)",
     )

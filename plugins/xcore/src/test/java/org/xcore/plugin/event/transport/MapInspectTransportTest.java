@@ -173,7 +173,7 @@ class MapInspectTransportTest {
             var actualHandler = new MapTransportHandler(network, config, mock(MapService.class), mock(MapDataRepository.class),
                     new Async(storage, main::add), mock(MapUploadRepository.class), actualService);
             actualHandler.registerListeners();
-            var file = new MapFileSourceV1("http://127.0.0.1:" + http.getAddress().getPort() + "/map", "fixture.msav", null);
+            var file = new MapFileSourceV1("http://127.0.0.1:" + http.getAddress().getPort() + "/map", "fixture.msav", null, null, null);
             redis(() -> listener.get().get(new MapsInspectRequestV1("survival", file, null)));
             runMain();
             var response = (MapsInspectResponseV1) reply();
@@ -199,7 +199,7 @@ class MapInspectTransportTest {
     }
 
     private MapsInspectRequestV1 request(String server, String profile) {
-        return new MapsInspectRequestV1(server, new MapFileSourceV1("https://example.invalid/fixture", "fixture.msav", null), profile);
+        return new MapsInspectRequestV1(server, new MapFileSourceV1("https://example.invalid/fixture", "fixture.msav", null, null, null), profile);
     }
 
     private void runMain() throws Exception {

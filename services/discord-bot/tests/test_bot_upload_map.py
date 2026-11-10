@@ -541,3 +541,100 @@ async def test_replace_uses_the_installed_spelling_of_the_name() -> None:
     )
     ((_, files),) = _uploads(bot)
     assert files[0]["filename"] == "Asteroid.msav"
+
+
+# --- Conditional writes (protocol 0.19.0) ---------------------------------------------
+
+
+async def test_an_update_tells_the_server_which_file_it_replaces() -> None:
+    bot = await _bot()
+    _list(bot, _installed_map("asteroid.msav", ASTEROID, "asteroid C-843", "andrpearl"))
+    interaction = _Interaction(id=120, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID_V2)],
+    )
+    ((_, files),) = _uploads(bot)
+    assert files[0]["expectedContentHash"] == hashlib.sha256(ASTEROID).hexdigest()
+    assert "expectAbsent" not in files[0]
+
+
+async def test_a_new_map_must_still_be_absent_when_it_is_written() -> None:
+    bot = await _bot()
+    interaction = _Interaction(id=121, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID)],
+    )
+    ((_, files),) = _uploads(bot)
+    assert files[0]["expectAbsent"] is True
+    assert "expectedContentHash" not in files[0]
+
+
+async def test_a_server_that_does_not_list_its_maps_gets_no_expectation() -> None:
+    bot = await _bot()
+    bot.container.maps_bus.rpc_maps_list.side_effect = TimeoutError
+    interaction = _Interaction(id=122, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID)],
+    )
+    ((_, files),) = _uploads(bot)
+    assert "expectAbsent" not in files[0] and "expectedContentHash" not in files[0]
+
+
+def _answer(status: str, **extra: Any):
+    def answer(*, server: str, files: list[dict[str, object]], timeout_ms: int):
+        return MapsUploadResponseV1.from_payload(
+            {
+                "messageType": "maps.upload.response",
+                "messageVersion": 1,
+                "server": server,
+                "results": [
+                    {"fileName": item["filename"], "status": status, **extra}
+                    for item in files
+                ],
+            }
+        )
+
+    return answer
+
+
+async def test_a_file_changed_on_the_server_meanwhile_is_reported_as_a_conflict() -> (
+    None
+):
+    bot = await _bot(side_effect=_answer("conflict"))
+    _list(bot, _installed_map("asteroid.msav", ASTEROID, "asteroid C-843", "andrpearl"))
+    interaction = _Interaction(id=123, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID_V2)],
+    )
+    reply = interaction.replies[-1]
+    assert "Not written: the server holds a different file now" in reply
+    assert "updated the installed version" not in reply
+
+
+async def test_a_replaced_file_kept_by_the_server_is_mentioned() -> None:
+    kept = {"trashId": "1791800000000-aaaaaaaa-asteroid.msav"}
+    bot = await _bot(side_effect=_answer("installed", **kept))
+    _list(bot, _installed_map("asteroid.msav", ASTEROID, "asteroid C-843", "andrpearl"))
+    interaction = _Interaction(id=124, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID_V2)],
+    )
+    assert (
+        "the earlier file is kept on the server (/maps trash)"
+        in (interaction.replies[-1])
+    )

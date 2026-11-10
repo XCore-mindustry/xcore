@@ -1500,6 +1500,8 @@ map-upload-file-author = Autore nel file: { $author }
 map-upload-creator = Autore indicato: { $person }
 map-upload-submitter = Aggiunta tramite Discord: { $person }
 map-upload-date = Caricata il: [lightgray]{ $date }[] (UTC)
+map-upload-fixed-by = Corretta da: { $person }
+map-upload-review = Revisione n. { $case }, versione { $revision }
 
 map-upload-current-creator = [accent]{ $map }[] — { $creator }
 discord-link-menu-website = Apri il sito dell’account

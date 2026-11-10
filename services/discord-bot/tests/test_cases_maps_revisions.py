@@ -6,6 +6,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pytest
 from cases_badges_fakes import last_view
 from cases_fakes import Interaction
 from cases_maps_fakes import (
@@ -18,7 +19,7 @@ from cases_maps_fakes import (
 from test_cases_msav import msav
 
 from xcore_discord_bot.cases.flows import maps
-from xcore_discord_bot.cases.model import CaseStatus
+from xcore_discord_bot.cases.model import ActionFailed, CaseStatus
 from xcore_discord_bot.map_admin import cmd_rollback, cmd_upload_map
 
 AUTHOR = "42"
@@ -128,6 +129,12 @@ async def test_an_update_goes_to_the_installed_file_without_a_question_or_a_badg
     assert final.resolution.file_name == "arena.msav"
     assert bus.upload_calls[-1][1][0]["filename"] == "arena.msav"
     assert bus.upload_calls[-1][1][0]["url"] == v2.url
+    # The server overwrites only the file the reviewer saw, and records the revision.
+    sent = bus.upload_calls[-1][1][0]
+    assert sent["expectedContentHash"] == first.payload["sha256"]
+    assert sent["discordUpload"]["caseNumber"] == second.number
+    assert sent["discordUpload"]["revision"] == 2
+    assert sent["discordUpload"]["threadId"] == str(thread.id)
     grant.assert_not_awaited()
     assert not final.payload.get("pending_badge")
     assert any("The update of your map" in m.content for m in thread.messages)
@@ -189,6 +196,7 @@ async def test_a_fix_of_someone_elses_map_keeps_its_creator_and_records_the_fixe
     assert final.resolution.file_name == "starwars.msav"
     upload = bus.upload_calls[-1][1][0]["discordUpload"]
     assert upload["creator"]["discordId"] == "999"
+    assert upload["fixedBy"]["discordId"] == AUTHOR
     assert final.payload["fixer"]["discord_id"] == AUTHOR
     grant.assert_not_awaited()
     fields = {f.name: f.value for f in card(thread, final).embeds[0].fields}
@@ -308,6 +316,8 @@ async def test_rollback_puts_an_earlier_revision_back_under_the_installed_name()
     await view.select.callback(pressed)
     ((_, files, _),) = bus.upload_calls[2:]
     assert files[0]["filename"] == "arena.msav" and files[0]["url"] == attachment.url
+    assert files[0]["expectedContentHash"] == first.payload["sha256"]
+    assert files[0]["discordUpload"]["caseNumber"] == first.number
     assert "✅ Installed" in edits[-1]
     assert thread.messages[-1].content.startswith("↩️")
 
@@ -330,3 +340,23 @@ async def test_the_unique_thread_index_of_earlier_releases_is_replaced():
     # Starting again changes nothing.
     await service.store.ensure_indexes()
     assert list(await cases.index_information()) == list(info)
+
+
+async def test_a_conflict_keeps_the_review_open_and_accept_again_rereads_the_server():
+    env, case = await first_review()
+    service, _, bot, bus, _, _, _, _, _ = env
+    bus.statuses = ["conflict"]
+    with pytest.raises(ActionFailed, match="not written"):
+        await accept(service, case, bot)
+    assert bus.upload_calls[-1][1][0]["expectAbsent"] is True
+    still = await service.get(case.number)
+    assert still.status != CaseStatus.RESOLVED
+
+    # Someone installed a file under that name meanwhile; the next Accept sees it.
+    bot.bus.rpc_maps_list.return_value = [installed(sha="1" * 64)]
+    bus.statuses = ["installed"]
+    await accept(service, case, bot, target="as-is")
+    sent = bus.upload_calls[-1][1][0]
+    assert sent["expectedContentHash"] == "1" * 64 and "expectAbsent" not in sent
+    final = await service.get(case.number)
+    assert final.resolution.code == "accepted"

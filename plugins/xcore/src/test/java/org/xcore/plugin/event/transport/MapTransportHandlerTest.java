@@ -240,7 +240,7 @@ class MapTransportHandlerTest {
         handler.registerListeners();
 
         listener(listeners, MapsRemoveRequestV1.class)
-                .get(new MapsRemoveRequestV1("other-server", "test.msav"));
+                .get(new MapsRemoveRequestV1("other-server", "test.msav", null));
 
         verifyNoInteractions(mapService);
         verify(network, never()).respond(any(), any());
@@ -275,7 +275,7 @@ class MapTransportHandlerTest {
         handler.registerListeners();
 
         listener(listeners, MapsRemoveRequestV1.class)
-                .get(new MapsRemoveRequestV1("mini-pvp", "test.msav"));
+                .get(new MapsRemoveRequestV1("mini-pvp", "test.msav", null));
 
         verify(maps).removeMap(map);
         verify(maps).reload();
@@ -314,7 +314,7 @@ class MapTransportHandlerTest {
         handler.registerListeners();
 
         listener(listeners, MapsRemoveRequestV1.class)
-                .get(new MapsRemoveRequestV1("mini-pvp", "test.msav"));
+                .get(new MapsRemoveRequestV1("mini-pvp", "test.msav", null));
 
         // maps.reload() rebuilds the engine's map index; applying it from the Redis
         // subscriber thread races the tick loop reading the same registry.
@@ -348,7 +348,7 @@ class MapTransportHandlerTest {
 
         listener(listeners, MapsLoadCommandV1.class)
                 .get(new MapsLoadCommandV1("other-server", List.of(
-                        new MapFileSourceV1("https://example/maps/a.msav", "a.msav", null)
+                        new MapFileSourceV1("https://example/maps/a.msav", "a.msav", null, null, null)
                 )));
 
         verifyNoInteractions(mapService);
@@ -398,10 +398,10 @@ class MapTransportHandlerTest {
             var upload = new org.xcore.protocol.generated.shared.MapDiscordUploadV1(
                     new org.xcore.protocol.generated.shared.DiscordIdentityRefV1("123456789012345678", "Reviewer"),
                     1791806400000L,
-                    new org.xcore.protocol.generated.shared.DiscordIdentityRefV1("234567890123456789", "Creator"), null, null);
+                    new org.xcore.protocol.generated.shared.DiscordIdentityRefV1("234567890123456789", "Creator"), null, null, null, null, null, null, null);
             listener(listeners, MapsLoadCommandV1.class).get(new MapsLoadCommandV1("mini-pvp", List.of(
-                    new MapFileSourceV1("https://example/arena.msav", "arena.msav", upload),
-                    new MapFileSourceV1("https://example/fail.msav", "fail.msav", upload))));
+                    new MapFileSourceV1("https://example/arena.msav", "arena.msav", upload, null, null),
+                    new MapFileSourceV1("https://example/fail.msav", "fail.msav", upload, null, null))));
             var response = mock(arc.util.Http.HttpResponse.class);
             byte[] bytes = {97, 98, 99};
             when(response.getResult()).thenReturn(bytes);
@@ -455,17 +455,17 @@ class MapTransportHandlerTest {
             handler.registerListeners();
             var old = new org.xcore.protocol.generated.shared.MapDiscordUploadV1(
                     new org.xcore.protocol.generated.shared.DiscordIdentityRefV1("123", "Old Sender"), 1,
-                    new org.xcore.protocol.generated.shared.DiscordIdentityRefV1("789", "Old Creator"), null, null);
+                    new org.xcore.protocol.generated.shared.DiscordIdentityRefV1("789", "Old Creator"), null, null, null, null, null, null, null);
             var newer = new org.xcore.protocol.generated.shared.MapDiscordUploadV1(
-                    new org.xcore.protocol.generated.shared.DiscordIdentityRefV1("456", "New Sender"), 2, null, null, null);
+                    new org.xcore.protocol.generated.shared.DiscordIdentityRefV1("456", "New Sender"), 2, null, null, null, null, null, null, null, null);
             listener(listeners, MapsLoadCommandV1.class).get(new MapsLoadCommandV1("mini-pvp", List.of(
-                    new MapFileSourceV1("https://example/old.msav", "arena.msav", old),
-                    new MapFileSourceV1("https://example/delayed.msav", "delayed.msav", old))));
+                    new MapFileSourceV1("https://example/old.msav", "arena.msav", old, null, null),
+                    new MapFileSourceV1("https://example/delayed.msav", "delayed.msav", old, null, null))));
             var response = mock(arc.util.Http.HttpResponse.class);
             when(response.getResult()).thenReturn(new byte[]{97, 98, 99});
             success.get("https://example/old.msav").get(response);
             listener(listeners, MapsLoadCommandV1.class).get(new MapsLoadCommandV1("mini-pvp", List.of(
-                    new MapFileSourceV1("https://example/new.msav", "arena.msav", newer))));
+                    new MapFileSourceV1("https://example/new.msav", "arena.msav", newer, null, null))));
             success.get("https://example/new.msav").get(response);
             errors.get("https://example/delayed.msav").get(new java.io.IOException("404"));
             var attribution = ArgumentCaptor.forClass(org.xcore.plugin.model.MapDiscordUpload.class);
@@ -559,9 +559,9 @@ class MapTransportHandlerTest {
             captureListeners(network, listeners);
             handler.registerListeners();
             var request = new org.xcore.protocol.generated.messages.maps.MapsMessages.MapsUploadRequestV1("mini-pvp", List.of(
-                    new MapFileSourceV1("https://example/arena", "arena.msav", null),
-                    new MapFileSourceV1("https://example/fail", "fail.msav", null),
-                    new MapFileSourceV1("https://example/bad", "bad.msav", null)));
+                    new MapFileSourceV1("https://example/arena", "arena.msav", null, null, null),
+                    new MapFileSourceV1("https://example/fail", "fail.msav", null, null, null),
+                    new MapFileSourceV1("https://example/bad", "bad.msav", null, null, null)));
             listener(listeners, org.xcore.protocol.generated.messages.maps.MapsMessages.MapsUploadRequestV1.class).get(request);
             var bytes = mock(arc.util.Http.HttpResponse.class);
             when(bytes.getResult()).thenReturn(new byte[] {1, 2, 3});
@@ -620,8 +620,8 @@ class MapTransportHandlerTest {
                 Map<Class<?>, Cons<?>> listeners = new HashMap<>();
                 captureListeners(network, listeners);
                 handler.registerListeners();
-                listener(listeners, MapsLoadCommandV1.class).get(new MapsLoadCommandV1("mini-pvp", List.of(new MapFileSourceV1("https://example/arena", "arena.msav", null))));
-                listener(listeners, MapsRemoveRequestV1.class).get(new MapsRemoveRequestV1("mini-pvp", "arena.msav"));
+                listener(listeners, MapsLoadCommandV1.class).get(new MapsLoadCommandV1("mini-pvp", List.of(new MapFileSourceV1("https://example/arena", "arena.msav", null, null, null))));
+                listener(listeners, MapsRemoveRequestV1.class).get(new MapsRemoveRequestV1("mini-pvp", "arena.msav", null));
                 while (!main.isEmpty()) main.remove().run();
                 while (!storageTasks.isEmpty()) storageTasks.remove().run();
                 while (!main.isEmpty()) main.remove().run();

@@ -84,7 +84,7 @@ maps-list-title = Maps on `{ $server }`
 maps-list-footer = Sort: { $sort } • Page { $page }/{ $pages } • total maps: { $total } • entries on page: { $shown }
 maps-list-open = Open a map…
 maps-list-open-gone = This map is no longer in the list.
-maps-list-legend = 🎨 declared creator • ⬆ added via Discord
+maps-list-legend = 🎨 declared creator • 🔧 fixed by • ⬆ added via Discord
 maps-list-sort-reputation = reputation
 maps-list-sort-popularity = popularity
 maps-list-sort-name = name
@@ -275,3 +275,24 @@ maps-rollback-option = Revision { $revision } · case #{ $number }
 maps-rollback-running = Putting an earlier revision back as { $file }…
 maps-rollback-file-gone = The file of case #{ $number } is no longer in this post, or it has changed. Nothing was uploaded.
 maps-rollback-note = ↩️ { $user } put revision { $revision } (case #{ $number }) back in place of case #{ $current }: { $file } on `{ $server }`.
+
+# Protocol 0.19.0: conditional writes and files kept aside
+
+maps-upload-label-conflict = ⚠️ Not written: the server holds a different file now
+maps-upload-status-conflict = not written: the server holds a different file now. Press Accept again to see what is there
+maps-upload-note-conflict = check /maps list and try again
+maps-upload-note-kept = the earlier file is kept on the server (/maps trash)
+maps-remove-conflict = ⚠️ `{ $server }`: { $file } changed since you looked at it; nothing was removed.
+maps-remove-public-server-copy = The server kept a copy of the file.
+maps-restore-status-restored = ♻️ put back, with its attribution
+maps-restore-status-not_found = the server no longer has this copy
+maps-restore-status-conflict = the name is taken; nothing was changed
+maps-restore-status-failed = the server could not put it back
+maps-list-revision = rev. { $revision }
+cmd-maps-trash-description = Maps a server set aside when they were removed or replaced (map reviewer)
+maps-trash-title = Files `{ $server }` set aside instead of deleting them. Pick one to put it back:
+maps-trash-empty = `{ $server }` has no files set aside.
+maps-trash-row = { $file } — { $name } · { $reason } · { $date }
+maps-trash-reason-removed = removed
+maps-trash-reason-replaced = replaced by an upload
+maps-trash-restoring = Putting { $file } back…

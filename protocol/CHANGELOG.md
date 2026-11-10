@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.0
+
+- Conditional map writes. `MapFileSourceV1` gains optional `expectedContentHash` (install only over the file with that SHA-256) and `expectAbsent` (install only if no file has the name); `maps.remove.request` gains optional `expectedContentHash`. A write whose condition fails changes nothing and reports `conflict`.
+- `MapUploadResultV1` gains the status `conflict` and optional `contentHash` (the installed file), `replacedContentHash` and `trashId` (the file it replaced, kept aside). `maps.remove.response` gains optional `status` (`removed`/`not_found`/`conflict`/`failed`), `contentHash` and `trashId`; `result` stays for older readers.
+- Servers keep removed and replaced map files aside instead of deleting them. Add `MapTrashEntryV1` and the `maps.trash.list` and `maps.restore` v1 RPCs on `xcore:rpc:req:{server}`: list the files kept aside, and put one back under its own name or `fileName` (`restored`/`not_found`/`conflict`/`failed`).
+- `MapDiscordUploadV1` gains optional `caseNumber`, `threadId` (Discord snowflake), `revision`, `fixedBy` and `fixedByHandle`: the map review a file came from, and who fixed someone else's map while `creator` stays its creator.
+- Java constructors of `MapFileSourceV1`, `MapUploadResultV1`, `MapDiscordUploadV1`, `MapsRemoveRequestV1` and `MapsRemoveResponseV1` gain final nullable arguments.
+- Upgrade the game servers and the bot together. Strict 0.18 servers reject requests with the new fields, and strict 0.18 bots reject responses with them; a bot only sends them, and a server only answers with them, at 0.19.
+
 ## 0.18.0
 
 - Add `MapBlobRefV1`: bytes stored beside a message instead of inside it, as a Redis string `xcore:blob:{sha256}` with `sha256`, `sizeBytes` (at most 16 MiB), `contentType` (`image/png` or `application/octet-stream`), optional `width`/`height` and `expiresAt` in epoch milliseconds. Readers check size and hash before using the bytes. RPC response streams keep thousands of entries, so images and map files never go into them.

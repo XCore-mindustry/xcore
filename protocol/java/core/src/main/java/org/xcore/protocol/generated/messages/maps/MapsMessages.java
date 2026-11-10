@@ -10,6 +10,7 @@ import org.xcore.protocol.generated.shared.MapEntryV1;
 import org.xcore.protocol.generated.shared.MapFileSourceV1;
 import org.xcore.protocol.generated.shared.MapInspectFindingV1;
 import org.xcore.protocol.generated.shared.MapInspectInfoV1;
+import org.xcore.protocol.generated.shared.MapTrashEntryV1;
 import org.xcore.protocol.generated.shared.MapUploadResultV1;
 
 public final class MapsMessages {
@@ -359,7 +360,8 @@ public final class MapsMessages {
 
     public record MapsRemoveRequestV1(
             String server,
-            String fileName
+            String fileName,
+            String expectedContentHash
     ) implements ProtocolPayload {
     public static final String MESSAGE_TYPE = "maps.remove.request";
     public static final int MESSAGE_VERSION = 1;
@@ -370,6 +372,9 @@ public final class MapsMessages {
                 throw new IllegalArgumentException("server must be at least 1 characters");
             }
             Objects.requireNonNull(fileName, "fileName must not be null");
+            if (expectedContentHash != null) {
+                Objects.requireNonNull(expectedContentHash, "expectedContentHash must not be null");
+            }
         }
 
         @Override
@@ -379,13 +384,19 @@ public final class MapsMessages {
             payload.put("messageVersion", MESSAGE_VERSION);
             payload.put("server", server);
             payload.put("fileName", fileName);
+            if (expectedContentHash != null) {
+                payload.put("expectedContentHash", expectedContentHash);
+            }
             return payload;
         }
     }
 
     public record MapsRemoveResponseV1(
             String server,
-            String result
+            String result,
+            MapsRemoveResponseV1Status status,
+            String contentHash,
+            String trashId
     ) implements ProtocolPayload {
     public static final String MESSAGE_TYPE = "maps.remove.response";
     public static final int MESSAGE_VERSION = 1;
@@ -399,6 +410,15 @@ public final class MapsMessages {
             if (result.length() < 1) {
                 throw new IllegalArgumentException("result must be at least 1 characters");
             }
+            if (status != null) {
+                Objects.requireNonNull(status, "status must not be null");
+            }
+            if (contentHash != null) {
+                Objects.requireNonNull(contentHash, "contentHash must not be null");
+            }
+            if (trashId != null) {
+                Objects.requireNonNull(trashId, "trashId must not be null");
+            }
         }
 
         @Override
@@ -408,6 +428,15 @@ public final class MapsMessages {
             payload.put("messageVersion", MESSAGE_VERSION);
             payload.put("server", server);
             payload.put("result", result);
+            if (status != null) {
+                payload.put("status", status.toString());
+            }
+            if (contentHash != null) {
+                payload.put("contentHash", contentHash);
+            }
+            if (trashId != null) {
+                payload.put("trashId", trashId);
+            }
             return payload;
         }
     }
@@ -525,6 +554,154 @@ public final class MapsMessages {
             }
             if (reason != null) {
                 payload.put("reason", reason);
+            }
+            return payload;
+        }
+    }
+
+    public record MapsRestoreRequestV1(
+            String server,
+            String trashId,
+            String fileName
+    ) implements ProtocolPayload {
+    public static final String MESSAGE_TYPE = "maps.restore.request";
+    public static final int MESSAGE_VERSION = 1;
+
+        public MapsRestoreRequestV1 {
+            Objects.requireNonNull(server, "server must not be null");
+            if (server.length() < 1) {
+                throw new IllegalArgumentException("server must be at least 1 characters");
+            }
+            Objects.requireNonNull(trashId, "trashId must not be null");
+            if (fileName != null) {
+                Objects.requireNonNull(fileName, "fileName must not be null");
+            }
+        }
+
+        @Override
+        public Map<String, Object> toPayload() {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("messageType", MESSAGE_TYPE);
+            payload.put("messageVersion", MESSAGE_VERSION);
+            payload.put("server", server);
+            payload.put("trashId", trashId);
+            if (fileName != null) {
+                payload.put("fileName", fileName);
+            }
+            return payload;
+        }
+    }
+
+    public record MapsRestoreResponseV1(
+            String server,
+            String trashId,
+            MapsRestoreResponseV1Status status,
+            String fileName,
+            String contentHash,
+            String detail
+    ) implements ProtocolPayload {
+    public static final String MESSAGE_TYPE = "maps.restore.response";
+    public static final int MESSAGE_VERSION = 1;
+
+        public MapsRestoreResponseV1 {
+            Objects.requireNonNull(server, "server must not be null");
+            if (server.length() < 1) {
+                throw new IllegalArgumentException("server must be at least 1 characters");
+            }
+            Objects.requireNonNull(trashId, "trashId must not be null");
+            Objects.requireNonNull(status, "status must not be null");
+            if (fileName != null) {
+                Objects.requireNonNull(fileName, "fileName must not be null");
+            }
+            if (contentHash != null) {
+                Objects.requireNonNull(contentHash, "contentHash must not be null");
+            }
+            if (detail != null) {
+                Objects.requireNonNull(detail, "detail must not be null");
+                if (detail.length() < 1) {
+                    throw new IllegalArgumentException("detail must be at least 1 characters");
+                }
+            }
+        }
+
+        @Override
+        public Map<String, Object> toPayload() {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("messageType", MESSAGE_TYPE);
+            payload.put("messageVersion", MESSAGE_VERSION);
+            payload.put("server", server);
+            payload.put("trashId", trashId);
+            if (status != null) {
+                payload.put("status", status.toString());
+            }
+            if (fileName != null) {
+                payload.put("fileName", fileName);
+            }
+            if (contentHash != null) {
+                payload.put("contentHash", contentHash);
+            }
+            if (detail != null) {
+                payload.put("detail", detail);
+            }
+            return payload;
+        }
+    }
+
+    public record MapsTrashListRequestV1(
+            String server
+    ) implements ProtocolPayload {
+    public static final String MESSAGE_TYPE = "maps.trash.list.request";
+    public static final int MESSAGE_VERSION = 1;
+
+        public MapsTrashListRequestV1 {
+            Objects.requireNonNull(server, "server must not be null");
+            if (server.length() < 1) {
+                throw new IllegalArgumentException("server must be at least 1 characters");
+            }
+        }
+
+        @Override
+        public Map<String, Object> toPayload() {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("messageType", MESSAGE_TYPE);
+            payload.put("messageVersion", MESSAGE_VERSION);
+            payload.put("server", server);
+            return payload;
+        }
+    }
+
+    public record MapsTrashListResponseV1(
+            String server,
+            List<MapTrashEntryV1> entries
+    ) implements ProtocolPayload {
+    public static final String MESSAGE_TYPE = "maps.trash.list.response";
+    public static final int MESSAGE_VERSION = 1;
+
+        public MapsTrashListResponseV1 {
+            Objects.requireNonNull(server, "server must not be null");
+            if (server.length() < 1) {
+                throw new IllegalArgumentException("server must be at least 1 characters");
+            }
+            entries = Objects.requireNonNull(entries, "entries must not be null");
+            entries = List.copyOf(entries);
+            for (MapTrashEntryV1 item : entries) {
+                Objects.requireNonNull(item, "entries[] must not be null");
+            }
+        }
+
+        @Override
+        public Map<String, Object> toPayload() {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("messageType", MESSAGE_TYPE);
+            payload.put("messageVersion", MESSAGE_VERSION);
+            payload.put("server", server);
+            if (entries != null) {
+                payload.put(
+        "entries",
+        entries.stream()
+            .map(item -> item.toPayload())
+            .toList()
+    );
             }
             return payload;
         }

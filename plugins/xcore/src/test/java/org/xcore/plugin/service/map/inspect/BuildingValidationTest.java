@@ -214,7 +214,7 @@ class BuildingValidationTest {
             when(downloader.download(anyString(), anyInt()))
                     .thenReturn(new MapDownloader.Download(file, "c".repeat(64), (int) Files.size(file)));
             var service = new MapInspectionService(new TomlSecretsConfig(), downloader, new DetachedMapReadLock());
-            var result = service.inspect(new MapFileSourceV1("https://example.invalid/map", "fixture.msav", null), "pvp",
+            var result = service.inspect(new MapFileSourceV1("https://example.invalid/map", "fixture.msav", null, null, null), "pvp",
                     new MapInspectionService.Context(MsavFixture.registry(), MsavFixture.settings()));
             assertThat(result.status()).isEqualTo(MapInspectionResult.Status.INVALID_MAP);
             assertThat(result.snapshot()).isNull(); assertThat(result.findings()).isEmpty();

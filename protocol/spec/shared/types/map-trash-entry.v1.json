@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:protocol:shared:types:map-trash-entry:v1",
+  "title": "MapTrashEntryV1",
+  "description": "A map file a server set aside instead of deleting it: removed, or replaced by an upload.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "trashId",
+    "fileName",
+    "contentHash",
+    "sizeBytes",
+    "trashedAt",
+    "reason"
+  ],
+  "properties": {
+    "trashId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,160}$"
+    },
+    "fileName": {
+      "type": "string",
+      "pattern": "^[^/\\\\]+\\.[mM][sS][aA][vV]$"
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sizeBytes": {
+      "type": "integer",
+      "format": "int64",
+      "minimum": 0
+    },
+    "trashedAt": {
+      "type": "integer",
+      "format": "int64",
+      "minimum": 1
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "removed",
+        "replaced"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

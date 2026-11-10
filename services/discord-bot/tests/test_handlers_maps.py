@@ -410,3 +410,28 @@ async def test_cmd_maps_reports_an_empty_list_in_ukrainian() -> None:
     assert interaction.followup.messages[0]["content"] == (
         "На сервері `mini-pvp` немає карт"
     )
+
+
+def test_a_fixed_map_credits_its_creator_and_fixer_and_shows_its_revision() -> None:
+    from xcore_discord_bot.map_card import map_card
+    from xcore_discord_bot.map_list import map_list_row
+
+    item = {
+        "name": "Asteroid C-843",
+        "author": "andrpearl",
+        "file_name": "asteroid.msav",
+        "uploaded_by_discord_id": "1",
+        "uploaded_by_name": "Reviewer",
+        "creator_discord_id": "2",
+        "creator_name": "andrpearl",
+        "fixed_by_discord_id": "3",
+        "fixed_by_name": "Fixer",
+        "revision": "3",
+    }
+    row = map_list_row(item)
+    assert "🎨 [andrpearl]" in row and "🔧 [Fixer]" in row
+    assert row.index("🎨") < row.index("🔧") < row.index("⬆")
+    assert row.endswith("• rev. 3")
+    assert "rev." not in map_list_row({**item, "revision": "1"})
+    card = map_card("mini-pvp", item, "en").to_dict()
+    assert any("🔧 [Fixer]" in str(f.get("value")) for f in card.get("fields", []))

@@ -17,15 +17,21 @@ from xcore_protocol.generated.maps import (
     MapsListResponseV1,
     MapsRemoveRequestV1,
     MapsRemoveResponseV1,
+    MapsRestoreRequestV1,
+    MapsRestoreResponseV1,
+    MapsTrashListRequestV1,
+    MapsTrashListResponseV1,
 )
 from xcore_protocol.generated.shared import MapBlobRefV1ContentType
 
-from xcore_discord_bot.map_admin import cmd_duplicates, cmd_remove_map
+from xcore_discord_bot.map_admin import cmd_duplicates, cmd_remove_map, cmd_trash
 from xcore_discord_bot.map_backups import COLLECTION, restore_map
 
 LIST = MapsListRequestV1.MESSAGE_TYPE
 REMOVE = MapsRemoveRequestV1.MESSAGE_TYPE
 FILE = MapsFileRequestV1.MESSAGE_TYPE
+RESTORE = MapsRestoreRequestV1.MESSAGE_TYPE
+TRASH = MapsTrashListRequestV1.MESSAGE_TYPE
 REVIEWER = 200
 
 STAR_WARS = msav(meta={"name": "Star Wars", "author": "someone"})
@@ -336,3 +342,158 @@ async def test_duplicates_lists_the_same_map_under_two_names() -> None:
     assert "`asteroid_-843.msav`" in embed.description
     assert "`asteroid_-843_1.msav`" in embed.description
     assert "arena" not in embed.description
+
+
+# --- The server's own copy (protocol 0.19.0) ------------------------------------------
+
+KEPT = "1791800000000-aaaaaaaa-starwars.msav"
+
+
+def _kept_remove(installed: list[dict[str, Any]], status: str = "removed"):
+    """A server at 0.19.0: removes only the file it was told about, and keeps a copy."""
+
+    def remove(payload: dict[str, Any]) -> dict[str, Any]:
+        answer = {
+            "messageType": MapsRemoveResponseV1.MESSAGE_TYPE,
+            "messageVersion": 1,
+            "server": payload["server"],
+            "result": "...",
+            "status": status,
+        }
+        if status == "removed":
+            installed[:] = [
+                m for m in installed if m["fileName"] != payload["fileName"]
+            ]
+            answer["trashId"] = KEPT
+            answer["contentHash"] = hashlib.sha256(STAR_WARS).hexdigest()
+        return answer
+
+    return remove
+
+
+def _restored(status: str = "restored"):
+    def restore(payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "messageType": MapsRestoreResponseV1.MESSAGE_TYPE,
+            "messageVersion": 1,
+            "server": payload["server"],
+            "trashId": payload["trashId"],
+            "status": status,
+            "fileName": payload.get("fileName") or "starwars.msav",
+        }
+
+    return restore
+
+
+async def test_remove_names_the_file_it_saw_and_a_changed_file_stays() -> None:
+    bot, _, game, installed = await _bot(
+        [_entry("starwars.msav", STAR_WARS, "Star Wars", "someone")],
+        {"starwars.msav": STAR_WARS},
+    )
+    game.answers[REMOVE] = _kept_remove(installed, status="conflict")
+    command = _Interaction()
+    await cmd_remove_map(bot, command, "mini-pvp", "starwars.msav")
+    pressed = _Interaction(user=command.user)
+    await _press(command.sent[0].kwargs["view"], "Remove", pressed)
+
+    (sent,) = game.sent(REMOVE)
+    assert sent["expectedContentHash"] == hashlib.sha256(STAR_WARS).hexdigest()
+    assert len(installed) == 1
+    assert "changed since you looked at it; nothing was removed" in pressed.edits[-1]
+    public = pressed.sent[0]
+    assert public.edits[-1]["attachments"] == []  # the copy is dropped, no Restore
+    assert "view" not in public.edits[-1]
+
+
+async def test_a_server_copy_alone_still_offers_restore_and_puts_it_back() -> None:
+    # No copy could be fetched for Discord, but the server set the file aside.
+    bot, db, game, installed = await _bot(
+        [_entry("starwars.msav", STAR_WARS, "Star Wars", "someone")], {}
+    )
+    game.answers[REMOVE] = _kept_remove(installed)
+    game.answers[RESTORE] = _restored()
+    command = _Interaction()
+    await cmd_remove_map(bot, command, "mini-pvp", "starwars.msav")
+    pressed = _Interaction(user=command.user)
+    await _press(command.sent[0].kwargs["view"], "Remove", pressed)
+
+    public = pressed.sent[-1]
+    public.attachments = []  # a message without a file
+    assert "The server kept a copy of the file." in public.content
+    removal_id = public.kwargs["view"].children[0].removal_id
+    (record,) = await db[COLLECTION].find({}).to_list()
+    assert record["trash_id"] == KEPT
+
+    press = _Interaction(message=public)
+    await restore_map(bot, press, removal_id)
+    (sent,) = game.sent(RESTORE)
+    assert sent["trashId"] == KEPT and sent["fileName"] == "starwars.msav"
+    assert game.upload_calls == []
+    assert "put back, with its attribution" in press.sent[-1].content
+    (record,) = await db[COLLECTION].find({}).to_list()
+    assert record["restored_by"]["discord_id"] == "7"
+
+
+async def test_restore_falls_back_to_the_discord_copy_the_server_lost() -> None:
+    bot, _, game, installed = await _bot(
+        [_entry("starwars.msav", STAR_WARS, "Star Wars", "someone")],
+        {"starwars.msav": STAR_WARS},
+    )
+    game.answers[REMOVE] = _kept_remove(installed)
+    game.answers[RESTORE] = _restored("not_found")
+    public, removal_id = await _removed(bot)
+
+    press = _Interaction(message=public)
+    await restore_map(bot, press, removal_id)
+    assert len(game.sent(RESTORE)) == 1
+    ((_, files, _),) = game.upload_calls
+    assert files[0]["url"] == "https://cdn.example/starwars.msav"
+    assert files[0]["expectAbsent"] is True
+    assert "✅ Installed" in press.sent[-1].content
+
+
+async def test_trash_lists_kept_files_and_puts_the_chosen_one_back() -> None:
+    bot, _, game, _ = await _bot([], {})
+    game.answers[TRASH] = lambda payload: {
+        "messageType": MapsTrashListResponseV1.MESSAGE_TYPE,
+        "messageVersion": 1,
+        "server": payload["server"],
+        "entries": [
+            {
+                "trashId": KEPT,
+                "fileName": "starwars.msav",
+                "contentHash": "a" * 64,
+                "sizeBytes": 10,
+                "trashedAt": 1791800000000,
+                "reason": "replaced",
+                "name": "[red]Star Wars",
+            }
+        ],
+    }
+    game.answers[RESTORE] = _restored()
+    command = _Interaction()
+    await cmd_trash(bot, command, "mini-pvp")
+    (listing,) = command.sent
+    assert "`starwars.msav` — Star Wars · replaced by an upload" in listing.content
+    assert listing.kwargs["ephemeral"] is True
+
+    view = listing.kwargs["view"]
+    view.select._values = ["0"]  # what Discord fills in when an option is picked
+    pressed = _Interaction(user=command.user)
+    await view._chosen(pressed)
+    (sent,) = game.sent(RESTORE)
+    assert sent["trashId"] == KEPT and sent.get("fileName") is None
+    assert "put back, with its attribution" in pressed.edits[-1]
+
+
+async def test_trash_of_a_server_with_nothing_kept_says_so() -> None:
+    bot, _, game, _ = await _bot([], {})
+    game.answers[TRASH] = lambda payload: {
+        "messageType": MapsTrashListResponseV1.MESSAGE_TYPE,
+        "messageVersion": 1,
+        "server": payload["server"],
+        "entries": [],
+    }
+    command = _Interaction()
+    await cmd_trash(bot, command, "mini-pvp")
+    assert command.sent[-1].content == "`mini-pvp` has no files set aside."

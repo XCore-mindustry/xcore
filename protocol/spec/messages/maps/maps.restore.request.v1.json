@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:protocol:messages:maps:maps.restore.request:v1",
+  "title": "MapsRestoreRequestV1",
+  "description": "Puts a set-aside map file back, under its own name or fileName.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "messageVersion",
+    "server",
+    "trashId"
+  ],
+  "properties": {
+    "messageType": {
+      "const": "maps.restore.request"
+    },
+    "messageVersion": {
+      "const": 1
+    },
+    "server": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trashId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,160}$"
+    },
+    "fileName": {
+      "type": "string",
+      "pattern": "^[^/\\\\]+\\.[mM][sS][aA][vV]$",
+      "description": "The name to install it under; its own name when absent."
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:protocol:messages:maps:maps.trash.list.response:v1",
+  "title": "MapsTrashListResponseV1",
+  "description": "The map files a server set aside, newest first.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "messageVersion",
+    "server",
+    "entries"
+  ],
+  "properties": {
+    "messageType": {
+      "const": "maps.trash.list.response"
+    },
+    "messageVersion": {
+      "const": 1
+    },
+    "server": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:xcore:protocol:shared:types:map-trash-entry:v1"
+      }
+    }
+  }
+}

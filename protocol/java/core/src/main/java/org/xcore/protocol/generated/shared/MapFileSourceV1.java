@@ -8,13 +8,18 @@ import org.xcore.protocol.generated.runtime.ProtocolPayload;
 public record MapFileSourceV1(
         String url,
         String fileName,
-        MapDiscordUploadV1 discordUpload
+        MapDiscordUploadV1 discordUpload,
+        String expectedContentHash,
+        Boolean expectAbsent
 ) implements ProtocolPayload {
     public MapFileSourceV1 {
         Objects.requireNonNull(url, "url must not be null");
         Objects.requireNonNull(fileName, "fileName must not be null");
         if (discordUpload != null) {
             Objects.requireNonNull(discordUpload, "discordUpload must not be null");
+        }
+        if (expectedContentHash != null) {
+            Objects.requireNonNull(expectedContentHash, "expectedContentHash must not be null");
         }
     }
 
@@ -25,6 +30,12 @@ public record MapFileSourceV1(
         payload.put("fileName", fileName);
         if (discordUpload != null) {
             payload.put("discordUpload", discordUpload.toPayload());
+        }
+        if (expectedContentHash != null) {
+            payload.put("expectedContentHash", expectedContentHash);
+        }
+        if (expectAbsent != null) {
+            payload.put("expectAbsent", expectAbsent);
         }
         return payload;
     }

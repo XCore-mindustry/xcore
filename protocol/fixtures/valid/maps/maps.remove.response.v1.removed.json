@@ -1,0 +1,9 @@
+{
+  "messageType": "maps.remove.response",
+  "messageVersion": 1,
+  "server": "mini-pvp",
+  "result": "Successfully removed map Star Wars (starwars.msav)",
+  "status": "removed",
+  "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "trashId": "1791800000000-aaaaaaaa-starwars.msav"
+}

@@ -38,7 +38,7 @@ import static org.mockito.Mockito.*;
 
 class MapInspectionServiceTest {
     @TempDir Path directory;
-    private final MapFileSourceV1 source = new MapFileSourceV1("https://example.invalid/map", "fixture.msav", null);
+    private final MapFileSourceV1 source = new MapFileSourceV1("https://example.invalid/map", "fixture.msav", null, null, null);
 
     @AfterEach void resetThread() { GameThread.setGameThreadOverride(null); }
 
