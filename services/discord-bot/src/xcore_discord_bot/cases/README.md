@@ -311,7 +311,8 @@ partial success never reopens or fails the accepted case. A frozen target server
 
 Map authors conflict with every case action, including senior actions. `CaseService.started_at`
 is the process timestamp; successful map startup stores `service.maps_enabled_at`, the actual
-intake boundary. Untracked posts older than that boundary are ignored until `/maps review`.
+intake boundary. Untracked posts older than that boundary are ignored until `/maps review`
+or until their author posts a new `.msav` in them, which is how such a map is updated.
 The maps flow owns `case_map_intake` (`_id` = thread id, author id, first intake timestamp) so a
 missing-file prompt and later author upload remain eligible after restart. No old posts are
 walked automatically. Map status tags are found by name at projection time. Discord's five-tag

@@ -662,18 +662,29 @@ async def test_map_outcome_retry_keeps_one_dm_if_author_links_change():
     assert db["case_notices"].docs[0]["player_uuid"] == "private-account-1="
 
 
-async def test_old_posts_untouched_until_manual_review_even_on_new_author_message():
-    service, db, bot, _, _, author, thread, _, attachment = await map_core()
+async def test_old_posts_untouched_until_manual_review():
+    service, db, bot, _, _, _, thread, _, _ = await map_core()
     thread.created_at = NOW - timedelta(days=30)
     await maps.on_thread_create(service, thread)
-    await maps.on_message(service, authored_message(bot, thread, author, attachment))
     assert not db["cases"].docs and not thread.edits
     interaction = Interaction(bot, user=reviewer())
     interaction.channel = thread
     await MapsCog.cmd_review_map.callback(MapsCog(bot), interaction)
     case = await service.store.by_submission(f"map:{thread.id}")
-    assert case and case.payload["message_id"] == str(thread.messages[1].id)
+    assert case and case.payload["message_id"] == str(thread.messages[0].id)
     assert interaction.events[0][0] == "defer"
+
+
+async def test_new_author_file_in_an_old_post_opens_a_review():
+    """An update of a map accepted before the bot is a new file in its old post."""
+    service, db, bot, _, _, author, thread, _, attachment = await map_core()
+    thread.created_at = NOW - timedelta(days=30)
+    await maps.on_message(service, authored_message(bot, thread, author, attachment))
+    case = await service.store.by_submission(f"map:{thread.id}")
+    assert case and case.payload["message_id"] == str(thread.messages[1].id)
+    other = authored_message(bot, thread, reviewer(), attachment)
+    await maps.on_message(service, other)  # a file from someone else changes nothing
+    assert len(db["cases"].docs) == 1
 
 
 async def test_manual_review_says_when_the_named_map_was_not_saved(monkeypatch):

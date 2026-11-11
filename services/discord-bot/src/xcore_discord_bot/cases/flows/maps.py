@@ -305,10 +305,12 @@ async def intake(
             return await service.resume_creation(latest.number)
         markers = service.store.database["case_map_intake"]
         marker = await markers.find_one({"_id": str(thread.id)})
-        # Gateway events also announce old posts when the bot gains access to them.
+        # Gateway events also announce old posts when the bot gains access to them. A new
+        # file from the author is not such an announcement: it is how a map is updated.
         if (
             latest is None
             and not manual
+            and message is None
             and marker is None
             and (
                 thread.created_at is None
