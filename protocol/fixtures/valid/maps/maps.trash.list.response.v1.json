@@ -1,0 +1,25 @@
+{
+  "messageType": "maps.trash.list.response",
+  "messageVersion": 1,
+  "server": "mini-pvp",
+  "entries": [
+    {
+      "trashId": "1791800000000-aaaaaaaa-starwars.msav",
+      "fileName": "starwars.msav",
+      "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sizeBytes": 22454,
+      "trashedAt": 1791800000000,
+      "reason": "removed",
+      "name": "Star Wars",
+      "author": "someone"
+    },
+    {
+      "trashId": "1791700000000-bbbbbbbb-asteroid.msav",
+      "fileName": "asteroid.msav",
+      "contentHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "sizeBytes": 21930,
+      "trashedAt": 1791700000000,
+      "reason": "replaced"
+    }
+  ]
+}

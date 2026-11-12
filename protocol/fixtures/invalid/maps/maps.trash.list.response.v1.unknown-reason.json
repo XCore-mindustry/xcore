@@ -1,0 +1,15 @@
+{
+  "messageType": "maps.trash.list.response",
+  "messageVersion": 1,
+  "server": "mini-pvp",
+  "entries": [
+    {
+      "trashId": "x",
+      "fileName": "a.msav",
+      "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sizeBytes": 1,
+      "trashedAt": 1,
+      "reason": "expired"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "messageType": "maps.remove.request",
+  "messageVersion": 1,
+  "server": "mini-pvp",
+  "fileName": "starwars.msav",
+  "expectedContentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

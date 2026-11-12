@@ -1,0 +1,36 @@
+{
+  "messageType": "maps.upload.request",
+  "messageVersion": 1,
+  "server": "mini-pvp",
+  "files": [
+    {
+      "fileName": "asteroid.msav",
+      "url": "https://cdn.example.test/asteroid_1.msav",
+      "expectedContentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "discordUpload": {
+        "uploadedBy": {
+          "discordId": "123456789012345678",
+          "discordUsername": "Reviewer"
+        },
+        "uploadedAt": 1791800000000,
+        "creator": {
+          "discordId": "234567890123456789",
+          "discordUsername": "Mapper"
+        },
+        "caseNumber": 2112,
+        "threadId": "1305000000000000000",
+        "revision": 2,
+        "fixedBy": {
+          "discordId": "345678901234567890",
+          "discordUsername": "Fixer"
+        },
+        "fixedByHandle": "fixer"
+      }
+    },
+    {
+      "fileName": "arena.msav",
+      "url": "https://cdn.example.test/arena.msav",
+      "expectAbsent": true
+    }
+  ]
+}

@@ -148,6 +148,7 @@ public class TomlSecretsConfig implements SelfNormalizing {
     public static class MapsConfig {
         public VotingConfig voting = new VotingConfig();
         public ChecksConfig checks = new ChecksConfig();
+        public TrashConfig trash = new TrashConfig();
 
         public void normalize() {
             if (voting == null) {
@@ -157,6 +158,28 @@ public class TomlSecretsConfig implements SelfNormalizing {
                 checks = new ChecksConfig();
             }
             checks.normalize();
+            if (trash == null) {
+                trash = new TrashConfig();
+            }
+            trash.normalize();
+        }
+
+        /** Removed and replaced map files kept aside ({@code MapTrash}). */
+        public static class TrashConfig {
+            public int retentionDays = 30;
+            public int maxEntries = 200;
+
+            public void normalize() {
+                TrashConfig defaults = new TrashConfig();
+                if (retentionDays <= 0) {
+                    PLog.warnTag("Config", "maps.trash.retention_days must be positive; using @", defaults.retentionDays);
+                    retentionDays = defaults.retentionDays;
+                }
+                if (maxEntries <= 0) {
+                    PLog.warnTag("Config", "maps.trash.max_entries must be positive; using @", defaults.maxEntries);
+                    maxEntries = defaults.maxEntries;
+                }
+            }
         }
 
         public static class VotingConfig {

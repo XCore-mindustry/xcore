@@ -1494,6 +1494,8 @@ map-upload-file-author = File author: { $author }
 map-upload-creator = Declared creator: { $person }
 map-upload-submitter = Added via Discord: { $person }
 map-upload-date = Uploaded: [lightgray]{ $date }[] (UTC)
+map-upload-fixed-by = Fixed by: { $person }
+map-upload-review = Review #{ $case }, revision { $revision }
 
 map-upload-current-creator = [accent]{ $map }[] — { $creator }
 

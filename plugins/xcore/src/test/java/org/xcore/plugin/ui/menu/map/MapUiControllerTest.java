@@ -2,7 +2,6 @@ package org.xcore.plugin.ui.menu.map;
 
 import com.ospx.flubundle.Bundle;
 import arc.files.Fi;
-import arc.struct.ObjectMap;
 import arc.struct.StringMap;
 import mindustry.core.GameState;
 import mindustry.maps.Map;
@@ -776,7 +775,8 @@ class MapUiControllerTest {
         var controller = new MapUiController(mapService, mapDataRepository, previewService, observerService, session, null, cache);
         var initial = controller.createInitialBrowserModel(session, 1);
         assertThat(initial.displayedMaps().getFirst().likes()).isZero();
-        verify(mapDataRepository, never()).findAllAsMap();
+        // The browser reads only the summary cache, never Mongo directly.
+        verify(mapDataRepository, never()).findAll();
         var data = new MapData("Arena", "arena.msav", "unknown", "survival");
         data.like = 5;
         pending.complete(List.of(data));
@@ -798,20 +798,20 @@ class MapUiControllerTest {
         arc.struct.Seq<Map> available = arc.struct.Seq.with(mindustryMap);
         when(mapService.getAvailableMaps()).thenReturn(available);
 
-        ObjectMap<String, MapData> allStats = new ObjectMap<>();
-        allStats.put(MapDataRepository.genKey("Power Grid", "uylol", "survival"), MapData.builder()
+        MapData stats = MapData.builder()
                 .name("Power Grid")
                 .author("uylol")
                 .gameMode("survival")
                 .like(12)
                 .dislike(3)
-                .build());
-        when(mapDataRepository.findAllAsync()).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(List.of(allStats.values().next())));
+                .build();
+        when(mapDataRepository.findAllAsync()).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(List.of(stats)));
         var cache = new org.xcore.plugin.service.map.MapSummaryCache(mapDataRepository);
         cache.refresh().toCompletableFuture().join();
         MapUiController controller = new MapUiController(mapService, mapDataRepository, previewService, observerService, session, null, cache);
         MapUiModel browser = controller.createInitialBrowserModel(session, 1);
-        verify(mapDataRepository, never()).findAllAsMap();
+        // The browser reads only the summary cache, never Mongo directly.
+        verify(mapDataRepository, never()).findAll();
 
         assertThat(browser.displayedMaps()).hasSize(1);
         MapUiModel.MapSummary summary = browser.displayedMaps().get(0);

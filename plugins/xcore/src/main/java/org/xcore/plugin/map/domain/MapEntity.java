@@ -27,12 +27,36 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 public class MapEntity extends ModelData {
 
-    /** SHA-256 digest of exact file bytes. Primary index. */
+    /**
+     * The map this entity is: {@code post:<thread id>} for a reviewed map, {@code file:<name>}
+     * for a file no review installed, {@code record:<id>} for a legacy record without a file name.
+     * Unique; see {@link MapKeys}.
+     */
+    @BsonProperty("map_key")
+    @Builder.Default
+    public String mapKey = null;
+
+    /** The forum post of a reviewed map. */
+    @BsonProperty("thread_id")
+    @Builder.Default
+    public String threadId = null;
+
+    /** Every file name the map's statistics records are stored under, as stored. */
+    @BsonProperty("file_names")
+    @Builder.Default
+    public java.util.List<String> fileNames = new java.util.ArrayList<>();
+
+    /** {@link #fileNames} in lower case, for finding the map of an installed file. */
+    @BsonProperty("file_names_lower")
+    @Builder.Default
+    public java.util.List<String> fileNamesLower = new java.util.ArrayList<>();
+
+    /** SHA-256 digest of the newest known file bytes. Not an identity: every revision differs. */
     @BsonProperty("content_hash")
     @Builder.Default
     public String contentHash = null;
 
-    /** Canonical slug (author/name) stripped of colors and normalized. Secondary index. */
+    /** Canonical slug (author/name): a display alias only, never used to group maps. */
     @BsonProperty("slug")
     @Builder.Default
     public String slug = null;

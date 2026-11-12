@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, create_autospec
 
+import discord
 from backends import maps_remembered, published, real_bot, remember_maps
 from bot_fakes import make_settings
+from test_cases_msav import msav
 from xcore_protocol.generated.maps import MapsUploadResponseV1
 
-from xcore_discord_bot.handlers_maps import cmd_upload_map
+from xcore_discord_bot.map_admin import cmd_upload_map
 
 CHAT = "xcore:cmd:discord-message:mini-pvp"
 
@@ -30,6 +33,14 @@ class _Member:
 class _Attachment:
     filename: str
     url: str
+    data: bytes = b""
+
+    @property
+    def size(self) -> int:
+        return len(self.data)
+
+    async def read(self) -> bytes:
+        return self.data
 
 
 @dataclass
@@ -51,9 +62,15 @@ class _Interaction:
     id: int
     user: Any
     response: _InteractionResponse = field(default_factory=_InteractionResponse)
+    views: list[Any] = field(default_factory=list)
 
     async def edit_original_response(self, *, content: str, **kwargs) -> None:
         self.response.replies.append(content)
+        if kwargs.get("view") is not None:
+            self.views.append(kwargs["view"])
+
+    async def original_response(self) -> Any:
+        return None
 
     @property
     def replies(self) -> list[str]:
@@ -84,6 +101,8 @@ async def _bot(**answer: Any):
     maps_bus.rpc_upload_maps = create_autospec(
         maps_bus.rpc_upload_maps, **(answer or {"side_effect": _installed})
     )
+    # The server has no maps yet unless a test lists some.
+    maps_bus.rpc_maps_list = create_autospec(maps_bus.rpc_maps_list, return_value=[])
     return bot
 
 
@@ -133,7 +152,7 @@ async def test_upload_map_publishes_msav_files() -> None:
     server, files = _uploads(bot)[0]
     assert server == "mini-pvp"
     assert [item["filename"] for item in files] == ["one.msav", "two.MSAV"]
-    assert any("Uploading 2 map" in reply for reply in interaction.replies)
+    assert any("Checking 2 map" in reply for reply in interaction.replies)
     assert "✅ Installed; attribution saved" in interaction.replies[-1]
 
     for item in files:
@@ -298,3 +317,345 @@ async def test_repeated_upload_interaction_sends_the_maps_once() -> None:
 
     assert len(_uploads(bot)) == 1
     assert repeat.ephemeral_replies
+
+
+# --- Comparing with the maps already installed -------------------------------------------
+
+
+ASTEROID = msav(meta={"name": "asteroid C-843", "author": "andrpearl"})
+ASTEROID_V2 = msav(
+    meta={"name": "asteroid C-843", "author": "andrpearl"}, tail=b"fixed landscape"
+)
+
+
+def _installed_map(
+    file_name: str, data: bytes, name: str, author: str
+) -> dict[str, str]:
+    return {
+        "file_name": file_name,
+        "name": name,
+        "author": author,
+        "content_hash": hashlib.sha256(data).hexdigest(),
+    }
+
+
+def _list(bot, *maps: dict[str, str]) -> None:
+    bot.container.maps_bus.rpc_maps_list.return_value = list(maps)
+
+
+@dataclass
+class _Pressed:
+    """A press of one of the plan's buttons."""
+
+    user: Any
+    edits: list[str] = field(default_factory=list)
+
+    @property
+    def response(self) -> Any:
+        pressed = self
+
+        class _Response:
+            async def edit_message(self, *, content: str, **kwargs) -> None:
+                pressed.edits.append(content)
+
+            async def send_message(self, text: str, **kwargs) -> None:
+                pressed.edits.append(text)
+
+            async def defer(self) -> None:
+                pass
+
+        return _Response()
+
+    async def edit_original_response(self, *, content: str, **kwargs) -> None:
+        self.edits.append(content)
+
+
+async def _press(view: Any, label: str, user: Any) -> _Pressed:
+    pressed = _Pressed(user)
+    button = next(item for item in view.children if item.label == label)
+    await button.callback(pressed)
+    return pressed
+
+
+async def test_a_new_version_under_the_installed_name_is_uploaded_as_an_update() -> (
+    None
+):
+    bot = await _bot()
+    _list(bot, _installed_map("asteroid.msav", ASTEROID, "asteroid C-843", "andrpearl"))
+    interaction = _Interaction(id=100, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID_V2)],
+    )
+    assert [files[0]["filename"] for _, files in _uploads(bot)] == ["asteroid.msav"]
+    assert "updated the installed version" in interaction.replies[-1]
+
+
+async def test_a_renamed_new_version_waits_and_replaces_the_installed_map() -> None:
+    # Discord renamed the author's new file; installing it as is would add a second map.
+    bot = await _bot()
+    _list(bot, _installed_map("asteroid.msav", ASTEROID, "asteroid C-843", "andrpearl"))
+    reviewer = _Member(roles=[_Role(200)])
+    interaction = _Interaction(id=110, user=reviewer)
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid_1.msav", "https://example/a1", ASTEROID_V2)],
+    )
+    assert _uploads(bot) == []
+    plan = interaction.replies[-1]
+    assert "looks like a map that is already installed" in plan
+    assert "`asteroid.msav`" in plan and "same map name and author" in plan
+
+    pressed = await _press(interaction.views[-1], "Replace asteroid.msav", reviewer)
+    ((_, files),) = _uploads(bot)
+    assert files[0]["filename"] == "asteroid.msav"
+    assert files[0]["url"] == "https://example/a1"
+    assert "from `asteroid_1.msav`" in pressed.edits[-1]
+
+
+async def test_another_reviewer_cannot_answer_the_plan() -> None:
+    bot = await _bot()
+    _list(bot, _installed_map("asteroid.msav", ASTEROID, "asteroid C-843", "andrpearl"))
+    interaction = _Interaction(id=120, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid_1.msav", "https://example/a1", ASTEROID_V2)],
+    )
+    other = _Member(roles=[_Role(200)], id=999)
+    pressed = await _press(interaction.views[-1], "Upload as is", other)
+    assert pressed.edits == ["You do not have permission to do this."]
+    assert _uploads(bot) == []
+
+
+async def test_overwriting_a_different_map_waits_and_cancel_sends_nothing() -> None:
+    bot = await _bot()
+    _list(bot, _installed_map("starwars.msav", b"other bytes", "Star Wars", "someone"))
+    reviewer = _Member(roles=[_Role(200)])
+    interaction = _Interaction(id=130, user=reviewer)
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("starwars.msav", "https://example/s", ASTEROID)],
+    )
+    assert "overwrites a different map" in interaction.replies[-1]
+    pressed = await _press(interaction.views[-1], "Cancel", reviewer)
+    assert pressed.edits == ["Upload cancelled; nothing was sent to the server."]
+    assert _uploads(bot) == []
+
+
+async def test_replace_installs_the_file_under_the_replaced_name() -> None:
+    bot = await _bot()
+    _list(bot, _installed_map("asteroid.msav", ASTEROID, "asteroid C-843", "andrpearl"))
+    interaction = _Interaction(id=140, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid C-843 (1).msav", "https://example/a1", ASTEROID_V2)],
+        replace="asteroid.msav",
+    )
+    ((_, files),) = _uploads(bot)
+    assert files[0]["filename"] == "asteroid.msav"
+    assert (
+        "✅ Installed; attribution saved — `asteroid.msav`" in interaction.replies[-1]
+    )
+
+
+async def test_replace_of_a_map_that_is_not_installed_sends_nothing() -> None:
+    bot = await _bot()
+    interaction = _Interaction(id=150, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("arena.msav", "https://example/a", ASTEROID)],
+        replace="missing.msav",
+    )
+    assert "There is no map `missing.msav`" in interaction.replies[-1]
+    assert _uploads(bot) == []
+
+
+async def test_replace_needs_exactly_one_file() -> None:
+    bot = await _bot()
+    interaction = _Interaction(id=160, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [
+            _Attachment("a.msav", "https://example/a"),
+            _Attachment("b.msav", "https://example/b"),
+        ],
+        replace="a.msav",
+    )
+    assert interaction.ephemeral_replies == [
+        "`replace` works with exactly one .msav file."
+    ]
+    assert _uploads(bot) == []
+
+
+async def test_a_server_that_does_not_list_its_maps_still_gets_the_upload() -> None:
+    bot = await _bot()
+    bot.container.maps_bus.rpc_maps_list.side_effect = TimeoutError
+    interaction = _Interaction(id=170, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("arena.msav", "https://example/a", ASTEROID)],
+    )
+    assert len(_uploads(bot)) == 1
+    assert "duplicates were not checked" in interaction.replies[-1]
+
+
+async def test_upload_replies_in_the_users_language() -> None:
+    bot = await _bot()
+    interaction = _Interaction(id=180, user=_Member(roles=[_Role(200)]))
+    interaction.locale = discord.Locale.russian  # type: ignore[attr-defined]
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("arena.msav", "https://example/a", ASTEROID)],
+    )
+    assert "✅ Установлена, атрибуция сохранена" in interaction.replies[-1]
+
+
+async def test_replace_uses_the_installed_spelling_of_the_name() -> None:
+    bot = await _bot()
+    _list(bot, _installed_map("Asteroid.msav", ASTEROID, "asteroid C-843", "andrpearl"))
+    interaction = _Interaction(id=190, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("new.msav", "https://example/n", ASTEROID_V2)],
+        replace="asteroid.msav",
+    )
+    ((_, files),) = _uploads(bot)
+    assert files[0]["filename"] == "Asteroid.msav"
+
+
+# --- Conditional writes (protocol 0.19.0) ---------------------------------------------
+
+
+async def test_an_update_tells_the_server_which_file_it_replaces() -> None:
+    bot = await _bot()
+    _list(bot, _installed_map("asteroid.msav", ASTEROID, "asteroid C-843", "andrpearl"))
+    interaction = _Interaction(id=120, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID_V2)],
+    )
+    ((_, files),) = _uploads(bot)
+    assert files[0]["expectedContentHash"] == hashlib.sha256(ASTEROID).hexdigest()
+    assert "expectAbsent" not in files[0]
+
+
+async def test_a_new_map_must_still_be_absent_when_it_is_written() -> None:
+    bot = await _bot()
+    interaction = _Interaction(id=121, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID)],
+    )
+    ((_, files),) = _uploads(bot)
+    assert files[0]["expectAbsent"] is True
+    assert "expectedContentHash" not in files[0]
+
+
+async def test_a_server_that_does_not_list_its_maps_gets_no_expectation() -> None:
+    bot = await _bot()
+    bot.container.maps_bus.rpc_maps_list.side_effect = TimeoutError
+    interaction = _Interaction(id=122, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID)],
+    )
+    ((_, files),) = _uploads(bot)
+    assert "expectAbsent" not in files[0] and "expectedContentHash" not in files[0]
+
+
+def _answer(status: str, **extra: Any):
+    def answer(*, server: str, files: list[dict[str, object]], timeout_ms: int):
+        return MapsUploadResponseV1.from_payload(
+            {
+                "messageType": "maps.upload.response",
+                "messageVersion": 1,
+                "server": server,
+                "results": [
+                    {"fileName": item["filename"], "status": status, **extra}
+                    for item in files
+                ],
+            }
+        )
+
+    return answer
+
+
+async def test_a_file_changed_on_the_server_meanwhile_is_reported_as_a_conflict() -> (
+    None
+):
+    bot = await _bot(side_effect=_answer("conflict"))
+    _list(bot, _installed_map("asteroid.msav", ASTEROID, "asteroid C-843", "andrpearl"))
+    interaction = _Interaction(id=123, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID_V2)],
+    )
+    reply = interaction.replies[-1]
+    assert "Not written: the server holds a different file now" in reply
+    assert "updated the installed version" not in reply
+
+
+async def test_a_replaced_file_kept_by_the_server_is_mentioned() -> None:
+    kept = {"trashId": "1791800000000-aaaaaaaa-asteroid.msav"}
+    bot = await _bot(side_effect=_answer("installed", **kept))
+    _list(bot, _installed_map("asteroid.msav", ASTEROID, "asteroid C-843", "andrpearl"))
+    interaction = _Interaction(id=124, user=_Member(roles=[_Role(200)]))
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID_V2)],
+    )
+    assert (
+        "the earlier file is kept on the server (/maps trash)"
+        in (interaction.replies[-1])
+    )
+
+
+async def test_an_upload_to_a_frozen_server_waits_for_the_reviewer() -> None:
+    from xcore_discord_bot.map_freezes import MapFreezes
+
+    bot = await _bot()
+    reviewer = _Member(roles=[_Role(200)])
+    await MapFreezes(bot).freeze("mini-pvp", "event tonight", reviewer)
+    interaction = _Interaction(id=122, user=reviewer)
+    await cmd_upload_map(
+        bot,
+        interaction,
+        "mini-pvp",
+        [_Attachment("asteroid.msav", "https://example/a", ASTEROID)],
+    )
+    assert _uploads(bot) == []
+    assert interaction.replies[-1].startswith("❄️ `mini-pvp` is frozen by <@")
+    assert "event tonight" in interaction.replies[-1]
+    await _press(interaction.views[-1], "Upload as is", reviewer)
+    ((_, files),) = _uploads(bot)
+    assert files[0]["filename"] == "asteroid.msav"

@@ -1,6 +1,6 @@
 # Architecture Specification: Map Identity, Lifecycle & Reactive UI Architecture (v2)
 
-- **Status**: Accepted — Phase 1 (identity primitives, catalog, reactive cache/write-behind), Phase 2 (MapEntity domain schema, consolidation, reactive repository), and Phase 3 (sealed MapUiState, MapUiCmd, pure evaluator) implemented; production data migration pending
+- **Status**: Accepted — Phase 1 (identity primitives, catalog, reactive cache/write-behind), Phase 2 (MapEntity domain schema, consolidation, reactive repository), and Phase 3 (sealed MapUiState, MapUiCmd, pure evaluator) implemented. Map linking is decided in [map-updates-design-spec.md](map-updates-design-spec.md), stage 3: `map_entities` is a derived projection keyed by map (`post:<threadId>`, else `file:<name>`), rebuilt by migration V9, at startup and after uploads; slug grouping from V3 is dropped. Mode-split `maps` records stay the write model
 - **Domain**: Maps, Telemetry, Storage, Server-Driven UI
 - **Target Component**: `XCore-plugin` (Mindustry v160, Java 25)
 

@@ -254,6 +254,13 @@ ordered filenames, only `installed` writes a `NOTE` with `kind="map_uploaded"` a
 completion `audit_id`. Return `Resolution("accepted", audit_id=result.audit_id, server=server,
 file_name=result.results[0].fileName)` only for that status. All other statuses write a
 nonterminal `map_upload_result` note and must raise localized `ActionFailed` rather than accept.
+Before the upload, Accept compares the reviewed file with the server's map list
+(`map_targets`). When the file looks like an installed map under another name, or would
+overwrite a different map, the reviewer chooses `replace:<installed file>` or `as-is`; the map
+is then installed under that name. The checkpoint that records `upload_attempt` also stores the
+name as `payload.target_file`, and recovery matches the audit's `file_name` against it (or
+`payload.file_name` when there is none). A newer author file drops `target_file` with the rest
+of the upload state.
 `metadata_failed` means the map file may be installed but attribution failed; it remains open,
 as does `superseded`. Legacy slash uploads remain multifile and add no case audits. Map Maker
 grants belong in the post-close/reconcile hook and cannot prove map acceptance.
@@ -268,9 +275,44 @@ can Reject an unresolved case; automatic acceptance requires its matching comple
 `pending_badge` is cleared only for a complete Map Maker result, with retries through 30 days
 after durable acceptance. Badge failures do not prevent map outcome delivery.
 
+A map post holds one case per reviewed revision. The first keeps `submission_id`
+`map:<thread id>`; each later one is `map:<thread id>:<attachment id>`. All share the
+`dedup_key` `map:<thread id>`, so one review per post is open at a time, and
+`discord.thread_id` is unique only among open cases (`THREAD_INDEX`, which replaces the
+unique index of earlier releases at start-up). A newer author file in a post whose newest case
+is closed opens the next revision (`intake`), with `payload.revision`, `payload.previous` (what
+the card compares with) and `payload.installed` (where the post's last accepted version is).
+`store.by_thread` returns the open case, else the newest; `store.map_cases` lists them all.
+Only the newest case drives the post's tags; rendering an older one updates its own card.
+Rejecting does not lock the post. The `changes` action records `payload.changes_requested`
+and pings the author; a newer file clears it.
+
+Accept chooses the creator after the target. A new map or the post's own update is the
+author's. Replacing a map with another recorded creator keeps that creator and stores the
+author as `payload.fixer`; a replaced map without a creator makes the reviewer choose. Neither
+an update nor a fix earns Map Maker, and each has its own outcome text.
+
+With protocol 0.19.0 the upload records the review in the map's attribution (`caseNumber`,
+`threadId`, `revision`, and `fixedBy` for a fix) and is conditional: once the target is chosen,
+Accept stores in its action values what the server held under that name (`expect`: the hash,
+`absent`, or `none` when the list could not be read), and the server answers `conflict`
+instead of overwriting a file nobody reviewed. `conflict` is a nonterminal result like
+`superseded`.
+
+Where else the post's map is installed is read from the servers: every live server's
+`maps.list` item whose `thread_id` is the post (`map_installs.post_installs`). When other
+servers hold it, Accept asks once (`others`: `all` or `only`) before the upload. The case
+pipeline still runs one external operation for the chosen server; after it closes the case,
+`all` writes the same revision over the post's file on each other server separately (its own
+expectation, audit record and creator), skips frozen ones, and posts one note in the thread
+with each server's result. A server that was not written is retried with `/maps install`, so a
+partial success never reopens or fails the accepted case. A frozen target server
+(`map_freezes`) adds its freeze to Accept's confirmation.
+
 Map authors conflict with every case action, including senior actions. `CaseService.started_at`
 is the process timestamp; successful map startup stores `service.maps_enabled_at`, the actual
-intake boundary. Untracked posts older than that boundary are ignored until `/maps review`.
+intake boundary. Untracked posts older than that boundary are ignored until `/maps review`
+or until their author posts a new `.msav` in them, which is how such a map is updated.
 The maps flow owns `case_map_intake` (`_id` = thread id, author id, first intake timestamp) so a
 missing-file prompt and later author upload remain eligible after restart. No old posts are
 walked automatically. Map status tags are found by name at projection time. Discord's five-tag

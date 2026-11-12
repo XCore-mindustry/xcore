@@ -106,6 +106,8 @@ class Action:
     style: discord.ButtonStyle = discord.ButtonStyle.secondary
     fields: tuple[FormField, ...] | FormBuilder = ()
     visible: Callable[[Case], bool] | None = None
+    # The button's label key for this case, when it is not always ``label_key``.
+    label_for: Callable[[Case], str] | None = None
 
     def form(self, case: Case, locale: str) -> tuple[FormField, ...]:
         fields = (

@@ -64,7 +64,7 @@ def test_load_shared_schema_normalizes_require_any_of_groups(tmp_path: Path) -> 
 def test_load_routes_normalizes_maps_manifest() -> None:
     routes = load_routes(Path("spec/routes/maps.routes.v1.yaml"))
 
-    assert len(routes) == 8
+    assert len(routes) == 10
     first = routes[0]
     assert first.family == "maps"
     assert first.message_type == "maps.list.request"
@@ -86,6 +86,7 @@ def test_generation_plan_only_uses_reachable_maps_shared_types() -> None:
         "MapFileSourceV1",
         "MapInspectFindingV1",
         "MapInspectInfoV1",
+        "MapTrashEntryV1",
         "MapUploadResultV1",
     ]
     assert [schema.title for schema in plan.map_schemas] == [
@@ -102,6 +103,10 @@ def test_generation_plan_only_uses_reachable_maps_shared_types() -> None:
         "MapsRemoveResponseV1",
         "MapsRenderRequestV1",
         "MapsRenderResponseV1",
+        "MapsRestoreRequestV1",
+        "MapsRestoreResponseV1",
+        "MapsTrashListRequestV1",
+        "MapsTrashListResponseV1",
         "MapsUploadRequestV1",
         "MapsUploadResponseV1",
     ]
@@ -114,6 +119,8 @@ def test_generation_plan_only_uses_reachable_maps_shared_types() -> None:
         "MAPS_PREVIEW_REQUEST_V1",
         "MAPS_FILE_REQUEST_V1",
         "MAPS_RENDER_REQUEST_V1",
+        "MAPS_TRASH_LIST_REQUEST_V1",
+        "MAPS_RESTORE_REQUEST_V1",
     ]
 
 

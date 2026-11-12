@@ -380,12 +380,15 @@ class CaseActions:
                 or not extra["file_name"].strip()
             ):
                 return None
-            for payload_key, audit_key in (
-                ("server", "server"),
-                ("file_name", "file_name"),
-                ("sha256", "reviewed_sha256"),
+            # A map that replaces another is installed under that map's name.
+            installed_as = case.payload.get("target_file") or case.payload.get(
+                "file_name"
+            )
+            for expected, audit_key in (
+                (case.payload.get("server"), "server"),
+                (installed_as, "file_name"),
+                (case.payload.get("sha256"), "reviewed_sha256"),
             ):
-                expected = case.payload.get(payload_key)
                 if expected is not None and extra.get(audit_key) != expected:
                     return None
         return code

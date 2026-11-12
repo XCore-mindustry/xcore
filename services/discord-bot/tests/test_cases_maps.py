@@ -280,9 +280,10 @@ async def test_accept_reuses_slash_payload_author_creator_and_installed_audit_th
     assert server == "mini-pvp" and timeout == 120_000
     expected = maps.prepare_map_upload(
         server,
-        [maps.MapUploadFile(attachment.url, attachment.filename)],
+        [maps.MapUploadFile(attachment.url, attachment.filename, expect_absent=True)],
         maps.Actor("101", "Staff 101", "reviewer-101"),
         maps.Actor("42", "Staff 42", case.payload["creator_handle"]),
+        maps.MapReview(case.number, str(thread.id), 1),
     )
     expected[0]["discordUpload"]["uploadedAt"] = files[0]["discordUpload"]["uploadedAt"]
     assert files == expected
@@ -595,7 +596,7 @@ async def test_map_actions_need_reviewer_and_block_author_including_senior(verb)
             )
 
 
-async def test_reject_locks_post_switches_tag_by_name_and_notifies_post_and_dm():
+async def test_reject_keeps_post_open_switches_tag_by_name_and_notifies_post_and_dm():
     env, case = await opened()
     service, db, bot, bus, _, _, thread, _, _ = env
     # Resolve the link at close, including an account linked after intake.
@@ -609,7 +610,12 @@ async def test_reject_locks_post_switches_tag_by_name_and_notifies_post_and_dm()
     final = await service.reject(
         case.number, reviewer(), reason_code="other", reason_text="No route to the core"
     )
-    assert final.status == CaseStatus.REJECTED and thread.locked and not thread.archived
+    # The author may still post a corrected file, which opens the next revision.
+    assert (
+        final.status == CaseStatus.REJECTED
+        and not thread.locked
+        and not thread.archived
+    )
     assert [tag.name for tag in thread.applied_tags] == ["PvP", "Rejected"]
     assert thread.applied_tags[-1] is bot.channels[400].available_tags[-1]
     assert any("No route to the core" in m.content for m in thread.messages)
@@ -656,18 +662,50 @@ async def test_map_outcome_retry_keeps_one_dm_if_author_links_change():
     assert db["case_notices"].docs[0]["player_uuid"] == "private-account-1="
 
 
-async def test_old_posts_untouched_until_manual_review_even_on_new_author_message():
-    service, db, bot, _, _, author, thread, _, attachment = await map_core()
+async def test_old_posts_untouched_until_manual_review():
+    service, db, bot, _, _, _, thread, _, _ = await map_core()
     thread.created_at = NOW - timedelta(days=30)
     await maps.on_thread_create(service, thread)
-    await maps.on_message(service, authored_message(bot, thread, author, attachment))
     assert not db["cases"].docs and not thread.edits
     interaction = Interaction(bot, user=reviewer())
     interaction.channel = thread
     await MapsCog.cmd_review_map.callback(MapsCog(bot), interaction)
     case = await service.store.by_submission(f"map:{thread.id}")
-    assert case and case.payload["message_id"] == str(thread.messages[1].id)
+    assert case and case.payload["message_id"] == str(thread.messages[0].id)
     assert interaction.events[0][0] == "defer"
+
+
+async def test_new_author_file_in_an_old_post_opens_a_review():
+    """An update of a map accepted before the bot is a new file in its old post."""
+    service, db, bot, _, _, author, thread, _, attachment = await map_core()
+    thread.created_at = NOW - timedelta(days=30)
+    await maps.on_message(service, authored_message(bot, thread, author, attachment))
+    case = await service.store.by_submission(f"map:{thread.id}")
+    assert case and case.payload["message_id"] == str(thread.messages[1].id)
+    other = authored_message(bot, thread, reviewer(), attachment)
+    await maps.on_message(service, other)  # a file from someone else changes nothing
+    assert len(db["cases"].docs) == 1
+
+
+async def test_manual_review_says_when_the_named_map_was_not_saved(monkeypatch):
+    service, db, bot, _, _, _, thread, _, _ = await map_core()
+    first = Interaction(bot, user=reviewer())
+    first.channel = thread
+    await MapsCog.cmd_review_map.callback(MapsCog(bot), first)
+    (case,) = await service.store.map_cases(thread.id)
+    await service.reject(case.number, reviewer(), reason_code="other", reason_text="No")
+    # The post's file is reviewed already: a second run names a map but starts nothing.
+    interaction = Interaction(bot, user=reviewer())
+    interaction.channel = thread
+    binding = {"server": "mini-pvp", "file_name": "arena.msav"}
+    monkeypatch.setattr(MapsCog, "_binding", AsyncMock(return_value=binding))
+    await MapsCog.cmd_review_map.callback(
+        MapsCog(bot), interaction, server="mini-pvp", replaces="arena.msav"
+    )
+    assert len(db["cases"].docs) == 1
+    (text,) = interaction.followup.texts()
+    assert text.startswith(t("en", "maps-review-nothing-new"))
+    assert text.endswith(t("en", "maps-review-binding-unused"))
 
 
 async def test_feature_off_unset_ids_startup_and_events_do_not_touch_forum():
@@ -1251,3 +1289,163 @@ async def test_a_review_closed_while_drawing_gets_no_render(monkeypatch):
     await asyncio.gather(*maps._previews.values())
 
     assert renderer.files and _renders(thread) == []
+
+
+# --- What an accepted map replaces on the server -----------------------------------------
+
+
+def _installed(file_name, *, name="Arena", author="", sha="0" * 64, creator=None):
+    item = {"file_name": file_name, "name": name, "author": author, "content_hash": sha}
+    if creator is not None:
+        item["creator_discord_id"] = creator
+        item["creator_name"] = f"Creator {creator}"
+    return item
+
+
+async def _accept_until_target(service, case, bot):
+    interaction = Interaction(bot, user=reviewer())
+    await service.dispatch_action(
+        case.number,
+        "accept",
+        reviewer(),
+        "en",
+        {"server": "mini-pvp"},
+        interaction=interaction,
+    )
+    return interaction
+
+
+async def _choose(view, value, bot):
+    view.select._values = [value]
+    await view.select.callback(Interaction(bot, user=reviewer()))
+
+
+async def test_accept_with_nothing_like_it_installed_asks_nothing_more():
+    env, case = await opened()
+    service, _, bot, bus, _, _, _, _, _ = env
+    bot.bus.rpc_maps_list.return_value = [_installed("other.msav", name="Other")]
+    final = await do_accept(service, case)
+    assert final.resolution.file_name == "arena.msav"
+    assert bus.upload_calls[0][1][0]["filename"] == "arena.msav"
+
+
+async def test_accept_of_a_renamed_version_replaces_the_installed_map():
+    # The author's update came in as "arena_1.msav"; "Arena" is already installed as arena.msav.
+    service, db, bot, bus, _, author, thread, _, _ = await map_core()
+    renamed = Attachment(id=2100, filename="arena_1.msav")
+    thread.messages.clear()
+    authored_message(bot, thread, author, renamed, id=thread.id)
+    service.transport.rpc_inspect_map.side_effect = lambda **kw: inspect_payload(
+        renamed
+    )
+    await maps.on_thread_create(service, thread)
+    case = await service.store.by_submission(f"map:{thread.id}")
+    bot.bus.rpc_maps_list.return_value = [_installed("arena.msav", creator="42")]
+
+    interaction = await _accept_until_target(service, case, bot)
+    assert not bus.upload_calls
+    text = interaction.events[-1][1]
+    assert "already installed" in text and "`arena.msav`" in text
+    view = last_view(interaction)
+    assert [o.value for o in view.select.options] == ["replace:arena.msav", "as-is"]
+    assert view.select.options[0].label == "Replace arena.msav"
+
+    await _choose(view, "replace:arena.msav", bot)
+    final = await service.get(case.number)
+    assert final.resolution.code == "accepted"
+    assert final.resolution.file_name == "arena.msav"
+    assert final.payload["target_file"] == "arena.msav"
+    ((_, files, _),) = bus.upload_calls
+    assert files[0]["filename"] == "arena.msav" and files[0]["url"] == renamed.url
+    audit = db["moderation_audit"].docs[0]["details"]["extra"]
+    assert audit["file_name"] == "arena.msav"
+
+
+async def test_accept_as_is_keeps_the_attachment_name():
+    service, _, bot, _, _, author, thread, _, _ = await map_core()
+    renamed = Attachment(id=2100, filename="arena_1.msav")
+    thread.messages.clear()
+    authored_message(bot, thread, author, renamed, id=thread.id)
+    service.transport.rpc_inspect_map.side_effect = lambda **kw: inspect_payload(
+        renamed
+    )
+    await maps.on_thread_create(service, thread)
+    case = await service.store.by_submission(f"map:{thread.id}")
+    bot.bus.rpc_maps_list.return_value = [_installed("arena.msav")]
+    interaction = await _accept_until_target(service, case, bot)
+    await _choose(last_view(interaction), "as-is", bot)
+    assert (await service.get(case.number)).resolution.file_name == "arena_1.msav"
+
+
+async def test_accept_over_a_different_map_with_the_same_file_name_asks():
+    env, case = await opened()
+    service, _, bot, bus, _, _, _, _, _ = env
+    bot.bus.rpc_maps_list.return_value = [_installed("arena.msav", name="Star Wars")]
+    interaction = await _accept_until_target(service, case, bot)
+    assert not bus.upload_calls
+    options = last_view(interaction).select.options
+    assert [o.value for o in options] == ["as-is"]
+    assert options[0].label == "Overwrite arena.msav (another map)"
+
+
+async def test_accept_when_the_server_does_not_list_its_maps_asks_to_go_on():
+    env, case = await opened()
+    service, _, bot, bus, _, _, _, _, _ = env
+    bot.bus.rpc_maps_list.side_effect = TimeoutError
+    interaction = await _accept_until_target(service, case, bot)
+    assert "duplicates were not checked" in interaction.events[-1][1]
+    assert not bus.upload_calls
+    await last_view(interaction).children[0].callback(Interaction(bot, user=reviewer()))
+    assert (await service.get(case.number)).resolution.file_name == "arena.msav"
+
+
+async def test_crash_after_a_replacing_upload_recovers_from_the_audit_of_the_target():
+    service, _, bot, bus, _, author, thread, _, _ = await map_core()
+    renamed = Attachment(id=2100, filename="arena_1.msav")
+    thread.messages.clear()
+    authored_message(bot, thread, author, renamed, id=thread.id)
+    service.transport.rpc_inspect_map.side_effect = lambda **kw: inspect_payload(
+        renamed
+    )
+    await maps.on_thread_create(service, thread)
+    case = await service.store.by_submission(f"map:{thread.id}")
+    bot.bus.rpc_maps_list.return_value = [_installed("arena.msav", creator="42")]
+    original = service.actions._finish
+    service.actions._finish = AsyncMock(
+        side_effect=RuntimeError("crash before case write")
+    )
+    interaction = await _accept_until_target(service, case, bot)
+    # The choice's step reports the failure to the reviewer instead of raising.
+    await _choose(last_view(interaction), "replace:arena.msav", bot)
+    current = await service.get(case.number)
+    assert current.pending_action and current.actionable
+    assert current.payload["upload_attempt"]["state"] == "installed"
+    service.actions._finish = original
+    await reconcile_cases(service)
+    final = await service.get(case.number)
+    assert final.resolution.code == "accepted"
+    assert final.resolution.file_name == "arena.msav"
+    assert len(bus.upload_calls) == 1
+
+
+async def test_findings_do_not_repeat_the_translation_in_english():
+    case = SimpleNamespace(
+        payload={
+            "findings": [
+                {
+                    "code": "data-patches",
+                    "severity": "warning",
+                    "detail": "The map changes gameplay with data patches; these checks ignored them",
+                    "count": 1,
+                },
+                {
+                    "code": "requires-mods",
+                    "severity": "error",
+                    "detail": "Required mods: exotic",
+                },
+            ]
+        }
+    )
+    lines = [maps._finding(f, "ru") for f in case.payload["findings"]]
+    assert "these checks ignored them" not in lines[0]
+    assert "Required mods: exotic" in lines[1]

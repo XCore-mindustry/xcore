@@ -709,7 +709,7 @@ class RedisNetworkBackendIntegrationTest {
                     Map.entry("server", "alpha"),
                     Map.entry("payload_json", new Gson().toJson(new MapsLoadCommandV1(
                             "alpha",
-                            List.of(new MapFileSourceV1("https://example/maps/a.msav", "a.msav", null))
+                            List.of(new MapFileSourceV1("https://example/maps/a.msav", "a.msav", null, null, null))
                     )))
             );
 
@@ -884,7 +884,7 @@ class RedisNetworkBackendIntegrationTest {
     }
 
     private static MapsRemoveRequestV1 mapRemoveRequest(String server, String fileName) {
-        return new MapsRemoveRequestV1(server, fileName);
+        return new MapsRemoveRequestV1(server, fileName, null);
     }
 
     private static MapsListResponseV1 mapsListResponse(MapEntryV1... entries) {
@@ -892,7 +892,7 @@ class RedisNetworkBackendIntegrationTest {
     }
 
     private static MapsRemoveResponseV1 mapRemoveResponse(String server, String result) {
-        return new MapsRemoveResponseV1(server, result);
+        return new MapsRemoveResponseV1(server, result, null, null, null);
     }
 
     private static MapEntryV1 mapEntry(

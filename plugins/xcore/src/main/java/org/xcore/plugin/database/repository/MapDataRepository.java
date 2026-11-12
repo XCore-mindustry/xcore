@@ -1,6 +1,5 @@
 package org.xcore.plugin.database.repository;
 
-import arc.struct.ObjectMap;
 import arc.util.Strings;
 import com.mongodb.MongoWriteException;
 import com.mongodb.client.MongoDatabase;
@@ -21,12 +20,27 @@ import org.xcore.plugin.model.MapData;
 import java.util.Optional;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static com.mongodb.client.model.Filters.*;
 
 @Singleton
 public class MapDataRepository extends DataRepository<MapData> {
+
+    /**
+     * Whether a map file is installed on this server. A record stored under one file name
+     * belongs to that file while it is installed: another file with the same map name and
+     * author does not share its statistics (map-updates-design-spec.md, stage 3).
+     */
+    private Predicate<String> installedFile = this::customMapInstalled;
+
+    /**
+     * The custom map files the engine loaded, as of its last reload; {@code null} until the
+     * first one. Kept in memory so that lookups running on database driver threads do not
+     * touch the disk.
+     */
+    private volatile java.util.Set<String> installedCustomMaps;
 
     @Inject
     public MapDataRepository(MongoDatabase database, ReactiveMongoStore reactiveMongoStore, TomlSecretsConfig secretsConfig) {
@@ -44,6 +58,96 @@ public class MapDataRepository extends DataRepository<MapData> {
 
     public MapDataRepository(MongoDatabase database, TomlSecretsConfig secretsConfig) {
         this(database, null, secretsConfig);
+    }
+
+    /** For tests: what counts as an installed file. */
+    void installedFiles(Predicate<String> installed) {
+        this.installedFile = installed == null ? this::customMapInstalled : installed;
+    }
+
+    /** Called on the game thread after every map reload with the custom map files loaded. */
+    public void installedCustomMaps(java.util.Collection<String> fileNames) {
+        this.installedCustomMaps = java.util.Set.copyOf(fileNames);
+    }
+
+    boolean customMapInstalled(String fileName) {
+        if (fileName == null || fileName.isBlank()) return false;
+        var loaded = installedCustomMaps;
+        if (loaded != null) return loaded.contains(fileName);
+        // Before the engine's first load: look at the folder itself.
+        return fileOnDisk(fileName);
+    }
+
+    static boolean fileOnDisk(String fileName) {
+        var directory = mindustry.Vars.customMapDirectory;
+        return directory != null && fileName != null && !fileName.isBlank()
+                && !fileName.contains("/") && !fileName.contains("\\") && directory.child(fileName).exists();
+    }
+
+    /**
+     * Whether {@code record}, found by map name and author, may serve {@code fileName}: not when
+     * it is stored under another file that is still installed. Records without a file name
+     * (legacy, or {@code "Unknown"}) and records of renamed or removed files stay usable.
+     */
+    static boolean aliasAllowed(MapData record, String fileName, Predicate<String> installed) {
+        if (record == null) return false;
+        String owner = record.fileName;
+        if (owner == null || owner.isBlank() || "Unknown".equals(owner)) return true;
+        if (fileName != null && owner.equalsIgnoreCase(fileName)) return true;
+        return !installed.test(owner);
+    }
+
+    /** The records found by name and author that {@code fileName} may use. */
+    static List<MapData> usableAliases(List<MapData> records, String fileName, Predicate<String> installed) {
+        var usable = new ArrayList<MapData>(records.size());
+        for (MapData record : records) {
+            if (aliasAllowed(record, fileName, installed)) usable.add(record);
+        }
+        return usable;
+    }
+
+    /**
+     * The statistics of an installed file from records already read: its own file name first,
+     * then a record with the same map name and author that no other installed file owns.
+     */
+    public static MapData resolve(List<MapData> records, String fileName, String name, String author,
+                                  String gameMode, Predicate<String> installed) {
+        if (records == null || gameMode == null) return null;
+        for (MapData record : records) {
+            if (fileName != null && fileName.equals(record.fileName) && gameMode.equals(record.gameMode)) return record;
+        }
+        for (MapData record : records) {
+            if (name != null && name.equals(record.name) && author != null && author.equals(record.author)
+                    && gameMode.equals(record.gameMode) && aliasAllowed(record, fileName, installed)) {
+                return record;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The record with this map name and author that {@code fileName} may use, when nothing is
+     * stored under its own name. Exact names first, then a unique case-insensitive match.
+     */
+    public Optional<MapData> find(String name, String author, String gameMode, String fileName) {
+        if (name == null || author == null || gameMode == null) {
+            return Optional.empty();
+        }
+        var exact = usableAliases(collection.find(and(
+                eq("name", name),
+                eq("author", author),
+                eq("game_mode", gameMode)
+        )).limit(10).into(new ArrayList<>()), fileName, installedFile);
+        if (!exact.isEmpty()) return Optional.of(exact.getFirst());
+
+        String plainName = Strings.stripColors(name);
+        String plainAuthor = Strings.stripColors(author);
+        var matches = usableAliases(collection.find(and(
+                regex("name", "^" + Pattern.quote(plainName) + "$", "i"),
+                regex("author", "^" + Pattern.quote(plainAuthor) + "$", "i"),
+                regex("game_mode", "^" + Pattern.quote(gameMode) + "$", "i")
+        )).limit(10).into(new ArrayList<>()), fileName, installedFile);
+        return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
     }
 
     public Optional<MapData> find(String name, String author, String gameMode) {
@@ -142,8 +246,9 @@ public class MapDataRepository extends DataRepository<MapData> {
                     regex("game_mode", "^" + Pattern.quote(gameMode) + "$", "i"),
                     or(regex("file_name", "^" + Pattern.quote(fileName) + "$", "i"),
                             and(regex("name", "^" + Pattern.quote(cleanName) + "$", "i"),
-                                    regex("author", "^" + Pattern.quote(cleanAuthor) + "$", "i"))))).limit(5))
-                    .thenCompose(matches -> {
+                                    regex("author", "^" + Pattern.quote(cleanAuthor) + "$", "i"))))).limit(10))
+                    .thenCompose(found -> {
+                        var matches = usableAliases(found, fileName, installedFile);
                         if (!matches.isEmpty()) {
                             if (matches.size() == 1) return java.util.concurrent.CompletableFuture.completedFuture(matches.getFirst());
                             var sorted = new java.util.ArrayList<>(matches);
@@ -157,7 +262,7 @@ public class MapDataRepository extends DataRepository<MapData> {
 
     public MapData findOrCreate(String name, String fileName, String author, String gameMode) {
         MapData data = findByFileName(fileName, gameMode)
-                .or(() -> find(name, author, gameMode)).orElse(null);
+                .or(() -> find(name, author, gameMode, fileName)).orElse(null);
         boolean created = data == null;
         if (created) data = new MapData(name, fileName, author, gameMode);
         if (created) save(data);
@@ -268,18 +373,6 @@ public class MapDataRepository extends DataRepository<MapData> {
     public void decayInterest(double amount) {
         collection.updateMany(gt("interest", 0), Updates.inc("interest", -amount));
         collection.updateMany(lt("interest", 0), Updates.set("interest", 0.0));
-    }
-
-    public ObjectMap<String, MapData> findAllAsMap() {
-        ObjectMap<String, MapData> map = new ObjectMap<>();
-        for (MapData data : collection.find()) {
-            map.put(genKey(data.name, data.author, data.gameMode), data);
-        }
-        return map;
-    }
-
-    public static String genKey(String name, String author, String mode) {
-        return name + "|" + author + "|" + mode;
     }
 
     public void checkMapDecay() {

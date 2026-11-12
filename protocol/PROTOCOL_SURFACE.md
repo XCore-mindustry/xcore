@@ -4,11 +4,11 @@
 
 ## Overview
 
-- **Protocol Version:** 0.18.0
+- **Protocol Version:** 0.19.0
 - **Message Families:** 11
-- **Total Messages:** 70
-- **Total Routes:** 51
-- **Shared Types:** 24
+- **Total Messages:** 74
+- **Total Routes:** 53
+- **Shared Types:** 25
 - **Envelope Schemas:** 6
 
 ## Shared Types
@@ -23,12 +23,13 @@
 | `DiscordIdentityRefV1` | required: discordId; optional: discordUsername |
 | `ExpirationInfoV1` | optional: expiresAt, permanent |
 | `MapBlobRefV1` | required: key, sha256, sizeBytes, contentType, expiresAt; optional: width, height |
-| `MapDiscordUploadV1` | required: uploadedBy, uploadedAt; optional: creator, uploadedByHandle, creatorHandle |
+| `MapDiscordUploadV1` | required: uploadedBy, uploadedAt; optional: creator, uploadedByHandle, creatorHandle, caseNumber, threadId, revision, fixedBy, fixedByHandle |
 | `MapEntryV1` | required: name, fileName, author; optional: width, height, fileSizeBytes, like, dislike, reputation, popularity, interest, gameMode, discordUpload, contentHash |
-| `MapFileSourceV1` | required: url, fileName; optional: discordUpload |
+| `MapFileSourceV1` | required: url, fileName; optional: discordUpload, expectedContentHash, expectAbsent |
 | `MapInspectFindingV1` | required: code, severity; optional: detail, x, y, count |
 | `MapInspectInfoV1` | required: name, width, height, sha256, sizeBytes; optional: author, description, saveVersion, build, gameMode, profile, spawnCount, coresByTeam, waves, waveTimer, spawnGroupCount, dropZoneRadius, mods |
-| `MapUploadResultV1` | required: fileName, status; optional: detail |
+| `MapTrashEntryV1` | required: trashId, fileName, contentHash, sizeBytes, trashedAt, reason; optional: name, author |
+| `MapUploadResultV1` | required: fileName, status; optional: detail, contentHash, replacedContentHash, trashId |
 | `MetricSampleV1` | required: name, type, labels; optional: help, unit, value, buckets, counts, count, sum |
 | `ModerationTargetRefV1` | optional: playerUuid, playerPid, playerName, ip |
 | `PlayerCommandTargetV1` | optional: playerUuid, playerPid, playerName, ip |
@@ -64,10 +65,14 @@
 | `MapsLoadCommandV1` | `urn:xcore:protocol:messages:maps:maps.load.command:v1` | required: messageType, messageVersion, server, files |
 | `MapsPreviewRequestV1` | `urn:xcore:protocol:messages:maps:maps.preview.request:v1` | required: messageType, messageVersion, server, fileName; optional: maxSide |
 | `MapsPreviewResponseV1` | `urn:xcore:protocol:messages:maps:maps.preview.response:v1` | required: messageType, messageVersion, server, fileName, status; optional: contentHash, image |
-| `MapsRemoveRequestV1` | `urn:xcore:protocol:messages:maps:maps.remove.request:v1` | required: messageType, messageVersion, server, fileName |
-| `MapsRemoveResponseV1` | `urn:xcore:protocol:messages:maps:maps.remove.response:v1` | required: messageType, messageVersion, server, result |
-| `MapsRenderRequestV1` | `urn:xcore:protocol:messages:maps:maps.render.request:v1` | required: messageType, messageVersion, contentHash, file; optional: maxSide, maxBytes |
+| `MapsRemoveRequestV1` | `urn:xcore:protocol:messages:maps:maps.remove.request:v1` | required: messageType, messageVersion, server, fileName; optional: expectedContentHash |
+| `MapsRemoveResponseV1` | `urn:xcore:protocol:messages:maps:maps.remove.response:v1` | required: messageType, messageVersion, server, result; optional: status, contentHash, trashId |
+| `MapsRenderRequestV1` | `urn:xcore:protocol:messages:maps:maps.render.request:v1` | required: messageType, messageVersion, contentHash, file; optional: maxSide, maxBytes, darkness, buildings, ores, grid, spawns |
 | `MapsRenderResponseV1` | `urn:xcore:protocol:messages:maps:maps.render.response:v1` | required: messageType, messageVersion, contentHash, status; optional: image, scale, renderMs, reason |
+| `MapsRestoreRequestV1` | `urn:xcore:protocol:messages:maps:maps.restore.request:v1` | required: messageType, messageVersion, server, trashId; optional: fileName |
+| `MapsRestoreResponseV1` | `urn:xcore:protocol:messages:maps:maps.restore.response:v1` | required: messageType, messageVersion, server, trashId, status; optional: fileName, contentHash, detail |
+| `MapsTrashListRequestV1` | `urn:xcore:protocol:messages:maps:maps.trash.list.request:v1` | required: messageType, messageVersion, server |
+| `MapsTrashListResponseV1` | `urn:xcore:protocol:messages:maps:maps.trash.list.response:v1` | required: messageType, messageVersion, server, entries |
 | `MapsUploadRequestV1` | `urn:xcore:protocol:messages:maps:maps.upload.request:v1` | required: messageType, messageVersion, server, files |
 | `MapsUploadResponseV1` | `urn:xcore:protocol:messages:maps:maps.upload.response:v1` | required: messageType, messageVersion, server, results |
 
@@ -188,6 +193,8 @@
 | `MapsPreviewRequestV1` | rpc-request | xcore:rpc:req:{server} | 15000ms | False | `MapsPreviewResponseV1` |
 | `MapsFileRequestV1` | rpc-request | xcore:rpc:req:{server} | 15000ms | False | `MapsFileResponseV1` |
 | `MapsRenderRequestV1` | rpc-request | xcore:rpc:req:map-renderer | 60000ms | False | `MapsRenderResponseV1` |
+| `MapsTrashListRequestV1` | rpc-request | xcore:rpc:req:{server} | 15000ms | False | `MapsTrashListResponseV1` |
+| `MapsRestoreRequestV1` | rpc-request | xcore:rpc:req:{server} | 15000ms | False | `MapsRestoreResponseV1` |
 | `CasesReportSubmittedV1` | event | xcore:evt:cases:report | 604800000ms | True | `—` |
 | `CasesNoticeCommandV1` | command | xcore:cmd:cases-notice:{server} | 120000ms | False | `—` |
 | `CasesEvidenceRequestV1` | rpc-request | xcore:rpc:req:{server} | 15000ms | False | `CasesEvidenceResponseV1` |

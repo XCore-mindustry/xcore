@@ -8,7 +8,10 @@ import org.xcore.protocol.generated.runtime.ProtocolPayload;
 public record MapUploadResultV1(
         String fileName,
         MapUploadResultV1Status status,
-        String detail
+        String detail,
+        String contentHash,
+        String replacedContentHash,
+        String trashId
 ) implements ProtocolPayload {
     public MapUploadResultV1 {
         Objects.requireNonNull(fileName, "fileName must not be null");
@@ -22,6 +25,15 @@ public record MapUploadResultV1(
                 throw new IllegalArgumentException("detail must be at least 1 characters");
             }
         }
+        if (contentHash != null) {
+            Objects.requireNonNull(contentHash, "contentHash must not be null");
+        }
+        if (replacedContentHash != null) {
+            Objects.requireNonNull(replacedContentHash, "replacedContentHash must not be null");
+        }
+        if (trashId != null) {
+            Objects.requireNonNull(trashId, "trashId must not be null");
+        }
     }
 
     @Override
@@ -33,6 +45,15 @@ public record MapUploadResultV1(
         }
         if (detail != null) {
             payload.put("detail", detail);
+        }
+        if (contentHash != null) {
+            payload.put("contentHash", contentHash);
+        }
+        if (replacedContentHash != null) {
+            payload.put("replacedContentHash", replacedContentHash);
+        }
+        if (trashId != null) {
+            payload.put("trashId", trashId);
         }
         return payload;
     }

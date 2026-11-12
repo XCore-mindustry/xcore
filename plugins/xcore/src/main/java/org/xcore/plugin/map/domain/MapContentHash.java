@@ -32,6 +32,16 @@ public record MapContentHash(String asHex) {
         return new MapContentHash(HexFormat.of().formatHex(bytes));
     }
 
+    /** The digest of bytes already in memory; safe on any thread, as nothing is read. */
+    public static MapContentHash ofContent(byte[] content) {
+        Objects.requireNonNull(content, "content");
+        try {
+            return digest(new java.io.ByteArrayInputStream(content));
+        } catch (IOException impossible) {
+            throw new java.io.UncheckedIOException(impossible);
+        }
+    }
+
     /**
      * Consumes but does not close the caller-owned stream. May block: file streams
      * must only be supplied from a worker, never from the Mindustry tick thread.

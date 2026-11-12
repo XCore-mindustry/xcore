@@ -4,18 +4,16 @@ import functools
 import io
 import logging
 import math
-import secrets
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import discord
 from discord import Interaction
 
-from .command_helpers import claim_mutation, reply_locale
+from .command_helpers import reply_locale
 from .i18n import t
 from .map_card import find_map, map_card
 from .map_list import map_list_page_items, map_list_row, map_text
-from .moderation_views import MapRemoveConfirmView
 from .permissions import general_admin_role_ids, has_any_role, map_reviewer_role_ids
 from .server_views import MapDetailsView, MapOption, MapsListView
 from .services.map_images import (
@@ -25,15 +23,6 @@ from .services.map_images import (
     RendererBusy,
     RendererUnavailable,
     RenderStyle,
-)
-from .staff_actions import (
-    Actor,
-    InvalidMapUpload,
-    MapUploadFailed,
-    MapUploadFile,
-    MapUploadTimeout,
-    perform_map_upload,
-    prepare_map_upload,
 )
 from .utils.mindustry_colors import strip_mindustry_colors
 
@@ -204,20 +193,24 @@ async def _card_picture(
     return card(image_name=name, render_ms=image.render_ms), file
 
 
-async def _review_thread(bot: XCoreDiscordBot, content_hash: str) -> str | None:
-    """The map forum post where this file was reviewed, if it came that way."""
+async def _review(
+    bot: XCoreDiscordBot, content_hash: str
+) -> tuple[str | None, str | None]:
+    """The map forum post where this file was reviewed, if it came that way, and who fixed
+    the map when the post fixed someone else's map."""
     if not content_hash or not bot.settings.cases_maps_enabled:
-        return None
+        return None, None
     try:
         case = await bot.container.cases.store.by_map_file(content_hash)
     except Exception:
         logger.warning(
             "Could not look up the review of %s", content_hash, exc_info=True
         )
-        return None
+        return None, None
     if case is None:
-        return None
-    return case.discord.get("thread_id") or None
+        return None, None
+    fixer = (case.payload.get("fixer") or {}).get("discord_id")
+    return case.discord.get("thread_id") or None, fixer or None
 
 
 RENDER_TIMEOUT = "maps-card-render-timeout"
@@ -227,6 +220,18 @@ RENDER_UNAVAILABLE = "maps-card-render-unavailable"
 # Nothing was drawn for the presser: these cost no wait. A timed-out render keeps it,
 # since the renderer may still be drawing.
 REFUNDED = frozenset((RENDER_BUSY, RENDER_FAILED, RENDER_UNAVAILABLE))
+
+
+async def _card_review(
+    bot: XCoreDiscordBot, item: dict[str, str], content_hash: str
+) -> tuple[str | None, str | None]:
+    """The review post of the map and who fixed it, for its card."""
+    review_thread_id, fixed_by = await _review(bot, content_hash)
+    # Servers at protocol 0.19.0 keep the review in the map's own attribution.
+    review_thread_id = review_thread_id or item.get("thread_id") or None
+    if item.get("fixed_by_discord_id"):
+        fixed_by = None  # the credits line names them already
+    return review_thread_id, fixed_by
 
 
 async def send_map_card(
@@ -242,12 +247,14 @@ async def send_map_card(
     images = bot.container.map_images
     ref = MapRef(server, item.get("file_name", ""), item.get("content_hash", ""))
 
+    review_thread_id, fixed_by = await _card_review(bot, item, ref.content_hash)
     card = functools.partial(
         map_card,
         server,
         item,
         locale,
-        review_thread_id=await _review_thread(bot, ref.content_hash),
+        review_thread_id=review_thread_id,
+        fixed_by=fixed_by,
     )
 
     async def picture(
@@ -304,131 +311,3 @@ async def send_map_card(
     sent = await interaction.followup.send(**kwargs)
     if view is not None:
         view.bot_message = sent
-
-
-async def cmd_remove_map(
-    bot: XCoreDiscordBot,
-    interaction: Interaction,
-    server: str,
-    file_name: str,
-) -> None:
-    normalized = file_name.strip()
-    if not normalized:
-        await interaction.response.send_message(
-            "Map file name must not be empty.", ephemeral=True
-        )
-        return
-
-    request_nonce = secrets.token_hex(6)
-    view = MapRemoveConfirmView(
-        requester_id=interaction.user.id,
-        server=server,
-        file_name=normalized,
-        request_nonce=request_nonce,
-        perform_remove_map=lambda **kwargs: perform_remove_map(bot, **kwargs),
-    )
-    await interaction.response.send_message(
-        f"Are you sure you want to remove map file `{normalized}` from `{server}`?",
-        view=view,
-    )
-    view.message = await interaction.original_response()
-
-
-async def perform_remove_map(
-    bot: XCoreDiscordBot,
-    *,
-    server: str,
-    file_name: str,
-    request_nonce: str,
-) -> str:
-    claim_key = f"remove-map:{server}:{file_name}:{request_nonce}"
-    if not await bot.bus.claim_idempotency(claim_key, ttl_seconds=600):
-        return "This map removal was already processed."
-
-    try:
-        result = await bot.container.rpc.remove_map(
-            server=server,
-            file_name=file_name,
-            timeout_ms=bot.settings.rpc_timeout_ms,
-        )
-    except TimeoutError:
-        return "No response from target server (timeout)."
-    bot.container.map_catalog.forget(server)
-    bot.container.map_images.forget(server)
-
-    return f"🗑️ `{server}` remove-map `{file_name}`: {result}"
-
-
-async def cmd_upload_map(
-    bot: XCoreDiscordBot,
-    interaction: Interaction,
-    server: str,
-    attachments: list[discord.Attachment | None],
-    creator: discord.abc.User | None = None,
-    creators: list[discord.abc.User | None] | None = None,
-) -> None:
-    def identity(user: discord.abc.User) -> Actor:
-        return Actor(
-            str(user.id),
-            user.display_name or user.name,
-            handle=getattr(user, "name", None),
-        )
-
-    uploader = identity(interaction.user)
-    files = [
-        MapUploadFile(
-            attachment.url,
-            attachment.filename,
-            creator=identity(creators[index])
-            if creators and index < len(creators) and creators[index] is not None
-            else None,
-        )
-        for index, attachment in enumerate(attachments)
-        if attachment is not None and attachment.filename.lower().endswith(".msav")
-    ]
-    creator_actor = identity(creator) if creator is not None else None
-    try:
-        prepare_map_upload(server, files, uploader, creator_actor)
-    except InvalidMapUpload as error:
-        await interaction.response.send_message(str(error), ephemeral=True)
-        return
-    if not await claim_mutation(
-        bot, interaction, operation="upload-map", scope=f"{server}:{len(files)}"
-    ):
-        return
-
-    await interaction.response.send_message(
-        f"Uploading {len(files)} map(s) to `{map_text(server, inline_code=True)}`…",
-        allowed_mentions=discord.AllowedMentions.none(),
-    )
-    try:
-        response = await perform_map_upload(bot, server, files, uploader, creator_actor)
-    except MapUploadTimeout as error:
-        await interaction.edit_original_response(
-            content=str(error),
-            allowed_mentions=discord.AllowedMentions.none(),
-        )
-        return
-    except MapUploadFailed as error:
-        logger.exception("Map upload confirmation failed for %s", server)
-        await interaction.edit_original_response(
-            content=str(error),
-            allowed_mentions=discord.AllowedMentions.none(),
-        )
-        return
-    labels = {
-        "installed": "✅ Installed; attribution saved",
-        "download_failed": "❌ Download or file write failed",
-        "invalid_map": "❌ Invalid map file",
-        "superseded": "⚠️ Replaced by a newer upload",
-        "metadata_failed": "⚠️ Installed; attribution was not saved",
-        "rejected": "❌ Rejected filename",
-    }
-    rows = [f"Maps on `{map_text(server, inline_code=True)}`:"]
-    for result in response.results:
-        rows.append(
-            f"{labels[result.status.value]} — `{map_text(result.fileName, 100, inline_code=True)}`"
-        )
-    await interaction.edit_original_response(
-        content="\n".join(rows), allowed_mentions=discord.AllowedMentions.none()
-    )

@@ -107,7 +107,12 @@ def map_list_row(item: dict[str, str], locale: str = DEFAULT) -> str:
         credits = []
         if item.get("creator_discord_id"):
             credits.append(f"🎨 {map_contributor(item, 'creator')}")
+        if item.get("fixed_by_discord_id"):
+            credits.append(f"🔧 {map_contributor(item, 'fixed_by')}")
         credits.append(f"⬆ {map_contributor(item, 'uploaded_by')}")
+        revision = str(item.get("revision", ""))
+        if revision.isdigit() and int(revision) > 1:
+            credits.append(t(locale, "maps-list-revision", revision=int(revision)))
         row += "\n  " + " • ".join(credits)
         uploaded_at = item.get("uploaded_at", "")
         if uploaded_at.isascii() and uploaded_at.isdigit():

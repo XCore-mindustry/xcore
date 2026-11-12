@@ -223,7 +223,7 @@ async def test_map_card_links_the_review_post_of_its_file(
 
     async def by_map_file(sha256: str) -> Any:
         asked.append(sha256)
-        return SimpleNamespace(discord={"thread_id": "123456"})
+        return SimpleNamespace(discord={"thread_id": "123456"}, payload={})
 
     monkeypatch.setattr(bot.container.cases.store, "by_map_file", by_map_file)
     interaction = _Interaction()
@@ -234,6 +234,27 @@ async def test_map_card_links_the_review_post_of_its_file(
     fields = {f.name: f.value for f in message["embed"].fields}
     assert fields["Review"] == "<#123456>"
     assert asked == ["ab" * 32]
+
+
+async def test_map_card_names_who_fixed_someone_elses_map(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot = await _bot([{**ARENA, "contentHash": "ab" * 32}])
+    bot.settings = bot.settings.model_copy(update={"cases_maps_enabled": True})
+    bot.container.map_images = MapImages()
+
+    async def by_map_file(sha256: str) -> Any:
+        return SimpleNamespace(
+            discord={"thread_id": "123456"},
+            payload={"fixer": {"discord_id": "777", "name": "RiTr"}},
+        )
+
+    monkeypatch.setattr(bot.container.cases.store, "by_map_file", by_map_file)
+    interaction = _Interaction()
+    await cmd_map_details(bot, interaction, "mini-pvp", "Arena.msav")
+    [message] = interaction.followup.messages
+    fields = {f.name: f.value for f in message["embed"].fields}
+    assert fields["Fixed by"] == "<@777>"
 
 
 def test_map_card_has_no_review_field_without_a_post() -> None:

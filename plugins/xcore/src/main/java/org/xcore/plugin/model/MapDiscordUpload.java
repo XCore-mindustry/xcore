@@ -18,20 +18,41 @@ public class MapDiscordUpload {
     public String creatorName;
     public String uploadedByHandle;
     public String creatorHandle;
+    /** The map review (case) that accepted the file, its forum post and revision; null otherwise. */
+    public Integer caseNumber;
+    public String threadId;
+    public Integer revision;
+    /** Who fixed someone else's map; the creator stays its creator. */
+    public String fixedByDiscordId;
+    public String fixedByName;
+    public String fixedByHandle;
 
     public MapDiscordUpload(String id, String name, long at, String creatorId, String creatorName) {
         this(id, name, at, creatorId, creatorName, null, null);
     }
 
+    public MapDiscordUpload(String id, String name, long at, String creatorId, String creatorName,
+                            String uploadedByHandle, String creatorHandle) {
+        this(id, name, at, creatorId, creatorName, uploadedByHandle, creatorHandle,
+                null, null, null, null, null, null);
+    }
+
     public static MapDiscordUpload fromProtocol(MapDiscordUploadV1 upload) {
         if (upload == null) return null;
+        var fixedBy = upload.fixedBy();
         return new MapDiscordUpload(upload.uploadedBy().discordId(), upload.uploadedBy().discordUsername(),
                 upload.uploadedAt(), upload.creator() == null ? null : upload.creator().discordId(),
-                upload.creator() == null ? null : upload.creator().discordUsername(), upload.uploadedByHandle(), upload.creatorHandle());
+                upload.creator() == null ? null : upload.creator().discordUsername(), upload.uploadedByHandle(),
+                upload.creatorHandle(), upload.caseNumber(), upload.threadId(), upload.revision(),
+                fixedBy == null ? null : fixedBy.discordId(), fixedBy == null ? null : fixedBy.discordUsername(),
+                upload.fixedByHandle());
     }
 
     public MapDiscordUploadV1 toProtocol() {
         return new MapDiscordUploadV1(new DiscordIdentityRefV1(uploadedByDiscordId, uploadedByName),
-                uploadedAt, creatorDiscordId == null ? null : new DiscordIdentityRefV1(creatorDiscordId, creatorName), uploadedByHandle, creatorHandle);
+                uploadedAt, creatorDiscordId == null ? null : new DiscordIdentityRefV1(creatorDiscordId, creatorName),
+                uploadedByHandle, creatorHandle, caseNumber, threadId, revision,
+                fixedByDiscordId == null ? null : new DiscordIdentityRefV1(fixedByDiscordId, fixedByName),
+                fixedByHandle);
     }
 }

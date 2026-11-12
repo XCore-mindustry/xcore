@@ -499,6 +499,11 @@ class MapDiscordUploadV1:
     creator: DiscordIdentityRefV1 | None = None
     uploadedByHandle: str | None = None
     creatorHandle: str | None = None
+    caseNumber: int | None = None
+    threadId: str | None = None
+    revision: int | None = None
+    fixedBy: DiscordIdentityRefV1 | None = None
+    fixedByHandle: str | None = None
 
     def __post_init__(self) -> None:
         _expect_instance(self.uploadedBy, 'uploadedBy', DiscordIdentityRefV1)
@@ -515,6 +520,24 @@ class MapDiscordUploadV1:
             _expect_str(self.creatorHandle, 'creatorHandle')
             if len(self.creatorHandle) < 1:
                 raise ValueError("creatorHandle is too short")
+        if self.caseNumber is not None:
+            _expect_int(self.caseNumber, 'caseNumber')
+            if self.caseNumber < 1:
+                raise ValueError("caseNumber must be >= 1")
+        if self.threadId is not None:
+            _expect_str(self.threadId, 'threadId')
+            if re.search('^[0-9]{1,20}$', self.threadId) is None:
+                raise ValueError("threadId does not match its pattern")
+        if self.revision is not None:
+            _expect_int(self.revision, 'revision')
+            if self.revision < 1:
+                raise ValueError("revision must be >= 1")
+        if self.fixedBy is not None:
+            _expect_instance(self.fixedBy, 'fixedBy', DiscordIdentityRefV1)
+        if self.fixedByHandle is not None:
+            _expect_str(self.fixedByHandle, 'fixedByHandle')
+            if len(self.fixedByHandle) < 1:
+                raise ValueError("fixedByHandle is too short")
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "MapDiscordUploadV1":
@@ -522,7 +545,7 @@ class MapDiscordUploadV1:
         _expect_exact_keys(
             mapping,
             required=frozenset(('uploadedBy', 'uploadedAt')),
-            allowed=frozenset(('uploadedBy', 'uploadedAt', 'creator', 'uploadedByHandle', 'creatorHandle')),
+            allowed=frozenset(('uploadedBy', 'uploadedAt', 'creator', 'uploadedByHandle', 'creatorHandle', 'caseNumber', 'threadId', 'revision', 'fixedBy', 'fixedByHandle')),
             model_name="MapDiscordUploadV1",
         )
         return cls(
@@ -531,6 +554,11 @@ class MapDiscordUploadV1:
             creator=(DiscordIdentityRefV1.from_payload(_expect_mapping(mapping['creator'], 'creator')) if 'creator' in mapping else None),
             uploadedByHandle=(_expect_str(mapping['uploadedByHandle'], 'uploadedByHandle') if 'uploadedByHandle' in mapping else None),
             creatorHandle=(_expect_str(mapping['creatorHandle'], 'creatorHandle') if 'creatorHandle' in mapping else None),
+            caseNumber=(_expect_int(mapping['caseNumber'], 'caseNumber') if 'caseNumber' in mapping else None),
+            threadId=(_expect_str(mapping['threadId'], 'threadId') if 'threadId' in mapping else None),
+            revision=(_expect_int(mapping['revision'], 'revision') if 'revision' in mapping else None),
+            fixedBy=(DiscordIdentityRefV1.from_payload(_expect_mapping(mapping['fixedBy'], 'fixedBy')) if 'fixedBy' in mapping else None),
+            fixedByHandle=(_expect_str(mapping['fixedByHandle'], 'fixedByHandle') if 'fixedByHandle' in mapping else None),
         )
 
     def to_payload(self) -> dict[str, Any]:
@@ -543,6 +571,16 @@ class MapDiscordUploadV1:
             payload['uploadedByHandle'] = self.uploadedByHandle
         if self.creatorHandle is not None:
             payload['creatorHandle'] = self.creatorHandle
+        if self.caseNumber is not None:
+            payload['caseNumber'] = self.caseNumber
+        if self.threadId is not None:
+            payload['threadId'] = self.threadId
+        if self.revision is not None:
+            payload['revision'] = self.revision
+        if self.fixedBy is not None:
+            payload['fixedBy'] = self.fixedBy.to_payload()
+        if self.fixedByHandle is not None:
+            payload['fixedByHandle'] = self.fixedByHandle
         return payload
 
 @dataclass(frozen=True, slots=True)
@@ -665,6 +703,8 @@ class MapFileSourceV1:
     url: str
     fileName: str
     discordUpload: MapDiscordUploadV1 | None = None
+    expectedContentHash: str | None = None
+    expectAbsent: bool | None = None
 
     def __post_init__(self) -> None:
         _expect_str(self.url, 'url')
@@ -673,6 +713,12 @@ class MapFileSourceV1:
             raise ValueError("fileName does not match its pattern")
         if self.discordUpload is not None:
             _expect_instance(self.discordUpload, 'discordUpload', MapDiscordUploadV1)
+        if self.expectedContentHash is not None:
+            _expect_str(self.expectedContentHash, 'expectedContentHash')
+            if re.search('^[a-f0-9]{64}$', self.expectedContentHash) is None:
+                raise ValueError("expectedContentHash does not match its pattern")
+        if self.expectAbsent is not None:
+            _expect_bool(self.expectAbsent, 'expectAbsent')
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "MapFileSourceV1":
@@ -680,13 +726,15 @@ class MapFileSourceV1:
         _expect_exact_keys(
             mapping,
             required=frozenset(('url', 'fileName')),
-            allowed=frozenset(('url', 'fileName', 'discordUpload')),
+            allowed=frozenset(('url', 'fileName', 'discordUpload', 'expectedContentHash', 'expectAbsent')),
             model_name="MapFileSourceV1",
         )
         return cls(
             url=_expect_str(mapping['url'], 'url'),
             fileName=_expect_str(mapping['fileName'], 'fileName'),
             discordUpload=(MapDiscordUploadV1.from_payload(_expect_mapping(mapping['discordUpload'], 'discordUpload')) if 'discordUpload' in mapping else None),
+            expectedContentHash=(_expect_str(mapping['expectedContentHash'], 'expectedContentHash') if 'expectedContentHash' in mapping else None),
+            expectAbsent=(_expect_bool(mapping['expectAbsent'], 'expectAbsent') if 'expectAbsent' in mapping else None),
         )
 
     def to_payload(self) -> dict[str, Any]:
@@ -695,6 +743,10 @@ class MapFileSourceV1:
         payload['fileName'] = self.fileName
         if self.discordUpload is not None:
             payload['discordUpload'] = self.discordUpload.to_payload()
+        if self.expectedContentHash is not None:
+            payload['expectedContentHash'] = self.expectedContentHash
+        if self.expectAbsent is not None:
+            payload['expectAbsent'] = self.expectAbsent
         return payload
 
 class MapInspectFindingV1Severity(StrEnum):
@@ -891,6 +943,81 @@ class MapInspectInfoV1:
         payload['sizeBytes'] = self.sizeBytes
         return payload
 
+class MapTrashEntryV1Reason(StrEnum):
+    REMOVED = 'removed'
+    REPLACED = 'replaced'
+
+@dataclass(frozen=True, slots=True)
+class MapTrashEntryV1:
+    trashId: str
+    fileName: str
+    contentHash: str
+    sizeBytes: int
+    trashedAt: int
+    reason: MapTrashEntryV1Reason
+    name: str | None = None
+    author: str | None = None
+
+    def __post_init__(self) -> None:
+        _expect_str(self.trashId, 'trashId')
+        if re.search('^[A-Za-z0-9._-]{1,160}$', self.trashId) is None:
+            raise ValueError("trashId does not match its pattern")
+        _expect_str(self.fileName, 'fileName')
+        if re.search('^[^/\\\\]+\\.[mM][sS][aA][vV]$', self.fileName) is None:
+            raise ValueError("fileName does not match its pattern")
+        _expect_str(self.contentHash, 'contentHash')
+        if re.search('^[a-f0-9]{64}$', self.contentHash) is None:
+            raise ValueError("contentHash does not match its pattern")
+        _expect_int(self.sizeBytes, 'sizeBytes')
+        if self.sizeBytes < 0:
+            raise ValueError("sizeBytes must be >= 0")
+        _expect_int(self.trashedAt, 'trashedAt')
+        if self.trashedAt < 1:
+            raise ValueError("trashedAt must be >= 1")
+        _expect_instance(self.reason, 'reason', MapTrashEntryV1Reason)
+        if self.name is not None:
+            _expect_str(self.name, 'name')
+            if len(self.name) < 1:
+                raise ValueError("name is too short")
+        if self.author is not None:
+            _expect_str(self.author, 'author')
+            if len(self.author) < 1:
+                raise ValueError("author is too short")
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "MapTrashEntryV1":
+        mapping = _expect_mapping(payload, "MapTrashEntryV1")
+        _expect_exact_keys(
+            mapping,
+            required=frozenset(('trashId', 'fileName', 'contentHash', 'sizeBytes', 'trashedAt', 'reason')),
+            allowed=frozenset(('trashId', 'fileName', 'contentHash', 'sizeBytes', 'trashedAt', 'reason', 'name', 'author')),
+            model_name="MapTrashEntryV1",
+        )
+        return cls(
+            trashId=_expect_str(mapping['trashId'], 'trashId'),
+            fileName=_expect_str(mapping['fileName'], 'fileName'),
+            contentHash=_expect_str(mapping['contentHash'], 'contentHash'),
+            sizeBytes=_expect_int(mapping['sizeBytes'], 'sizeBytes'),
+            trashedAt=_expect_int(mapping['trashedAt'], 'trashedAt'),
+            reason=_expect_enum(mapping['reason'], 'reason', MapTrashEntryV1Reason),
+            name=(_expect_str(mapping['name'], 'name') if 'name' in mapping else None),
+            author=(_expect_str(mapping['author'], 'author') if 'author' in mapping else None),
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        payload['trashId'] = self.trashId
+        payload['fileName'] = self.fileName
+        payload['contentHash'] = self.contentHash
+        payload['sizeBytes'] = self.sizeBytes
+        payload['trashedAt'] = self.trashedAt
+        payload['reason'] = str(self.reason)
+        if self.name is not None:
+            payload['name'] = self.name
+        if self.author is not None:
+            payload['author'] = self.author
+        return payload
+
 class MapUploadResultV1Status(StrEnum):
     INSTALLED = 'installed'
     DOWNLOAD_FAILED = 'download_failed'
@@ -898,12 +1025,16 @@ class MapUploadResultV1Status(StrEnum):
     SUPERSEDED = 'superseded'
     METADATA_FAILED = 'metadata_failed'
     REJECTED = 'rejected'
+    CONFLICT = 'conflict'
 
 @dataclass(frozen=True, slots=True)
 class MapUploadResultV1:
     fileName: str
     status: MapUploadResultV1Status
     detail: str | None = None
+    contentHash: str | None = None
+    replacedContentHash: str | None = None
+    trashId: str | None = None
 
     def __post_init__(self) -> None:
         _expect_str(self.fileName, 'fileName')
@@ -916,6 +1047,18 @@ class MapUploadResultV1:
             _expect_str(self.detail, 'detail')
             if len(self.detail) < 1:
                 raise ValueError("detail is too short")
+        if self.contentHash is not None:
+            _expect_str(self.contentHash, 'contentHash')
+            if re.search('^[a-f0-9]{64}$', self.contentHash) is None:
+                raise ValueError("contentHash does not match its pattern")
+        if self.replacedContentHash is not None:
+            _expect_str(self.replacedContentHash, 'replacedContentHash')
+            if re.search('^[a-f0-9]{64}$', self.replacedContentHash) is None:
+                raise ValueError("replacedContentHash does not match its pattern")
+        if self.trashId is not None:
+            _expect_str(self.trashId, 'trashId')
+            if re.search('^[A-Za-z0-9._-]{1,160}$', self.trashId) is None:
+                raise ValueError("trashId does not match its pattern")
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "MapUploadResultV1":
@@ -923,13 +1066,16 @@ class MapUploadResultV1:
         _expect_exact_keys(
             mapping,
             required=frozenset(('fileName', 'status')),
-            allowed=frozenset(('fileName', 'status', 'detail')),
+            allowed=frozenset(('fileName', 'status', 'detail', 'contentHash', 'replacedContentHash', 'trashId')),
             model_name="MapUploadResultV1",
         )
         return cls(
             fileName=_expect_str(mapping['fileName'], 'fileName'),
             status=_expect_enum(mapping['status'], 'status', MapUploadResultV1Status),
             detail=(_expect_str(mapping['detail'], 'detail') if 'detail' in mapping else None),
+            contentHash=(_expect_str(mapping['contentHash'], 'contentHash') if 'contentHash' in mapping else None),
+            replacedContentHash=(_expect_str(mapping['replacedContentHash'], 'replacedContentHash') if 'replacedContentHash' in mapping else None),
+            trashId=(_expect_str(mapping['trashId'], 'trashId') if 'trashId' in mapping else None),
         )
 
     def to_payload(self) -> dict[str, Any]:
@@ -938,6 +1084,12 @@ class MapUploadResultV1:
         payload['status'] = str(self.status)
         if self.detail is not None:
             payload['detail'] = self.detail
+        if self.contentHash is not None:
+            payload['contentHash'] = self.contentHash
+        if self.replacedContentHash is not None:
+            payload['replacedContentHash'] = self.replacedContentHash
+        if self.trashId is not None:
+            payload['trashId'] = self.trashId
         return payload
 
 class MetricSampleV1Type(StrEnum):
@@ -1444,6 +1596,7 @@ __all__ = [
     "MapFileSourceV1",
     "MapInspectFindingV1",
     "MapInspectInfoV1",
+    "MapTrashEntryV1",
     "MapUploadResultV1",
     "MetricSampleV1",
     "ModerationTargetRefV1",
@@ -1458,6 +1611,7 @@ __all__ = [
     "CaseChatLineV1Role",
     "MapBlobRefV1ContentType",
     "MapInspectFindingV1Severity",
+    "MapTrashEntryV1Reason",
     "MapUploadResultV1Status",
     "MetricSampleV1Type",
     "SeasonPrizeV1Kind",

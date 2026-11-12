@@ -4,7 +4,12 @@
   "title": "MapsRemoveRequestV1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["messageType", "messageVersion", "server", "fileName"],
+  "required": [
+    "messageType",
+    "messageVersion",
+    "server",
+    "fileName"
+  ],
   "properties": {
     "messageType": {
       "const": "maps.remove.request"
@@ -19,6 +24,11 @@
     "fileName": {
       "type": "string",
       "pattern": "^[^/\\\\]+\\.[mM][sS][aA][vV]$"
+    },
+    "expectedContentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Remove only if the file has this SHA-256; otherwise the status is conflict."
     }
   }
 }

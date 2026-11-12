@@ -1501,6 +1501,8 @@ map-upload-file-author = Autor v souboru: { $author }
 map-upload-creator = Uvedený autor: { $person }
 map-upload-submitter = Přidal přes Discord: { $person }
 map-upload-date = Nahráno: [lightgray]{ $date }[] (UTC)
+map-upload-fixed-by = Opravil(a): { $person }
+map-upload-review = Kontrola č. { $case }, revize { $revision }
 
 map-upload-current-creator = [accent]{ $map }[] — { $creator }
 

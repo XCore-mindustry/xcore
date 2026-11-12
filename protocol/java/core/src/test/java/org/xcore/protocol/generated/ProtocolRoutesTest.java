@@ -20,8 +20,10 @@ class ProtocolRoutesTest {
 
     @Test
     void aggregateCatalogIncludesAllRoutes() {
-        assertEquals(51, ProtocolRoutes.ROUTES_BY_MESSAGE.size(), "expected 51 total routes");
+        assertEquals(53, ProtocolRoutes.ROUTES_BY_MESSAGE.size(), "expected 53 total routes");
         assertNotNull(ProtocolRoutes.ROUTES_BY_MESSAGE.get(new ProtocolRoutes.MessageKey("maps.render.request", 1)));
+        assertNotNull(ProtocolRoutes.ROUTES_BY_MESSAGE.get(new ProtocolRoutes.MessageKey("maps.trash.list.request", 1)));
+        assertNotNull(ProtocolRoutes.ROUTES_BY_MESSAGE.get(new ProtocolRoutes.MessageKey("maps.restore.request", 1)));
         assertNotNull(ProtocolRoutes.ROUTES_BY_MESSAGE.get(new ProtocolRoutes.MessageKey("chat.message", 1)));
         assertNotNull(ProtocolRoutes.ROUTES_BY_MESSAGE.get(new ProtocolRoutes.MessageKey("maps.list.request", 1)));
         assertNotNull(ProtocolRoutes.ROUTES_BY_MESSAGE.get(new ProtocolRoutes.MessageKey("discord.link.status-changed", 1)));

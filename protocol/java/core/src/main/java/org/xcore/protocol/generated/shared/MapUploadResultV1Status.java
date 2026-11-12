@@ -6,7 +6,8 @@ public enum MapUploadResultV1Status {
     INVALID_MAP("invalid_map"),
     SUPERSEDED("superseded"),
     METADATA_FAILED("metadata_failed"),
-    REJECTED("rejected");
+    REJECTED("rejected"),
+    CONFLICT("conflict");
 
     private final String value;
 

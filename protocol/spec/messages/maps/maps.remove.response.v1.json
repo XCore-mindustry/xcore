@@ -4,7 +4,12 @@
   "title": "MapsRemoveResponseV1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["messageType", "messageVersion", "server", "result"],
+  "required": [
+    "messageType",
+    "messageVersion",
+    "server",
+    "result"
+  ],
   "properties": {
     "messageType": {
       "const": "maps.remove.response"
@@ -19,6 +24,25 @@
     "result": {
       "type": "string",
       "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "removed",
+        "not_found",
+        "conflict",
+        "failed"
+      ]
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 of the removed file, or of the file that did not match."
+    },
+    "trashId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,160}$",
+      "description": "Where the removed file was kept (maps.restore)."
     }
   }
 }

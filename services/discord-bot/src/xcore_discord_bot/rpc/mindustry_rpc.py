@@ -10,7 +10,10 @@ from xcore_protocol.generated.maps import (
     MapsFileResponseV1,
     MapsInspectResponseV1,
     MapsPreviewResponseV1,
+    MapsRemoveResponseV1,
     MapsRenderResponseV1,
+    MapsRestoreResponseV1,
+    MapsTrashListResponseV1,
     MapsUploadResponseV1,
 )
 from xcore_protocol.generated.rating import (
@@ -369,9 +372,34 @@ class MindustryRpcClient:
     async def renderer_online(self) -> bool:
         return await self._maps.renderer_online()
 
-    async def remove_map(self, *, server: str, file_name: str, timeout_ms: int) -> str:
+    async def remove_map(
+        self,
+        *,
+        server: str,
+        file_name: str,
+        timeout_ms: int,
+        expected_content_hash: str | None = None,
+    ) -> MapsRemoveResponseV1:
         return await self._maps.rpc_remove_map(
-            server=server, file_name=file_name, timeout_ms=timeout_ms
+            server=server,
+            file_name=file_name,
+            timeout_ms=timeout_ms,
+            expected_content_hash=expected_content_hash,
+        )
+
+    async def trash_list(
+        self, *, server: str, timeout_ms: int
+    ) -> MapsTrashListResponseV1:
+        return await retry_read_rpc(
+            lambda: self._maps.rpc_maps_trash_list(server=server, timeout_ms=timeout_ms)
+        )
+
+    async def restore_map(
+        self, *, server: str, trash_id: str, file_name: str | None, timeout_ms: int
+    ) -> MapsRestoreResponseV1:
+        # Not retried: a restore that timed out may have been applied.
+        return await self._maps.rpc_maps_restore(
+            server=server, trash_id=trash_id, file_name=file_name, timeout_ms=timeout_ms
         )
 
     async def upload_maps(

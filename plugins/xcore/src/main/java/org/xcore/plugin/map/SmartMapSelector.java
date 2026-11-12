@@ -109,25 +109,37 @@ public class SmartMapSelector implements MapProvider {
         if (candidates.isEmpty()) candidates = allMaps;
         if (candidates.isEmpty()) return null;
 
-        ObjectMap<String, MapData> statsMap = mapDataRepository.findAllAsMap();
+        // A record belongs to its own file while that file is installed; another file with the
+        // same map name and author does not borrow its rating (MapDataRepository.resolve).
+        // resolve() matches the mode anyway: only this mode's records are scanned per candidate.
+        String modeName = mode.name();
+        java.util.List<MapData> records = mapDataRepository.findAll().stream()
+                .filter(r -> modeName.equals(r.gameMode)).toList();
+        java.util.Set<String> installed = new java.util.HashSet<>();
+        for (Map m : allMaps) installed.add(m.file.name().toLowerCase(java.util.Locale.ROOT));
+        java.util.function.Predicate<String> isInstalled =
+                file -> installed.contains(file.toLowerCase(java.util.Locale.ROOT));
+        ObjectMap<Map, MapData> statsMap = new ObjectMap<>();
+        for (Map m : candidates) {
+            MapData stats = MapDataRepository.resolve(records, m.file.name(), m.plainName(), m.author(),
+                    mode.name(), isInstalled);
+            if (stats != null) statsMap.put(m, stats);
+        }
 
         Seq<Map> poolA = candidates.copy().sort((arc.func.Floatf<Map>) m -> {
-            String key = MapDataRepository.genKey(m.plainName(), m.author(), mode.name());
-            MapData s = statsMap.get(key);
+            MapData s = statsMap.get(m);
             return s == null ? 0f : (float) -((double) s.reputation - s.popularity);
         });
         poolA.truncate(Math.min(poolA.size, 10));
 
         Seq<Map> poolB = candidates.copy().sort((arc.func.Floatf<Map>) m -> {
-            String key = MapDataRepository.genKey(m.plainName(), m.author(), mode.name());
-            MapData s = statsMap.get(key);
+            MapData s = statsMap.get(m);
             return s == null ? 0f : (float) -s.interest;
         });
         poolB.truncate(Math.min(poolB.size, 10));
 
         Seq<Map> poolC = candidates.copy().sort((arc.func.Floatf<Map>) m -> {
-            String key = MapDataRepository.genKey(m.plainName(), m.author(), mode.name());
-            MapData s = statsMap.get(key);
+            MapData s = statsMap.get(m);
             return s == null ? 0 : s.playedTimesYear;
         });
         poolC.truncate(Math.min(poolC.size, 5));

@@ -65,11 +65,27 @@ def _credits(item: dict[str, str]) -> str:
     credits = []
     if item.get("creator_discord_id"):
         credits.append(f"🎨 {map_contributor(item, 'creator')}")
+    if item.get("fixed_by_discord_id"):
+        credits.append(f"🔧 {map_contributor(item, 'fixed_by')}")
     credits.append(f"⬆ {map_contributor(item, 'uploaded_by')}")
     uploaded_at = item.get("uploaded_at", "")
     if uploaded_at.isascii() and uploaded_at.isdigit():
         credits.append(f"<t:{int(uploaded_at) // 1000}:d>")
     return " • ".join(credits)
+
+
+def _id(value: str | None) -> bool:
+    return bool(value) and value.isascii() and value.isdigit()  # type: ignore[union-attr]
+
+
+def _review_fields(
+    embed: discord.Embed, locale: str, thread_id: str | None, fixed_by: str | None
+) -> None:
+    """Who fixed the map, when a post fixed someone else's map, and where it was reviewed."""
+    if _id(fixed_by):
+        embed.add_field(name=t(locale, "maps-card-fixed-by"), value=f"<@{fixed_by}>")
+    if _id(thread_id):
+        embed.add_field(name=t(locale, "maps-card-review"), value=f"<#{thread_id}>")
 
 
 def map_card(
@@ -80,6 +96,7 @@ def map_card(
     image_name: str | None = None,
     review_thread_id: str | None = None,
     render_ms: int | None = None,
+    fixed_by: str | None = None,
 ) -> discord.Embed:
     """The card of one map.
 
@@ -113,10 +130,7 @@ def map_card(
             name=t(locale, "maps-card-discord"), value=credits, inline=False
         )
 
-    if review_thread_id and review_thread_id.isascii() and review_thread_id.isdigit():
-        embed.add_field(
-            name=t(locale, "maps-card-review"), value=f"<#{review_thread_id}>"
-        )
+    _review_fields(embed, locale, review_thread_id, fixed_by)
 
     file_line = f"`{map_text(item.get('file_name', ''), 100, inline_code=True)}`"
     size = _int(item, "file_size_bytes")

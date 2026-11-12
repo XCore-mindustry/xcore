@@ -34,8 +34,6 @@ maps-upload-status-invalid_map = некорректная карта
 maps-upload-status-metadata_failed = не удалось сохранить метаданные; проверьте установленный файл перед повторной попыткой
 maps-installed = Установленная карта
 maps-installed-info = { $file } · { $server }
-maps-badge = Создатель карт
-maps-badge-pending = Выдача значка «Создатель карт» ещё не завершена. Бот повторяет попытки в течение 30 дней после принятия карты.
 maps-outcome-accepted = Ваша карта { $file } принята по заявке №{ $number } и установлена на сервере { $server }.
 maps-outcome-rejected = Ваша карта отклонена по заявке №{ $number }. Причина: { $reason }
 maps-severity-error = Ошибки
@@ -86,7 +84,7 @@ maps-list-title = Карты на `{ $server }`
 maps-list-footer = Сортировка: { $sort } • Страница { $page }/{ $pages } • всего карт: { $total } • на странице: { $shown }
 maps-list-open = Открыть карту…
 maps-list-open-gone = Этой карты больше нет в списке.
-maps-list-legend = 🎨 заявленный автор • ⬆ добавлена через Discord
+maps-list-legend = 🎨 заявленный автор • 🔧 исправил(а) • ⬆ добавлена через Discord
 maps-list-sort-reputation = по репутации
 maps-list-sort-popularity = по популярности
 maps-list-sort-name = по названию
@@ -126,3 +124,213 @@ maps-card-render-busy = Рендерер занят другими картам�
 maps-card-render-cooldown = Новый рендер можно запустить через { $seconds } с.
 maps-card-render-failed = Не удалось отрисовать эту карту.
 maps-card-render-unavailable = Рендерер сейчас не запущен. Попробуйте позже.
+
+# Comparing a file with the maps already installed
+
+maps-match-same-bytes = тот же файл
+maps-match-same-file = то же имя файла
+maps-match-same-title = то же название и автор
+maps-candidate = { $file } — { $name }, автор { $author } ({ $reasons })
+maps-choice-expired = Выбор не сделан вовремя; ничего не изменено.
+maps-target-choose = Похожая карта уже установлена на `{ $server }`. Что сделать с этим файлом?
+maps-target-replace = Заменить { $file }
+maps-target-new = Установить как новую карту { $file }
+maps-target-overwrite = Перезаписать { $file } (другая карта)
+maps-target-unlisted = Не удалось получить список карт `{ $server }`, дубликаты не проверены. Всё равно установить карту как { $file }?
+
+# /maps upload
+
+cmd-maps-upload-param-replace-description = Установленная карта, которую заменяет файл (только для одного файла)
+maps-upload-checking = Сверяю файлы карт ({ $count }) с `{ $server }`…
+maps-upload-uploading = Загружаю файлы карт ({ $count }) на `{ $server }`…
+maps-upload-invalid-no-files = Не прикреплено ни одного файла .msav.
+maps-upload-invalid-same-names = У всех вложений должны быть разные имена файлов.
+maps-upload-invalid-invalid = Данные загрузки некорректны; на сервер ничего не отправлено.
+maps-upload-replace-one = `replace` работает только с одним файлом .msav.
+maps-upload-replace-missing = На `{ $server }` нет карты { $file }, заменять нечего. Ничего не загружено.
+maps-upload-confirm-title = Проверьте перед загрузкой на `{ $server }`:
+maps-plan-new = { $file } — новая карта
+maps-plan-same = { $file } — точно такой же файл уже установлен
+maps-plan-update = { $file } — обновит установленную версию
+maps-plan-replace = { $source } → заменит { $file }
+maps-plan-unchecked = { $file } — не сверен с установленными картами
+maps-plan-overwrite = { $file } — ⚠️ перезапишет другую карту:
+maps-plan-duplicate = { $file } — ⚠️ похоже на уже установленную карту:
+maps-upload-button-replace = Заменить { $file }
+maps-upload-button-as-is = Загрузить как есть
+maps-upload-button-cancel = Отмена
+maps-upload-cancelled = Загрузка отменена; на сервер ничего не отправлено.
+maps-upload-result-title = Карты на `{ $server }`:
+maps-upload-row = { $status } — { $file }
+maps-upload-label-installed = ✅ Установлена, атрибуция сохранена
+maps-upload-label-download_failed = ❌ Не удалось скачать или записать файл
+maps-upload-label-invalid_map = ❌ Некорректный файл карты
+maps-upload-label-superseded = ⚠️ Заменена более новой загрузкой
+maps-upload-label-metadata_failed = ⚠️ Установлена, но атрибуция не сохранена
+maps-upload-label-rejected = ❌ Недопустимое имя файла
+maps-upload-note-new = новая карта
+maps-upload-note-update = обновлена установленная версия
+maps-upload-note-same = этот же файл уже был установлен
+maps-upload-note-replaced = из { $source }
+maps-upload-unchecked = Не удалось получить список карт `{ $server }`: дубликаты не проверены.
+maps-upload-timeout = Сервер ещё не подтвердил результат. Часть файлов уже может быть установлена; проверьте /maps list перед повтором.
+maps-upload-unconfirmed = Не удалось подтвердить результат загрузки. Проверьте /maps list перед повтором.
+
+# /maps remove
+
+maps-remove-empty = Имя файла карты не может быть пустым.
+maps-remove-question = Удалить { $file } с `{ $server }`?
+maps-remove-unlisted = ⚠️ Не удалось получить список карт сервера, поэтому карту показать нельзя.
+maps-remove-siblings = Эта же карта есть и в других файлах:
+maps-remove-backup = Копия файла будет опубликована в этом канале с кнопкой **Вернуть**.
+maps-remove-no-backup = ⚠️ Сервер не прислал копию файла: после удаления карту не вернуть.
+maps-remove-button-remove = Удалить
+maps-remove-button-cancel = Отмена
+maps-remove-cancelled = Удаление карты отменено.
+maps-remove-removing = Удаляю { $file }…
+maps-remove-duplicate = Это удаление карты уже обработано.
+maps-remove-timeout = Сервер не ответил (тайм-аут).
+maps-remove-done = 🗑️ `{ $server }`: { $file } удалена. { $detail }
+maps-remove-failed = ❌ `{ $server }`: { $file } не удалена. { $detail }
+maps-remove-public-pending = 🗑️ { $user } удаляет { $file } с `{ $server }`…
+maps-remove-public-done = 🗑️ { $user } удалил(а) { $file } с `{ $server }`. Копия файла приложена.
+maps-remove-public-failed = { $user } пытался(-ась) удалить { $file } с `{ $server }`; ничего не удалено.
+maps-remove-public-no-backup = Копия файла не сохранена.
+
+# Restore
+
+maps-restore-button = Вернуть
+maps-restore-denied = Возвращать карты могут только проверяющие карт.
+maps-restore-gone = Копия этой карты больше недоступна.
+maps-restore-done-already = Эта карта уже возвращена.
+maps-restore-busy = Эту карту возвращают прямо сейчас.
+maps-restore-no-server = `{ $server }` не ответил; ничего не возвращено.
+maps-restore-present = На `{ $server }` уже есть файл { $file }. Сначала удалите его или загрузите эту копию через /maps upload.
+maps-restore-present-same = На `{ $server }` уже есть точно этот файл: { $file }.
+maps-restore-result = { $file } на `{ $server }`: { $status }
+
+# /maps duplicates
+
+cmd-maps-duplicates-description = Найти карты, установленные дважды (проверяющий карт)
+maps-duplicates-title = Возможные дубликаты на { $server }
+maps-duplicates-none = На `{ $server }` дубликатов карт не найдено.
+maps-duplicates-same-bytes = **Один и тот же файл под разными именами:**
+maps-duplicates-same-title = **Одинаковые название и автор:**
+
+# Maps log
+
+maps-log-upload = ⬆ { $user } использовал(а) /maps upload.
+maps-log-accepted = ✅ { $user } принял(а) заявку №{ $number }: { $file } на `{ $server }`
+maps-log-removed = 🗑️ { $user } удалил(а) { $file } с `{ $server }`.
+maps-log-restored = ♻️ { $user } вернул(а) { $file } на `{ $server }`.
+
+# Revisions
+
+maps-update = Обновить
+maps-revision = Ревизия
+maps-revision-info = Ревизия { $revision } · предыдущая: заявка №{ $case }, { $status }
+maps-revision-status-resolved = принята
+maps-revision-status-rejected = отклонена
+maps-revision-status-cancelled = отменена
+maps-installed-now = Сейчас установлена
+maps-changes = Что изменилось с прошлой ревизии
+maps-changes-identical = Файл тот же, что в ревизии { $revision }.
+maps-changes-size = Размер файла: { $before } → { $after } байт
+maps-changes-dimensions = Размер карты: { $before } → { $after }
+maps-changes-cores = Ядра: { $before } → { $after }
+maps-changes-patches = Дата-патчи: { $before } → { $after }
+maps-changes-none = Размер, ядра и дата-патчи не изменились.
+maps-select-server-update = Выберите сервер. Первым идёт тот, где стоит прошлая версия; обновление заменит её там.
+maps-server-installed = { $server } — обновить { $file }
+maps-accept-plan = Карта будет установлена как { $file } на `{ $server }`.
+maps-review-nothing-new = С последней проверки автор не выкладывал в этот пост новых файлов.
+maps-review-binding-both = Укажите и `server`, и `replaces` — или ни то, ни другое.
+maps-review-binding-unused = `server` и `replaces` не сохранены: проверка не начата. Запустите команду снова, когда в посте появится новый файл.
+maps-outcome-updated = Обновление вашей карты { $file } принято по заявке №{ $number } и установлено на сервере { $server }.
+maps-outcome-fixed = Ваше исправление карты { $file } принято по заявке №{ $number } и установлено на сервере { $server }. Создатель карты остаётся прежним, вы записаны как исправивший её.
+
+# Request changes
+
+maps-changes-button = На доработку
+maps-changes-reason = Что автору нужно изменить?
+maps-changes-requested = Автору отправлен запрос на доработку. Заявка остаётся открытой; следующий файл автора будет проверен заново.
+maps-changes-requested-field = Запрошена доработка
+maps-changes-requested-note = { $user }, проверяющий просит доработать карту перед принятием: { $reason }
+    Выложите исправленный файл .msav в этот пост.
+
+# A fix of someone else's map
+
+maps-fixed-by = Исправил(а)
+maps-card-fixed-by = Исправил(а)
+maps-creator-choose = У { $file } не записан создатель. Кто сделал эту карту?
+maps-creator-author = Автор этого поста
+maps-creator-fix = Кто-то другой; этот пост её исправляет
+
+# /maps upload of a file under review, /maps rollback
+
+maps-upload-under-review = Этот файл на проверке в заявке №{ $number } в этом посте. Используйте кнопки на её карточке, чтобы заявка закрылась, а автор получил атрибуцию.
+cmd-maps-rollback-description = Вернуть прошлую принятую ревизию карты этого поста (проверяющий карт)
+maps-rollback-nothing = У этого поста нет более ранней принятой ревизии.
+maps-rollback-choose = Сейчас установлена: { $file } на `{ $server }`, из заявки №{ $number }. Какой принятой ревизией её заменить?
+maps-rollback-option = Ревизия { $revision } · заявка №{ $number }
+maps-rollback-running = Возвращаю прошлую ревизию как { $file }…
+maps-rollback-file-gone = Файла заявки №{ $number } больше нет в этом посте, или он изменился. Ничего не загружено.
+maps-rollback-note = ↩️ { $user } вернул(а) ревизию { $revision } (заявка №{ $number }) вместо заявки №{ $current }: { $file } на `{ $server }`.
+
+# Protocol 0.19.0: conditional writes and files kept aside
+
+maps-upload-label-conflict = ⚠️ Не записана: на сервере уже другой файл
+maps-upload-status-conflict = не записана: на сервере уже другой файл. Нажмите «Принять» снова, чтобы увидеть, что там
+maps-upload-note-conflict = проверьте /maps list и повторите
+maps-upload-note-kept = прежний файл сохранён на сервере (/maps trash)
+maps-remove-conflict = ⚠️ `{ $server }`: { $file } изменилась с тех пор, как вы её смотрели; ничего не удалено.
+maps-remove-public-server-copy = Сервер сохранил копию файла.
+maps-restore-status-restored = ♻️ возвращена вместе с атрибуцией
+maps-restore-status-not_found = у сервера больше нет этой копии
+maps-restore-status-conflict = имя занято; ничего не изменено
+maps-restore-status-failed = сервер не смог её вернуть
+maps-list-revision = рев. { $revision }
+cmd-maps-trash-description = Карты, которые сервер отложил при удалении или замене (проверяющий карт)
+maps-trash-title = Файлы, которые `{ $server }` отложил вместо удаления. Выберите, какой вернуть:
+maps-trash-empty = У `{ $server }` нет отложенных файлов.
+maps-trash-row = { $file } — { $name } · { $reason } · { $date }
+maps-trash-reason-removed = удалена
+maps-trash-reason-replaced = заменена загрузкой
+maps-trash-restoring = Возвращаю { $file }…
+
+## Карта поста на нескольких серверах и замороженные серверы
+cmd-maps-install-description = Установить принятую карту этого поста ещё на один сервер (проверяющий карт)
+cmd-maps-install-param-server-description = Название сервера
+cmd-maps-install-param-replace-description = Установленная там карта, которую она заменяет (если похожа на другую)
+maps-install-nothing = У этого поста нет принятой ревизии для установки.
+maps-install-unlisted = `{ $server }` не прислал список карт, поэтому сейчас там ничего не проверить и не записать. Попробуйте позже.
+maps-install-same = На `{ $server }` уже стоит эта ревизия: { $file }.
+maps-install-confirm = На `{ $server }` есть похожие карты. Запустите команду ещё раз с `replace:` — картой, которую она заменяет, — или сначала переименуйте дубликат:
+maps-install-plan-update = Обновить { $file } на `{ $server }` до ревизии { $revision } (заявка №{ $number })?
+maps-install-plan-replace = Заменить { $file } на `{ $server }` ревизией { $revision } (заявка №{ $number })? У карты останутся имя файла, статистика и создатель.
+maps-install-plan-new = Установить ревизию { $revision } (заявка №{ $number }) на `{ $server }` как { $file }?
+maps-install-button = Установить
+maps-install-running = Устанавливаю { $file }…
+maps-install-note = 📦 { $user } установил(а) ревизию { $revision } (заявка №{ $number }) на `{ $server }` как { $file }.
+maps-others-choose = Карта этого поста стоит и на других серверах: { $servers }. Обновить их до этой ревизии после `{ $server }`?
+maps-others-all = Обновить и { $servers }
+maps-others-only = Только { $server }
+maps-others-note = 📦 { $user } принял(а) заявку №{ $number }; другие серверы с этой картой:
+maps-others-row = `{ $server }`: { $status }
+maps-others-frozen = `{ $server }`: ❄️ заморожен, не тронут
+maps-others-retry = Сервер, который не обновился, можно обновить командой /maps install в этом посте.
+maps-upload-label-file_gone = ❌ Проверенного файла больше нет в посте
+maps-upload-label-timeout = ⚠️ Нет ответа вовремя; проверьте карты сервера
+maps-upload-label-unconfirmed = ⚠️ Сервер не подтвердил загрузку
+cmd-maps-freeze-description = Предупреждать перед любым изменением карт сервера; без сервера — список (проверяющий карт)
+cmd-maps-freeze-param-server-description = Название сервера
+cmd-maps-freeze-param-reason-description = Почему заморожен
+cmd-maps-unfreeze-description = Снять заморозку карт сервера (проверяющий карт)
+cmd-maps-unfreeze-param-server-description = Название сервера
+maps-frozen-warning = ❄️ `{ $server }` заморозил(а) { $user }: { $reason }
+maps-frozen-no-reason = причина не указана
+maps-frozen-none = Замороженных серверов нет.
+maps-freeze-done = `{ $server }` заморожен: любое изменение его карт теперь сначала предупреждает. Снять — /maps unfreeze.
+maps-unfreeze-done = `{ $server }` больше не заморожен.
+maps-unfreeze-not-frozen = `{ $server }` не был заморожен.
+maps-log-unfreeze = ☀️ { $user } снял(а) заморозку `{ $server }`.

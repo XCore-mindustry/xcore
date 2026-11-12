@@ -1487,6 +1487,8 @@ map-upload-file-author = Auteur dans le fichier : { $author }
 map-upload-creator = Auteur indiqué : { $person }
 map-upload-submitter = Ajoutée via Discord : { $person }
 map-upload-date = Envoyée : [lightgray]{ $date }[] (UTC)
+map-upload-fixed-by = Corrigée par : { $person }
+map-upload-review = Examen n° { $case }, révision { $revision }
 
 map-upload-current-creator = [accent]{ $map }[] — { $creator }
 

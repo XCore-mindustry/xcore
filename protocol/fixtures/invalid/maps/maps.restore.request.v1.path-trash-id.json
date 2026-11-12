@@ -1,0 +1,6 @@
+{
+  "messageType": "maps.restore.request",
+  "messageVersion": 1,
+  "server": "mini-pvp",
+  "trashId": "../maps/arena.msav"
+}

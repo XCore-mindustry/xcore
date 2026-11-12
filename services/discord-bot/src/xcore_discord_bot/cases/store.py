@@ -19,6 +19,9 @@ from .model import ACTIVE_STATUSES, Case, CaseRace, CaseStatus, check_transition
 CASE_NUMBER_SEED = 2000
 
 
+THREAD_INDEX = "discord.thread_id_open"
+
+
 class CaseStore:
     def __init__(self, store: MongoStore) -> None:
         self._store = store
@@ -31,6 +34,28 @@ class CaseStore:
     @property
     def database(self):
         return self._store.database
+
+    async def _ensure_thread_index(self, cases) -> None:
+        """One open case per post or thread.
+
+        A map post holds one case per reviewed revision, so a closed case may share its
+        post with a later one. Earlier releases made the thread id unique across every
+        case; that index is replaced once, at the first start of this version.
+        """
+        existing = await cases.index_information()
+        if existing.get("discord.thread_id_1", {}).get("unique"):
+            await cases.drop_index("discord.thread_id_1")
+        await cases.create_index(
+            "discord.thread_id",
+            name=THREAD_INDEX,
+            unique=True,
+            partialFilterExpression={
+                "active": True,
+                "discord.thread_id": {"$exists": True},
+            },
+        )
+        # Lookups of a post's cases, closed ones included.
+        await cases.create_index([("discord.thread_id", ASCENDING), ("_id", ASCENDING)])
 
     async def ensure_indexes(self) -> None:
         cases = self.database["cases"]
@@ -47,7 +72,7 @@ class CaseStore:
             await cases.create_index([(field, ASCENDING), ("created_at", DESCENDING)])
         # How many cases of a kind were opened lately (the report burst breaker).
         await cases.create_index([("kind", ASCENDING), ("created_at", DESCENDING)])
-        await cases.create_index("discord.thread_id", unique=True, sparse=True)
+        await self._ensure_thread_index(cases)
         await cases.create_index("discord.user_thread_id", sparse=True)
         await cases.create_index("discord.reporter_threads.thread_id", sparse=True)
         await cases.create_index("co_openers.submission_id", sparse=True)
@@ -142,16 +167,46 @@ class CaseStore:
         return self._seen(rows[0]) if rows else None
 
     async def by_thread(self, thread_id: int | str) -> Case | None:
-        row = await self.database["cases"].find_one(
-            {
-                "$or": [
-                    {"discord.thread_id": str(thread_id)},
-                    {"discord.user_thread_id": str(thread_id)},
-                    {"discord.reporter_threads.thread_id": str(thread_id)},
-                ]
-            }
+        """The case of this post or thread; of several (map revisions), the open one, else
+        the newest."""
+        rows = [
+            row
+            async for row in self.database["cases"].find(
+                {
+                    "$or": [
+                        {"discord.thread_id": str(thread_id)},
+                        {"discord.user_thread_id": str(thread_id)},
+                        {"discord.reporter_threads.thread_id": str(thread_id)},
+                    ]
+                }
+            )
+        ]
+        if not rows:
+            return None
+        return self._seen(
+            max(rows, key=lambda row: (bool(row.get("active")), row["_id"]))
         )
-        return self._seen(row)
+
+    async def map_cases(self, thread_id: int | str) -> list[Case]:
+        """Every review of one map post, oldest first: one case per reviewed revision."""
+        cursor = (
+            self.database["cases"]
+            .find({"kind": "map", "discord.thread_id": str(thread_id)})
+            .sort("_id", ASCENDING)
+        )
+        return [case async for row in cursor if (case := self._seen(row)) is not None]
+
+    async def has_newer_map_case(self, case: Case) -> bool:
+        """Whether a later revision of the same map post was submitted for review."""
+        return bool(
+            await self.database["cases"].count_documents(
+                {
+                    "kind": "map",
+                    "discord.thread_id": case.discord.get("thread_id"),
+                    "_id": {"$gt": case.number},
+                }
+            )
+        )
 
     async def list_cases(
         self, query: dict[str, Any] | None = None, *, limit: int = 100

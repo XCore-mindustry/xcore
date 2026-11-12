@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:protocol:messages:maps:maps.restore.response:v1",
+  "title": "MapsRestoreResponseV1",
+  "description": "The result of putting a set-aside map file back.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "messageVersion",
+    "server",
+    "trashId",
+    "status"
+  ],
+  "properties": {
+    "messageType": {
+      "const": "maps.restore.response"
+    },
+    "messageVersion": {
+      "const": 1
+    },
+    "server": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trashId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,160}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "restored",
+        "not_found",
+        "conflict",
+        "failed"
+      ]
+    },
+    "fileName": {
+      "type": "string",
+      "pattern": "^[^/\\\\]+\\.[mM][sS][aA][vV]$"
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "detail": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

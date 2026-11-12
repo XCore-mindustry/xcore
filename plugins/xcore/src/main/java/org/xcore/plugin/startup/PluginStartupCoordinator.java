@@ -23,6 +23,7 @@ public class PluginStartupCoordinator {
     private final AutoHostService autoHostService;
     private final SessionService sessionService;
     private final MetricsService metricsService;
+    private final org.xcore.plugin.service.map.MapEntities mapEntities;
 
     @Inject
     public PluginStartupCoordinator(MigrationService migrationService,
@@ -33,7 +34,8 @@ public class PluginStartupCoordinator {
                                     MetricsSnapshotPublisher metricsSnapshotPublisher,
                                     AutoHostService autoHostService,
                                     SessionService sessionService,
-                                    MetricsService metricsService) {
+                                    MetricsService metricsService,
+                                    org.xcore.plugin.service.map.MapEntities mapEntities) {
         this.migrationService = migrationService;
         this.mapDecayScheduler = mapDecayScheduler;
         this.mapSelectorInstaller = mapSelectorInstaller;
@@ -43,6 +45,7 @@ public class PluginStartupCoordinator {
         this.autoHostService = autoHostService;
         this.sessionService = sessionService;
         this.metricsService = metricsService;
+        this.mapEntities = mapEntities;
     }
 
     public boolean start() {
@@ -61,6 +64,8 @@ public class PluginStartupCoordinator {
                         Tags.of("site", site, "thread", threadName)
                 ));
 
+        // Links files uploaded since the last start to their maps; off the game thread.
+        if (mapEntities != null) mapEntities.refresh();
         mapDecayScheduler.initialize();
         mapSelectorInstaller.install();
         runtimeHookRegistrar.register();

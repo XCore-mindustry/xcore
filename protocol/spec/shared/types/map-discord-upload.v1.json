@@ -27,6 +27,29 @@
     "creatorHandle": {
       "type": "string",
       "minLength": 1
+    },
+    "caseNumber": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The map review (case) that accepted this file."
+    },
+    "threadId": {
+      "type": "string",
+      "pattern": "^[0-9]{1,20}$",
+      "description": "The Discord forum post of that review."
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Which reviewed revision of the post this file is."
+    },
+    "fixedBy": {
+      "$ref": "urn:xcore:protocol:shared:types:discord-identity-ref:v1",
+      "description": "Who fixed someone else's map; creator stays its creator."
+    },
+    "fixedByHandle": {
+      "type": "string",
+      "minLength": 1
     }
   }
 }

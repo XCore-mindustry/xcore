@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:protocol:messages:maps:maps.trash.list.request:v1",
+  "title": "MapsTrashListRequestV1",
+  "description": "Asks a server for the map files it set aside.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "messageVersion",
+    "server"
+  ],
+  "properties": {
+    "messageType": {
+      "const": "maps.trash.list.request"
+    },
+    "messageVersion": {
+      "const": 1
+    },
+    "server": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

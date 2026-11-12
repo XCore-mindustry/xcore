@@ -23,11 +23,46 @@ Standalone Discord bot for XCore transport migration.
     map renderer for a render (`maps.render`, [services/map-renderer](../map-renderer)). Anyone
     can press it, once every 30 s per person for a new render; one already drawn is shown again
     at once (see [docs/map-images.md](docs/map-images.md))
-  - `/maps remove <server> <map>` → `maps.remove`
-  - `/maps review` → starts the review of a post in the maps forum
-  - `/maps upload <server> <file1> [file2] [file3] [creator] [creator1] [creator2] [creator3]` → per-file confirmed upload results; individual creators override the shared default
+  - `/maps remove <server> <map>` → `maps.remove`. The private confirmation shows the map's card
+    and other installed files with the same map. Before removing, the bot asks the server for the
+    file (`maps.file`) and posts it in the channel; it removes only the file the reviewer saw
+    (`expectedContentHash`), and a server at protocol 0.19.0 also sets the file aside in its
+    trash. The **Restore** button (map reviewers) asks the server to put its own copy back with
+    its attribution (`maps.restore`), else uploads the posted copy under the same name, unless
+    another file took the name since
+  - `/maps trash <server>` (map reviewer) → `maps.trash.list`: files the server set aside when
+    they were removed or replaced by an upload; picking one puts it back (`maps.restore`)
+  - `/maps review [server] [replaces]` → starts the review of a post in the maps forum, or of
+    its newest file when the last review is closed. `server` and `replaces` name the installed
+    map the post updates, for maps put on a server before their post was reviewed
+  - `/maps rollback` (in a map post, map reviewer) → puts an earlier accepted revision of the
+    post's map back under the installed name
+  - `/maps install <server> [replace]` (in a map post, map reviewer) → installs the post's
+    newest accepted revision on one more server, or updates that server's file from the post.
+    The file from the post (`thread_id` in its attribution) is updated in place; a server
+    without it gets the accepted file name, unless it has a map like it, then `replace` names
+    the map it replaces. Accepting an update offers to update every other server with the post's
+    map too, each written and reported separately
+  - `/maps freeze [server] [reason]`, `/maps unfreeze <server>` (map reviewer) → a frozen
+    server still takes changes, but accepting a review, `/maps upload`, `install`, `rollback`
+    and `remove` show the freeze and its reason first and wait for a confirmation; other servers
+    updated after an accepted update skip it. Without a server, `freeze` lists the frozen ones
+  - `/maps upload <server> <file1> [file2] [file3] [creator] [creator1] [creator2] [creator3] [replace]`
+    → per-file confirmed upload results; individual creators override the shared default.
     The uploader is recorded automatically; `creator` selects a Discord user for every attached map.
     File authors stay separate, and `/maps list` shows attribution with profile links and upload dates.
+    Each file is first compared with the server's map list. A new map, or a new version under
+    the installed file name, goes up at once. A file that looks like an installed map under
+    another name (the same name and author, or the same bytes), or that would overwrite a
+    different map, waits for the reviewer: **Replace `<file>`**, **Upload as is** or **Cancel**.
+    `replace:<installed file>` (one file only) installs the file under that name, so its rating,
+    statistics and attribution stay with the map and no second copy appears. Every write
+    carries what the server must still hold under that name (the hash the reviewer saw, or
+    nothing); a file that changed meanwhile is reported as not written (`conflict`)
+  - `/maps duplicates <server>` → installed files that hold the same bytes, or the same map name
+    and author (map reviewer)
+  - Inside a map post, `/maps upload` of the file that post has under review uploads nothing
+    and points at the review's card instead
   - `/subnet list|check|allow|deny|remove|reload|import|sweep <server>` (general admin; protocol 0.6.0)
 - Rating seasons (Mini-PvP and HexedCore ladders; protocol 0.9.0):
   - consumes `xcore:evt:rating:season-started|season-ending-soon|season-ended|season-rescheduled`
@@ -233,6 +268,9 @@ Environment variables:
 - `MAPS_TAG_PROFILES`: `Tower Defence=tower-defense,PvP=pvp,Survival=survival,Attack=attack`.
 - `MAPS_MAX_FILE_BYTES`: `4194304`.
 - `DISCORD_MAP_MAKER_ROLE_ID`: `0`. Discord role given with the Map Maker badge.
+- `DISCORD_MAPS_LOG_CHANNEL_ID`: `0`. Staff channel that gets one line per map upload, accepted
+  review, removal and restore, in `CASES_STAFF_LOCALE`. Removals keep their copy of the file in
+  the channel the command was used in either way.
 
 A channel or role id of `0` or blank means "not configured". Staff roles are the existing
 admin, general-admin (head-admin) and map-reviewer settings.

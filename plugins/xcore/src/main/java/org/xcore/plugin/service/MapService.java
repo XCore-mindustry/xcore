@@ -409,6 +409,7 @@ public class MapService {
     public void rebuildIdentityCatalog() { rebuildIdentityCatalogAsync(); }
 
     public CompletionStage<Void> rebuildIdentityCatalogAsync() {
+        rememberInstalledCustomMaps();
         var catalog = this.identityCatalog;
         if (catalog == null) return CompletableFuture.completedFuture(null);
         var sources = new java.util.ArrayList<org.xcore.plugin.service.map.MapIdentityCatalog.Source>();
@@ -435,6 +436,17 @@ public class MapService {
         return ready;
     }
 
+    /** Which custom map files are installed, for lookups off the game thread (no disk reads there). */
+    private void rememberInstalledCustomMaps() {
+        var engine = Vars.maps;
+        if (engine == null || mapDataRepository == null) return;
+        var names = new java.util.ArrayList<String>();
+        for (Map map : engine.customMaps()) {
+            if (map.file != null) names.add(map.file.name());
+        }
+        mapDataRepository.installedCustomMaps(names);
+    }
+
     public void clearAttribution() {
         uploadRevision.incrementAndGet();
         uploads = java.util.Map.of();
@@ -458,6 +470,20 @@ public class MapService {
         return map == null || map.file == null ? null : uploads.get(map.file.name());
     }
 
+    /** The same lookup by file name; safe on any thread, as it reads an immutable snapshot. */
+    public MapDiscordUpload discordUploadFor(String fileName) {
+        return fileName == null ? null : uploads.get(fileName);
+    }
+
+    /** The catalog's entry for a file (name, author, hash), or null; safe on any thread. */
+    public org.xcore.plugin.service.map.MapIdentityCatalog.Entry catalogEntry(String fileName) {
+        var catalog = identityCatalog;
+        var snapshot = catalog == null || fileName == null ? null : catalog.snapshot();
+        if (snapshot == null) return null;
+        for (var entry : snapshot.entries()) if (fileName.equals(entry.fileName())) return entry;
+        return null;
+    }
+
     /**
      * The SHA-256 of the map's file as the identity catalog last hashed it, lower-case hex, or
      * {@code null} before the catalog has hashed it or without a catalog.
@@ -472,8 +498,9 @@ public class MapService {
      */
     public java.util.Map<String, String> contentHashes() {
         var catalog = identityCatalog;
-        if (catalog == null) return java.util.Map.of();
-        var entries = catalog.snapshot().entries();
+        var snapshot = catalog == null ? null : catalog.snapshot();
+        if (snapshot == null) return java.util.Map.of();
+        var entries = snapshot.entries();
         java.util.Map<String, String> hashes = new java.util.HashMap<>(entries.size() * 2);
         for (var entry : entries) {
             if (entry.hash() != null) hashes.putIfAbsent(entry.fileName(), entry.hash().asHex());

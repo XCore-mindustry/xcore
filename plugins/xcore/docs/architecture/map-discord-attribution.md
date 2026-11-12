@@ -36,9 +36,10 @@ claiming that an acknowledged current record was lost.
 
 Attribution writes never rename or overwrite documents in the statistics collection
 `maps`. After a successful installation, the existing `findOrCreate` path runs on a
-storage worker to keep voting available for fresh maps. Existing filename/name/author
-lookup behavior remains unchanged, including the
-legacy fallback when a renamed file has the same name and author. No automatic merging
+storage worker to keep voting available for fresh maps. Lookup is by filename, then by name and author for a renamed
+file; the second step never hands a record to another file while the file it is stored under is
+installed, so two installed files with the same name and author keep separate statistics
+(map-updates-design-spec.md, stage 3). No automatic merging
 based only on display names is introduced. Other servers and game-mode statistics cannot
 be modified by attribution writes.
 
@@ -81,6 +82,55 @@ was installed but attribution was not saved. Confirmation waits for catalog refr
 an immediate `/map list` can see the result. Corrupt stored attribution is omitted per
 map rather than breaking the entire list. A client timeout says the result is unconfirmed;
 it does not claim installation failed or automatically retry a potentially applied action.
+
+## Reviews, conditional writes and the trash (protocol 0.19.0)
+
+`discordUpload` may also carry the review a file came from: `caseNumber`, `threadId` (the
+forum post) and `revision`, and `fixedBy`/`fixedByHandle` for a fix of someone else's map.
+`creator` stays the original creator; the fixer is recorded next to it. Both game menus,
+`/maps list` (🔧, "rev. N") and the `/map` card show them; the card links the post from
+`threadId` when the bot's own case store has no review for those bytes.
+
+A file source may say what the server must still hold for the write to go ahead:
+`expectedContentHash` (the SHA-256 of the file the reviewer saw under that name) or
+`expectAbsent` (no file under that name). The check runs under the same lock stripe as the
+write; a mismatch is reported as `conflict` and nothing is written. `maps.remove.request`
+takes `expectedContentHash` the same way and its response carries `status`
+(`removed`/`not_found`/`conflict`/`failed`). The bot sends the expectation from the map list
+it showed: `/maps upload`, accepting a review, `/maps rollback`, `/maps install`,
+`/maps remove` and **Restore**. A server whose list could not be read gets no expectation, as
+before.
+
+The review's `threadId` is also how the bot finds every server that holds a post's map: it
+lists the maps of each live server and takes the file whose attribution names the post. Updating
+the other servers after an accepted update, and `/maps install`, write each server separately
+with that server's file name, expectation and creator.
+
+The plugin uses the same `threadId` to know which files are one map: every `map_uploads` row
+with a thread links its file name to that post, on any server, and `map_entities` holds one
+document per map (`post:<threadId>`, else `file:<name>`). `maps.list` reports a file's likes,
+dislikes and reputation summed over the whole map. See
+[map-updates-design-spec.md](map-updates-design-spec.md), stage 3.
+
+Instead of deleting a removed file or silently overwriting a replaced one, the server sets it
+aside in `<custom maps>/.trash` as `<trashId>.msav.kept` with a `<trashId>.json` sidecar (file
+name, hash, size, time, reason and the attribution it had). The engine only loads `*.msav`
+directly in the maps directory, so nothing there is offered as a map. Upload results and the
+removal response return `trashId` (and the hash), `maps.trash.list` lists the entries and
+`maps.restore` puts one back, under its own name or a given one, with its attribution; a name
+that is taken is a `conflict`. Retention is configured in the server secrets:
+
+```toml
+[maps.trash]
+retention_days = 30   # entries older than this are deleted when a file is kept
+max_entries = 200     # the oldest beyond this are deleted too
+```
+
+The bot's **Restore** button tries the server's own copy first and falls back to the copy it
+posted in Discord (uploaded with `expectAbsent`); `/maps trash <server>` lists what a server
+kept and puts a chosen file back. Older servers lack these RPCs; the bot falls back where it
+can, but servers and bot must still be deployed together (strict decoders reject the new
+fields). Order: publish the protocol, upgrade servers, restart the bot.
 
 ## Presentation
 

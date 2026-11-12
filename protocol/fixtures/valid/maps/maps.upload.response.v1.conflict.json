@@ -1,0 +1,19 @@
+{
+  "messageType": "maps.upload.response",
+  "messageVersion": 1,
+  "server": "mini-pvp",
+  "results": [
+    {
+      "fileName": "asteroid.msav",
+      "status": "installed",
+      "contentHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "replacedContentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "trashId": "1791800000000-aaaaaaaa-asteroid.msav"
+    },
+    {
+      "fileName": "arena.msav",
+      "status": "conflict",
+      "detail": "A file with this name was installed meanwhile"
+    }
+  ]
+}

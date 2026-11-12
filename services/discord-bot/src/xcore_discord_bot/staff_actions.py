@@ -73,7 +73,11 @@ class BadgeGrantUnconfirmed(StaffActionError):
 
 
 class InvalidMapUpload(StaffActionError):
-    pass
+    """``code`` names the problem for the reply: ``no-files``, ``same-names`` or ``invalid``."""
+
+    def __init__(self, message: str, *, code: str = "invalid") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class MapUploadTimeout(StaffActionError):
@@ -120,6 +124,20 @@ class MapUploadFile:
     url: str
     filename: str
     creator: Actor | None = None
+    # What the server must still hold for the write to go ahead (protocol 0.19.0): the
+    # SHA-256 of the file it replaces, or no file under this name at all.
+    expected_hash: str | None = None
+    expect_absent: bool = False
+
+
+@dataclass(frozen=True)
+class MapReview:
+    """The map review an upload came from, recorded in the map's attribution."""
+
+    case_number: int
+    thread_id: str | None = None
+    revision: int = 1
+    fixer: Actor | None = None
 
 
 @dataclass(frozen=True)
@@ -714,38 +732,69 @@ async def perform_badge_grant(
     return BadgeGrantResult(badge.id, changed, message, audit_id)
 
 
+def _identity_payload(actor: Actor) -> dict[str, str]:
+    return {"discordId": str(actor.discord_id or ""), "discordUsername": actor.name}
+
+
+def _attribution(
+    uploader: Actor,
+    creator: Actor | None,
+    review: MapReview | None,
+    uploaded_at: int,
+) -> dict[str, object]:
+    """The ``discordUpload`` of one file: who uploaded it, who made it, which review."""
+    upload: dict[str, object] = {
+        "uploadedBy": _identity_payload(uploader),
+        "uploadedAt": uploaded_at,
+    }
+    if uploader.handle:
+        upload["uploadedByHandle"] = uploader.handle
+    if creator is not None:
+        upload["creator"] = _identity_payload(creator)
+        if creator.handle:
+            upload["creatorHandle"] = creator.handle
+    if review is not None:
+        upload["caseNumber"] = review.case_number
+        upload["revision"] = max(1, review.revision)
+        if review.thread_id and review.thread_id.isdigit():
+            upload["threadId"] = review.thread_id
+        if review.fixer is not None:
+            upload["fixedBy"] = _identity_payload(review.fixer)
+            if review.fixer.handle:
+                upload["fixedByHandle"] = review.fixer.handle
+    return upload
+
+
 def prepare_map_upload(
     server: str,
     files: Sequence[MapUploadFile],
     uploader: Actor,
     creator: Actor | None = None,
+    review: MapReview | None = None,
 ) -> list[dict[str, object]]:
-    def identity(actor: Actor) -> dict[str, str]:
-        return {"discordId": str(actor.discord_id or ""), "discordUsername": actor.name}
-
     payload: list[dict[str, object]] = []
     uploaded_at = int(time.time() * 1000)
     for file in files:
         if not file.filename.lower().endswith(".msav"):
             continue
-        selected_creator = file.creator or creator
-        upload: dict[str, object] = {
-            "uploadedBy": identity(uploader),
-            "uploadedAt": uploaded_at,
+        item: dict[str, object] = {
+            "url": file.url,
+            "filename": file.filename,
+            "discordUpload": _attribution(
+                uploader, file.creator or creator, review, uploaded_at
+            ),
         }
-        if uploader.handle:
-            upload["uploadedByHandle"] = uploader.handle
-        if selected_creator is not None:
-            upload["creator"] = identity(selected_creator)
-            if selected_creator.handle:
-                upload["creatorHandle"] = selected_creator.handle
-        payload.append(
-            {"url": file.url, "filename": file.filename, "discordUpload": upload}
-        )
+        if file.expected_hash:
+            item["expectedContentHash"] = file.expected_hash.lower()
+        elif file.expect_absent:
+            item["expectAbsent"] = True
+        payload.append(item)
     if not payload:
-        raise InvalidMapUpload("No valid .msav files attached.")
+        raise InvalidMapUpload("No valid .msav files attached.", code="no-files")
     if len({item["filename"] for item in payload}) != len(payload):
-        raise InvalidMapUpload("Each attachment must have a different filename.")
+        raise InvalidMapUpload(
+            "Each attachment must have a different filename.", code="same-names"
+        )
     try:
         build_maps_upload_request(server, payload)
     except (ValueError, TypeError) as error:
@@ -766,8 +815,9 @@ async def perform_map_upload(
     case_action_token: str | None = None,
     request_id: str | None = None,
     reviewed_sha256: str | None = None,
+    review: MapReview | None = None,
 ) -> MapUploadResult:
-    payload = prepare_map_upload(server, files, uploader, creator)
+    payload = prepare_map_upload(server, files, uploader, creator, review)
     if case_number is not None and len(payload) != 1:
         raise InvalidMapUpload("A map case must upload exactly one .msav file.")
     bot.container.map_catalog.forget(server)

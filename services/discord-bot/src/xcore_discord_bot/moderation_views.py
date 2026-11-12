@@ -26,7 +26,6 @@ MSG_PLAYER_NOT_FOUND = "Player not found"
 
 PerformBanFn = Callable[..., Awaitable[str]]
 PerformMergeFn = Callable[..., Awaitable[AccountMergeResult]]
-PerformRemoveMapFn = Callable[..., Awaitable[str]]
 DeleteMuteFn = Callable[..., Awaitable[int]]
 CreateModalFn = Callable[..., discord.ui.Modal]
 OpenAuditFn = Callable[[Interaction, int, PlayerRecord], Awaitable[None]]
@@ -208,69 +207,6 @@ class BanConfirmView(discord.ui.View):
 
         self._disable_all()
         await interaction.response.edit_message(content="Ban cancelled.", view=self)
-
-    async def on_timeout(self) -> None:
-        self._disable_all()
-        await safe_edit_view_message(self.message, view=self)
-
-    def _disable_all(self) -> None:
-        disable_view_buttons(self)
-
-
-class MapRemoveConfirmView(discord.ui.View):
-    def __init__(
-        self,
-        *,
-        requester_id: int,
-        server: str,
-        file_name: str,
-        request_nonce: str,
-        perform_remove_map: PerformRemoveMapFn,
-    ) -> None:
-        super().__init__(timeout=120)
-        self._requester_id = requester_id
-        self._server = server
-        self._file_name = file_name
-        self._request_nonce = request_nonce
-        self._perform_remove_map = perform_remove_map
-        self.message: discord.Message | None = None
-
-    @discord.ui.button(label="Yes", style=discord.ButtonStyle.danger)
-    async def _confirm(
-        self, interaction: Interaction, button: discord.ui.Button
-    ) -> None:
-        if not await ensure_requester_action_allowed(
-            interaction,
-            requester_id=self._requester_id,
-            denied_message="Only the moderator who started this action can confirm it.",
-        ):
-            return
-
-        await interaction.response.defer()
-        result = await self._perform_remove_map(
-            server=self._server,
-            file_name=self._file_name,
-            request_nonce=self._request_nonce,
-        )
-        self._disable_all()
-        if interaction.message is not None:
-            await interaction.message.edit(content=result, view=self)
-
-    @discord.ui.button(label="No", style=discord.ButtonStyle.secondary)
-    async def _cancel(
-        self, interaction: Interaction, button: discord.ui.Button
-    ) -> None:
-        if not await ensure_requester_action_allowed(
-            interaction,
-            requester_id=self._requester_id,
-            denied_message="Only the moderator who started this action can cancel it.",
-        ):
-            return
-
-        self._disable_all()
-        await interaction.response.edit_message(
-            content="Map removal cancelled.", view=self
-        )
 
     async def on_timeout(self) -> None:
         self._disable_all()

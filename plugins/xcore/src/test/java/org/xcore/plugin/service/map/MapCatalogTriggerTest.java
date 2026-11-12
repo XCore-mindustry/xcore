@@ -115,7 +115,7 @@ class MapCatalogTriggerTest {
         CAPTURED.clear();
 
         // Simulate network message arriving to remove arena.msav
-        removeListeners.getFirst().get(new org.xcore.protocol.generated.messages.maps.MapsMessages.MapsRemoveRequestV1("test-server", "arena.msav"));
+        removeListeners.getFirst().get(new org.xcore.protocol.generated.messages.maps.MapsMessages.MapsRemoveRequestV1("test-server", "arena.msav", null));
 
         assertThat(CAPTURED).hasSize(1);
     }

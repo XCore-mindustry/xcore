@@ -225,6 +225,52 @@ public final class ProtocolRoutes {
             )
     );
 
+    public static final RouteDescriptor MAPS_TRASH_LIST_REQUEST_V1 = new RouteDescriptor(
+            "maps",
+            "mapsTrashListRequestV1Route",
+            "maps.trash.list.request",
+            1,
+            MapsMessages.MapsTrashListRequestV1.class,
+            "rpc-request",
+            "xcore:rpc:req:{server}",
+            Map.of("server", "payload.server"),
+            "server",
+            15000,
+            false,
+            false,
+            "maps",
+            new RouteResponseDescriptor(
+                    "maps.trash.list.response",
+                    1,
+                    MapsMessages.MapsTrashListResponseV1.class,
+                    "xcore:rpc:resp:{requester}",
+                    Map.of("requester", "rpc.requester")
+            )
+    );
+
+    public static final RouteDescriptor MAPS_RESTORE_REQUEST_V1 = new RouteDescriptor(
+            "maps",
+            "mapsRestoreRequestV1Route",
+            "maps.restore.request",
+            1,
+            MapsMessages.MapsRestoreRequestV1.class,
+            "rpc-request",
+            "xcore:rpc:req:{server}",
+            Map.of("server", "payload.server"),
+            "server",
+            15000,
+            false,
+            true,
+            "maps",
+            new RouteResponseDescriptor(
+                    "maps.restore.response",
+                    1,
+                    MapsMessages.MapsRestoreResponseV1.class,
+                    "xcore:rpc:resp:{requester}",
+                    Map.of("requester", "rpc.requester")
+            )
+    );
+
     public static final RouteDescriptor CASES_REPORT_SUBMITTED_V1 = new RouteDescriptor(
             "cases",
             "casesReportSubmittedV1Route",
@@ -1031,6 +1077,8 @@ public final class ProtocolRoutes {
             entry(key("maps.preview.request", 1), MAPS_PREVIEW_REQUEST_V1),
             entry(key("maps.file.request", 1), MAPS_FILE_REQUEST_V1),
             entry(key("maps.render.request", 1), MAPS_RENDER_REQUEST_V1),
+            entry(key("maps.trash.list.request", 1), MAPS_TRASH_LIST_REQUEST_V1),
+            entry(key("maps.restore.request", 1), MAPS_RESTORE_REQUEST_V1),
             entry(key("cases.report.submitted", 1), CASES_REPORT_SUBMITTED_V1),
             entry(key("cases.notice.command", 1), CASES_NOTICE_COMMAND_V1),
             entry(key("cases.evidence.request", 1), CASES_EVIDENCE_REQUEST_V1),
@@ -1086,6 +1134,8 @@ public final class ProtocolRoutes {
             entry((Class<? extends ProtocolPayload>) MapsMessages.MapsPreviewRequestV1.class, MAPS_PREVIEW_REQUEST_V1),
             entry((Class<? extends ProtocolPayload>) MapsMessages.MapsFileRequestV1.class, MAPS_FILE_REQUEST_V1),
             entry((Class<? extends ProtocolPayload>) MapsMessages.MapsRenderRequestV1.class, MAPS_RENDER_REQUEST_V1),
+            entry((Class<? extends ProtocolPayload>) MapsMessages.MapsTrashListRequestV1.class, MAPS_TRASH_LIST_REQUEST_V1),
+            entry((Class<? extends ProtocolPayload>) MapsMessages.MapsRestoreRequestV1.class, MAPS_RESTORE_REQUEST_V1),
             entry((Class<? extends ProtocolPayload>) CasesMessages.CasesReportSubmittedV1.class, CASES_REPORT_SUBMITTED_V1),
             entry((Class<? extends ProtocolPayload>) CasesMessages.CasesNoticeCommandV1.class, CASES_NOTICE_COMMAND_V1),
             entry((Class<? extends ProtocolPayload>) CasesMessages.CasesEvidenceRequestV1.class, CASES_EVIDENCE_REQUEST_V1),

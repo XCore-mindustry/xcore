@@ -1,0 +1,9 @@
+{
+  "messageType": "maps.restore.response",
+  "messageVersion": 1,
+  "server": "mini-pvp",
+  "trashId": "1791800000000-aaaaaaaa-starwars.msav",
+  "status": "restored",
+  "fileName": "starwars.msav",
+  "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
