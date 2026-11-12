@@ -71,6 +71,7 @@ class DetachedMsavReaderTest {
         var snapshot = read(fixture.compressed());
         assertThat(snapshot.block(8)).isEqualTo(50);
         assertThat(snapshot.cores()).hasSize(1); assertThat(snapshot.cores().getFirst().x()).isEqualTo(4);
+        assertThat(snapshot.overlayData(0)).isEqualTo(version == 8 ? 0 : 3); // data, floorData, overlayData = 1, 2, 3
     }
 
     @Test
