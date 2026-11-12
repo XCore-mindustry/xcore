@@ -8,12 +8,10 @@ import org.xcore.plugin.startup.ShutdownOrder;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import mindustry.Vars;
-import mindustry.core.GameState;
 import mindustry.game.EventType;
 import mindustry.game.Gamemode;
 import mindustry.game.Rules;
-import mindustry.maps.MapException;
-import mindustry.net.Administration;
+import mindustry.maps.Map;
 import mindustry.server.ServerControl;
 import org.xcore.plugin.common.PLog;
 import org.xcore.plugin.config.TomlXcoreConfig;
@@ -35,71 +33,43 @@ public class AutoHostService {
             return;
         }
         initialized = true;
-        subscriptions.on(EventType.ServerLoadEvent.class, event -> onServerLoad());
+        // Next frame: after other plugins' ServerLoadEvent handlers (Patchsthosus registers its maps there)
+        // and after ServerControl applies startup commands such as 'port'.
+        subscriptions.on(EventType.ServerLoadEvent.class, event -> Core.app.post(this::onServerLoad));
     }
 
+    /** Same steps as the vanilla 'host' command. */
     public boolean onServerLoad() {
-        if (!config.server.autoStart) {
+        if (!config.server.autoStart || Vars.state.isGame()) {
             return false;
         }
 
-        if (Vars.state.isGame()) {
-            PLog.warn("Auto-start skipped: server is already hosting a game.");
+        Gamemode mode = parseGamemode(config.server.autoStartGamemode);
+        Map map = Vars.maps.getNextMap(mode, Vars.state.map);
+        if (map == null) {
+            PLog.warn("Auto-start skipped: no map available for mode '@'.", mode.name());
             return false;
         }
 
-        Gamemode preset = parseGamemode(config.server.autoStartGamemode);
-        var result = Vars.maps.getNextMap(preset, Vars.state.map);
-
-        if (result == null) {
-            PLog.warn("Auto-start skipped: no map available to host for mode '@'.", preset.name());
-            return false;
-        }
-
-        PLog.info("Auto-start: hosting map '@' in @ mode...", result.plainName(), preset.name());
-
+        PLog.info("Auto-start: hosting map '@' in @ mode.", map.plainName(), mode.name());
         if (ServerControl.instance != null) {
-            ServerControl.instance.cancelPlayTask();
-            ServerControl.instance.lastMode = preset;
+            ServerControl.instance.lastMode = mode;
         }
-
-        Vars.logic.reset();
-        Core.settings.put("lastServerMode", preset.name());
+        Core.settings.put("lastServerMode", mode.name());
 
         try {
-            Rules rules = result.applyRules(preset);
-            Vars.world.loadMap(result, rules);
+            Vars.logic.reset();
+            Rules rules = map.applyRules(mode);
+            Vars.world.loadMap(map, rules);
             Vars.state.rules = rules;
             Events.fire(new EventType.RulesLoadEvent(rules));
             Vars.logic.play();
             Vars.netServer.openServer();
-
-            if (!Vars.state.isGame() || (Vars.net != null && !Vars.net.server())) {
-                PLog.err("Auto-start failed: server socket could not be opened on port @.", Administration.Config.port.num());
-                cleanupFailedHost();
-                return false;
-            }
-
-            PLog.info("Auto-start: map '@' loaded and server opened on port @.",
-                    result.plainName(),
-                    Administration.Config.port.num());
             return true;
-        } catch (MapException e) {
-            cleanupFailedHost();
-            PLog.err("Auto-start failed to load map '@': @",
-                    e.map != null ? e.map.plainName() : result.plainName(),
-                    e.getMessage());
+        } catch (RuntimeException e) {
+            // MapException, or anything a custom map loader throws; uncaught it would stop the server loop.
+            PLog.err("Auto-start failed to load map '" + map.plainName() + "'", e);
             return false;
-        } catch (Throwable t) {
-            cleanupFailedHost();
-            PLog.err("Auto-start failed unexpectedly", t);
-            return false;
-        }
-    }
-
-    private void cleanupFailedHost() {
-        if (Vars.state != null && Vars.state.isGame()) {
-            Vars.state.set(GameState.State.menu);
         }
     }
 
