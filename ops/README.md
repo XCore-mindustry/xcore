@@ -11,6 +11,19 @@ ops/deploy <ssh-host> gateway web      # several
 ops/deploy <ssh-host> all --ref <sha>  # a given commit of main, e.g. to roll back
 ```
 
+`grafana` copies the dashboards in `services/metrics-gateway/ops/grafana/dashboards/`
+and `ops/prometheus/xcore.rules.yml` of that commit to the system Grafana and
+Prometheus, checks the rules with `promtool` and reloads Prometheus; Grafana picks
+the dashboards up within 30 seconds. Those files belong to root, so give it a host
+whose user has passwordless sudo, and keep it out of `all`:
+
+```sh
+ops/deploy <sudo-host> grafana
+```
+
+Change the dashboards in the repository, not in the Grafana UI: the next deploy
+overwrites them.
+
 The script deploys a commit of `origin/main` (the latest one by default). It
 checks that commit out on the server, installs the unit from `ops/systemd/`,
 restarts the service and waits for it to be healthy: the bot has to log
