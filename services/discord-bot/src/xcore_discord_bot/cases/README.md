@@ -624,9 +624,9 @@ flow_registry.register(
 
 A complaint requires a senior role distinct from the ordinary admin role. Its senior forum
 must exclude every non-senior role except the bot's own roles. The private-thread parent must
-allow ordinary members to view and write in their invited threads, deny view to configured
-non-senior staff roles, allow seniors to view, and grant Manage Threads only to seniors and
-the bot's own roles. Use an otherwise empty dedicated parent; ordinary members can see that
+allow ordinary members, staff included, to view and write in their invited threads, allow
+seniors to view, and grant Manage Threads only to seniors and the bot's own roles: without
+Manage Threads a role that sees the parent still cannot read its private threads. Use an otherwise empty dedicated parent; ordinary members can see that
 parent, so do not post complaint content there. Startup refuses an unsafe layout and logs
 only configuration diagnostics. Member-specific overwrites, combined member roles, guild
 ownership and subsequent permission changes still require an operator's guild check.
