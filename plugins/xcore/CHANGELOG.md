@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.7.0] - 2026-11-12
+
+### Added
+- Conditional map writes (protocol 0.19). An upload can install a file only over the one with a given SHA-256, or only if no file has its name, and a removal can require the hash too. When the condition fails nothing changes and the reply says `conflict`.
+- Removed and replaced map files are kept aside in the server's map trash instead of being deleted. `maps.trash.list` lists them and `maps.restore` puts one back.
+- The Discord attribution of an uploaded map records its forum post, case number and revision, and who fixed it when that was not its creator.
+
+### Changed
+- A map is its forum post: every file a review of one post installed, on any server and under any name, belongs to one map. Migration V9 rebuilds `map_entities` from `maps` by map and drops the slug-grouped documents of V3; the projection is rebuilt again at every startup and after each upload or removal. `maps.list` sums likes, dislikes and reputation over the whole map, while popularity and interest stay per file and mode. Votes, menus and next-map selection still use the per-file record.
+- Auto-start runs one frame after `ServerLoadEvent` and does what the vanilla `host` command does. Maps that a mod registers while loading (Patchsthosus) now start, and startup commands such as `port` apply before the server opens.
+
+### Fixed
+- Two installed map files with the same title no longer share one statistics record.
+
 ## [5.6.1] - 2026-11-09
 
 ### Fixed
