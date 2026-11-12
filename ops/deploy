@@ -124,9 +124,11 @@ for svc in "$@"; do
     mv ~/services/"$svc".next ~/services/"$svc"
   else
     # Non-editable, so later checkouts do not change the code of a running service. The workspace
-    # packages keep their version between commits, so uv would keep the old build without --reinstall-package.
+    # packages keep their version between commits, and uv caches their wheels by pyproject.toml, so
+    # --reinstall-package alone reinstalls the cached old build; --refresh-package rebuilds it.
     UV_PROJECT_ENVIRONMENT=~/services/venvs/${unit#xcore-} "$uv" sync -q --locked --no-dev --no-editable \
       --reinstall-package "$pkg" --reinstall-package xcore-protocol \
+      --refresh-package "$pkg" --refresh-package xcore-protocol \
       --python "$python" --package "$pkg" --project "$repo"
   fi
 
