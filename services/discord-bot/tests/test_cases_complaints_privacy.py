@@ -26,8 +26,6 @@ from xcore_discord_bot.cases.views import run_case_action
         "public_forum",
         "staff_forum_view",
         "other_role_forum_view",
-        "staff_parent_view",
-        "reviewer_parent_view",
         "everyone_manage",
         "staff_manage",
         "other_manage",
@@ -54,10 +52,6 @@ async def test_startup_refuses_unsafe_layout_and_logs_configuration(problem, cap
             problem
         ]
         forum.role_permissions[role] = discord.Permissions(view_channel=True)
-    elif problem in {"staff_parent_view", "reviewer_parent_view"}:
-        parent.role_permissions[10 if problem == "staff_parent_view" else 30] = (
-            discord.Permissions(view_channel=True)
-        )
     elif problem in {"everyone_manage", "staff_manage", "other_manage"}:
         role = {"everyone_manage": 1, "staff_manage": 10, "other_manage": 40}[problem]
         parent.role_permissions[role] = discord.Permissions(
@@ -79,6 +73,17 @@ async def test_startup_refuses_unsafe_layout_and_logs_configuration(problem, cap
     assert service.registry.disabled_reasons[CaseKind.COMPLAINT]
     assert "disabled" in caplog.text
     assert not bot.channels[300].all_threads
+
+
+@pytest.mark.parametrize("role", [10, 30])  # admin, map reviewer
+async def test_staff_may_see_the_parent_without_manage_threads(role):
+    """An admin can file a complaint too; the private threads stay hidden from them."""
+    service, _, bot = await complaint_core()
+    bot.channels[500].role_permissions[role] = discord.Permissions(
+        view_channel=True, send_messages_in_threads=True
+    )
+    await initialize_flows(service)
+    assert service.registry.enabled(CaseKind.COMPLAINT)
 
 
 async def test_startup_allows_safe_layout_bot_own_role_and_creates_named_tags():
@@ -122,11 +127,11 @@ async def test_startup_tolerates_unhideable_administrator_roles(caplog):
 
 async def test_parent_fallback_requires_same_safe_layout():
     service, _, bot = await complaint_core(cases_complaint_thread_channel_id=0)
-    for role in (10, 30):
-        bot.channels[100].role_permissions[role] = discord.Permissions.none()
     await initialize_flows(service)
     assert service.registry.enabled(CaseKind.COMPLAINT)
-    bot.channels[100].role_permissions[10] = discord.Permissions(view_channel=True)
+    bot.channels[100].role_permissions[10] = discord.Permissions(
+        view_channel=True, manage_threads=True
+    )
     await initialize_flows(service)
     assert not service.registry.enabled(CaseKind.COMPLAINT)
 

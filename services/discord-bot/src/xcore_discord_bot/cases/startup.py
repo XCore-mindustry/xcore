@@ -11,7 +11,6 @@ from ..permissions import (
     member_role_ids,
 )
 from ._privacy import log_failure
-from .access import staff_roles
 from .model import CaseKind
 from .registry import FLAG_FIELDS
 from .threads import FORUM_TAGS
@@ -183,14 +182,9 @@ async def validate_flow(service, kind: CaseKind) -> list[str]:  # noqa: C901
                         reasons.append(
                             f"{parent_key}: senior role {role_id} cannot view the parent"
                         )
+                # Seeing the parent is harmless: a private thread is readable only by
+                # its members and by roles with Manage Threads.
                 for role in guild.roles:
-                    if (
-                        role.id in set(staff_roles(settings)) - senior_ids
-                        and parent.permissions_for(role).view_channel
-                    ):
-                        reasons.append(
-                            f"{parent_key} is visible to non-senior staff role {role.id}"
-                        )
                     if (
                         role.id not in senior_ids
                         and role.id not in exempt_ids
