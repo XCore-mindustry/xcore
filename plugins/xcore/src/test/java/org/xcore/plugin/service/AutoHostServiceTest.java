@@ -1,6 +1,14 @@
 package org.xcore.plugin.service;
 
+import arc.Core;
+import arc.Settings;
 import mindustry.Vars;
+import mindustry.core.Logic;
+import mindustry.core.NetServer;
+import mindustry.core.World;
+import mindustry.maps.Map;
+import mindustry.maps.MapException;
+import mindustry.maps.Maps;
 import mindustry.core.GameState;
 import mindustry.game.Gamemode;
 import org.junit.jupiter.api.DisplayName;
@@ -13,7 +21,12 @@ import org.xcore.plugin.config.TomlXcoreConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AutoHostServiceTest {
@@ -104,6 +117,51 @@ class AutoHostServiceTest {
         } finally {
             Vars.state = oldState;
             Vars.maps = oldMaps;
+        }
+    }
+
+    @Test
+    @DisplayName("onServerLoad hosts another map when the first one fails to load")
+    void onServerLoad_brokenMap_triesNextMap() {
+        TomlXcoreConfig config = new TomlXcoreConfig();
+        config.server.autoStart = true;
+        AutoHostService service = new AutoHostService(config);
+
+        Map broken = mock(Map.class);
+        Map good = mock(Map.class);
+        when(broken.plainName()).thenReturn("broken");
+        when(good.plainName()).thenReturn("good");
+        when(broken.applyRules(any())).thenReturn(new mindustry.game.Rules());
+        when(good.applyRules(any())).thenReturn(new mindustry.game.Rules());
+
+        var old = new Object[]{Vars.state, Vars.maps, Vars.world, Vars.logic, Vars.netServer, Core.settings, Vars.net};
+        try {
+            Vars.state = new GameState();
+            Vars.maps = mock(Maps.class);
+            Vars.world = mock(World.class);
+            Vars.logic = mock(Logic.class);
+            Vars.netServer = mock(NetServer.class);
+            Vars.net = null;
+            Core.settings = mock(Settings.class);
+            // A shuffle may hand the same broken map back; it must be skipped, not retried.
+            when(Vars.maps.getNextMap(any(), any())).thenReturn(broken, broken, good);
+            doThrow(new MapException(broken, "Map has no cores!")).when(Vars.world).loadMap(eq(broken), any());
+            doAnswer(invocation -> {
+                Vars.state.set(GameState.State.playing);
+                return null;
+            }).when(Vars.logic).play();
+
+            assertThat(service.onServerLoad()).isTrue();
+            verify(Vars.world, times(1)).loadMap(eq(broken), any());
+            verify(Vars.world).loadMap(eq(good), any());
+        } finally {
+            Vars.state = (GameState) old[0];
+            Vars.maps = (Maps) old[1];
+            Vars.world = (World) old[2];
+            Vars.logic = (Logic) old[3];
+            Vars.netServer = (NetServer) old[4];
+            Core.settings = (Settings) old[5];
+            Vars.net = (mindustry.net.Net) old[6];
         }
     }
 

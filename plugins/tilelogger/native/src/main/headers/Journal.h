@@ -46,7 +46,11 @@ class JournalWriter {
         DataVec bytes;
         bool open{};
         std::shared_ptr<std::promise<void>> barrier;
+        uint64_t frames{1};
     };
+    // Consecutive frames of one session share a job, so a synchronous burst (a map's baseline is one
+    // record per building in a single tick) is bounded by max_bytes rather than by the job count.
+    static constexpr size_t coalesce_bytes_ = 256 * 1024;
 
 public:
     JournalWriter(size_t max_bytes = 32 * 1024 * 1024, size_t max_jobs = 4096)
@@ -57,13 +61,23 @@ public:
         state->Check();
         std::lock_guard lock(mutex_);
         if (stopping_) throw std::runtime_error("Journal writer stopped");
-        if (bytes.size() > max_bytes_ || queued_bytes_ > max_bytes_ - bytes.size() ||
-            jobs_.size() >= max_jobs_) {
+        if (bytes.size() > max_bytes_ || queued_bytes_ > max_bytes_ - bytes.size()) {
             state->Fail("Journal queue full; recording suspended");
             throw std::runtime_error("Journal queue full; recording suspended");
         }
         auto length = bytes.size();
-        jobs_.push_back({state, std::move(bytes), open, {}});
+        if (!open && !jobs_.empty() && !jobs_.back().barrier && jobs_.back().state == state &&
+            jobs_.back().bytes.size() + length <= coalesce_bytes_) {
+            auto& tail = jobs_.back();
+            tail.bytes.insert(tail.bytes.end(), bytes.begin(), bytes.end());
+            ++tail.frames;
+        } else {
+            if (jobs_.size() >= max_jobs_) {
+                state->Fail("Journal queue full; recording suspended");
+                throw std::runtime_error("Journal queue full; recording suspended");
+            }
+            jobs_.push_back({state, std::move(bytes), open, {}});
+        }
         queued_bytes_ += length;
         state->queued += length;
         ++state->accepted;
@@ -176,7 +190,7 @@ private:
                     }
                     if (std::fwrite(job.bytes.data(), 1, job.bytes.size(), file) != job.bytes.size())
                         throw std::runtime_error("Cannot append journal");
-                    ++written;
+                    written += job.frames;
                 }
                 if (std::chrono::steady_clock::now() - last_sync >= std::chrono::milliseconds(250)) sync();
             } catch (const std::exception& e) {
