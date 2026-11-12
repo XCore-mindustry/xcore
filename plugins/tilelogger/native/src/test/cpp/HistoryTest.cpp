@@ -264,6 +264,26 @@ int main() {
         }
         check(rejected, "flush cleared failed session health");
     });
+    test("a burst larger than the job limit is coalesced, not rejected", [&] {
+        // A map baseline records every building in one tick; the job count must not cap it.
+        JournalWriter writer(32 * 1024 * 1024, 16);
+        auto path = directory / "burst.history";
+        TileLogger store(writer);
+        store.Start(path, "burst", "content");
+        constexpr unsigned count = 20000;
+        for (unsigned i = 0; i < count; ++i)
+            store.Record(Pos(i % 500, i / 500), {}, 1, 20, 0, 0, 0, {}, ActionKind::Baseline);
+        writer.Flush();
+        auto expected = std::to_string(count + 1);
+        check(store.Status().starts_with("accepted=" + expected + " durable=" + expected + " "),
+              "durable count does not match accepted frames");
+        TileLogger loaded(writer);
+        loaded.Load(path);
+        constexpr unsigned last = count - 1;
+        check(loaded.GetHistory(Rect(0, 0, 0, 0), {}, -1, 0, 10).size() == 1 &&
+                  loaded.GetHistory(Rect(last % 500, last / 500, last % 500, last / 500), {}, -1, 0, 10).size() == 1,
+              "burst records lost");
+    });
     test("archive reads remain available after journal open failure", [&] {
         JournalWriter writer;
         auto path = directory / "recovery.history";
