@@ -12,7 +12,6 @@ import mindustry.game.EventType;
 import mindustry.game.Gamemode;
 import mindustry.game.Rules;
 import mindustry.maps.Map;
-import mindustry.maps.MapException;
 import mindustry.server.ServerControl;
 import org.xcore.plugin.common.PLog;
 import org.xcore.plugin.config.TomlXcoreConfig;
@@ -67,8 +66,9 @@ public class AutoHostService {
             Vars.logic.play();
             Vars.netServer.openServer();
             return true;
-        } catch (MapException e) {
-            PLog.err("Auto-start failed to load map '@': @", map.plainName(), e.getMessage());
+        } catch (RuntimeException e) {
+            // MapException, or anything a custom map loader throws; uncaught it would stop the server loop.
+            PLog.err("Auto-start failed to load map '" + map.plainName() + "'", e);
             return false;
         }
     }
