@@ -269,8 +269,20 @@ public final class MapRenderer {
         }
         boolean wallOre = overlay > 0 && overlay < content.layer.length && content.wallOre[overlay];
         if (overlay > 0 && overlay < content.layer.length && content.layer[overlay] == RenderContent.OVERLAY && !wallOre) {
-            drawVariant(frame, band, seed, overlay, left, upper);
+            if (content.glyphs[overlay] != null) drawGlyph(frame, band, overlay, map.overlayData(index), left, upper);
+            else drawVariant(frame, band, seed, overlay, left, upper);
         }
+    }
+
+    /** CharacterOverlay and RuneOverlay.drawBase: the glyph in overlayData (a character keeps its rotation in the top bits). */
+    private void drawGlyph(Frame frame, Band band, int overlay, int data, int left, int upper) {
+        boolean rotates = content.glyphRotate[overlay];
+        int glyph = rotates ? data & 0x3f : data;
+        String[] glyphs = content.glyphs[overlay];
+        if (glyph >= glyphs.length || glyphs[glyph] == null) return;
+        int s = frame.s();
+        blitCentred(band, frame.sprites().get(glyphs[glyph]), left + s / 2, upper + s / 2, rotates ? data >>> 6 & 3 : 0,
+                content.glyphTint[overlay], false);
     }
 
     private void drawEdges(Frame frame, Band band, int x, int y, int floor, int left, int upper) {

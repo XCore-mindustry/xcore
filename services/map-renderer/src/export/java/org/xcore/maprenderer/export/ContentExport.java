@@ -13,9 +13,11 @@ import mindustry.game.Rules;
 import mindustry.game.Team;
 import mindustry.io.SaveFileReader;
 import mindustry.world.Block;
+import mindustry.world.blocks.environment.CharacterOverlay;
 import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.environment.OverlayFloor;
 import mindustry.world.blocks.environment.Prop;
+import mindustry.world.blocks.environment.RuneOverlay;
 import mindustry.world.blocks.environment.StaticWall;
 import mindustry.world.blocks.distribution.ArmoredConveyor;
 import mindustry.world.blocks.distribution.Conveyor;
@@ -208,6 +210,7 @@ public final class ContentExport {
                     json.pop();
                 }
                 tilingJson(json, block, atlas, wanted);
+                glyphJson(json, block, atlas, wanted);
                 json.pop();
             }
             json.pop();
@@ -277,6 +280,29 @@ public final class ContentExport {
         json.pop();
         json.set("cap", found(block.name + "-cap", null, atlas, wanted));
         if (block instanceof Conduit conduit) json.set("bottomTint", conduit.botColor.rgba());
+    }
+
+    /** Character and rune overlays draw the glyph their tile's overlayData selects, tinted (drawBase). */
+    private static void glyphJson(JsonWriter json, Block block, Map<String, TextureAtlasData.Region> atlas,
+                                  Set<String> wanted) throws IOException {
+        String prefix, fallback;
+        int count;
+        arc.graphics.Color color;
+        if (block instanceof CharacterOverlay letters) {
+            prefix = fallback = "character-overlay";
+            count = CharacterOverlay.chars.length();
+            color = letters.color;
+            json.set("glyphRotate", true);
+        } else if (block instanceof RuneOverlay runes) {
+            prefix = block.name;
+            fallback = "rune-overlay";
+            count = RuneOverlay.characters;
+            color = runes.color;
+        } else return;
+        json.set("glyphTint", color.rgba());
+        json.array("glyphs");
+        for (int i = 0; i < count; i++) json.value(found(prefix + i, fallback + i, atlas, wanted));
+        json.pop();
     }
 
     private static String found(String name, String fallback, Map<String, TextureAtlasData.Region> atlas, Set<String> wanted) {

@@ -12,11 +12,13 @@ import java.nio.file.Path;
 import java.util.zip.ZipFile;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MapRendererTest {
+    private static RenderContent content;
     private static MapRenderer renderer;
     private static Path clientJar;
 
@@ -24,7 +26,8 @@ class MapRendererTest {
     static void load() throws IOException {
         Path data = Path.of(System.getProperty("renderData"));
         clientJar = Path.of(System.getProperty("clientJar"));
-        renderer = new MapRenderer(RenderContent.load(data.resolve("content.json")), data.resolve("sprites.pack"),
+        content = RenderContent.load(data.resolve("content.json"));
+        renderer = new MapRenderer(content, data.resolve("sprites.pack"),
                 8 * 1024 * 1024, 1_000_000);
     }
 
@@ -36,6 +39,23 @@ class MapRendererTest {
                 return in.readAllBytes();
             }
         }
+    }
+
+    @Test
+    void letterAndRuneOverlaysExportOneSpritePerGlyph() {
+        int gray = id("character-overlay"), white = id("character-overlay-white"), rune = id("rune-overlay");
+        assertEquals(64, content.glyphs[gray].length);
+        assertEquals("character-overlay17", content.glyphs[gray][17]);
+        assertEquals("character-overlay17", content.glyphs[white][17]); // both colours share the white sprites
+        assertEquals(0x6e7080, content.glyphTint[gray]);
+        assertEquals(0xffffff, content.glyphTint[white]);
+        assertTrue(content.glyphRotate[gray]);
+        assertEquals(109, content.glyphs[rune].length);
+        assertFalse(content.glyphRotate[rune]);
+    }
+
+    private static int id(String block) {
+        return content.registry().resolve(org.xcore.msav.ContentRegistrySnapshot.BLOCK_TYPE, block).id();
     }
 
     @Test

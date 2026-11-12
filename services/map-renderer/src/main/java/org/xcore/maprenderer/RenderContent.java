@@ -44,6 +44,10 @@ public final class RenderContent {
     final String[][] tilingTop, tilingBottom;
     final String[] cap;
     final int[] bottomTint;
+    // Character and rune overlays: one sprite per glyph, their tint, whether the top two bits rotate it.
+    final String[][] glyphs;
+    final int[] glyphTint;
+    final boolean[] glyphRotate;
     // Per team id, 0xRRGGBB.
     final int[] teamColor;
 
@@ -82,6 +86,9 @@ public final class RenderContent {
         tilingBottom = new String[blocks][];
         cap = new String[blocks];
         bottomTint = new int[blocks];
+        glyphs = new String[blocks][];
+        glyphTint = new int[blocks];
+        glyphRotate = new boolean[blocks];
         teamColor = new int[teams];
     }
 
@@ -191,6 +198,9 @@ public final class RenderContent {
             content.tilingBottom[id] = block.has("bottom") ? strings(block.get("bottom")) : null;
             content.cap[id] = block.has("cap") && !block.get("cap").isNull() ? block.getString("cap") : null;
             content.bottomTint[id] = block.has("bottomTint") ? (int) (block.getLong("bottomTint") >>> 8) & 0xffffff : -1;
+            content.glyphs[id] = block.has("glyphs") ? strings(block.get("glyphs")) : null;
+            content.glyphTint[id] = block.has("glyphTint") ? (int) (block.getLong("glyphTint") >>> 8) & 0xffffff : -1;
+            content.glyphRotate[id] = block.getBoolean("glyphRotate", false);
         }
         return content;
     }

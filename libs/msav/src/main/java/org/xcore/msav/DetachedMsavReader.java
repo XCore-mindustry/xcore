@@ -57,10 +57,11 @@ public final class DetachedMsavReader {
             }
             int count = width * height;
             int[] floors = new int[count], overlays = new int[count], blocks = new int[count], teams = new int[count];
+            byte[] overlayData = new byte[count];
             var cores = new ArrayList<MapSnapshot.Core>();
             var placed = new ArrayList<MapSnapshot.Placed>();
             readFloors(map.data, mapping, registry, unknown, floors, overlays);
-            readBlocks(map, version, mapping, registry, unknown, blocks, teams, cores, placed, width);
+            readBlocks(map, version, mapping, registry, unknown, blocks, teams, overlayData, cores, placed, width);
             map.end();
             // These engine regions may contain arbitrary mod/entity data. Verify their framing and consume
             // them through the inflation budget, without executing deserializers or allocating their lengths.
@@ -70,7 +71,8 @@ public final class DetachedMsavReader {
             if (input.read() != -1) throw new IOException("Unexpected data after save regions");
             if (!zlib.finished() || zlib.getRemaining() != 0 || compressed.read() != -1)
                 throw new IOException("Unexpected data after zlib stream");
-            return new MapSnapshot(metadata, registry, floors, overlays, blocks, teams, cores, placed, List.copyOf(unknown), true);
+            return new MapSnapshot(metadata, registry, floors, overlays, blocks, teams, overlayData, cores, placed,
+                    List.copyOf(unknown), true);
         } catch (IllegalArgumentException | IllegalStateException ex) {
             throw new IOException("Invalid map metadata or content", ex);
         } finally { zlib.end(); }
@@ -245,7 +247,8 @@ public final class DetachedMsavReader {
     }
 
     private static void readBlocks(Region map, int version, ContentRegistrySnapshot.Entry[] mapping,
-                                   ContentRegistrySnapshot registry, Set<String> unknown, int[] blocks, int[] teams, List<MapSnapshot.Core> cores,
+                                   ContentRegistrySnapshot registry, Set<String> unknown, int[] blocks, int[] teams, byte[] overlayData,
+                                   List<MapSnapshot.Core> cores,
                                    List<MapSnapshot.Placed> placed, int width) throws IOException {
         // Keep wire parts separate from effective blocks: parts before a center do not place anything,
         // while later ordinary records (including air RLE) remove a previously placed multiblock.
@@ -274,7 +277,11 @@ public final class DetachedMsavReader {
                 int flags = map.data.readUnsignedByte();
                 if ((flags & ~(version <= 9 ? 7 : 5)) != 0) throw new IOException("Invalid tile flags");
                 boolean entity = (flags & 1) != 0, oldData = (flags & 2) != 0, newData = (flags & 4) != 0;
-                if (newData) map.skip(7);
+                if (newData) { // data, floorData, overlayData, extraData; a tile with data is never a run
+                    map.skip(2);
+                    overlayData[i] = map.data.readByte();
+                    map.skip(4);
+                }
                 if (entity) {
                     center = readBoolean(map.data, "building center");
                     if (center) {

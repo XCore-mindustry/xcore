@@ -8,6 +8,7 @@ public final class MapSnapshot {
     private final Metadata metadata;
     private final ContentRegistrySnapshot registry;
     private final int[] floors, overlays, blocks, teams;
+    private final byte[] overlayData;
     private final List<Core> cores;
     private final List<Placed> buildings;
     private final List<String> unknownContent;
@@ -21,15 +22,24 @@ public final class MapSnapshot {
     public MapSnapshot(Metadata metadata, ContentRegistrySnapshot registry, int[] floors, int[] overlays,
                        int[] blocks, int[] teams, List<Core> cores, List<Placed> buildings, List<String> unknownContent,
                        boolean tilesAvailable) {
+        this(metadata, registry, floors, overlays, blocks, teams, new byte[floors.length], cores, buildings, unknownContent,
+                tilesAvailable);
+    }
+
+    public MapSnapshot(Metadata metadata, ContentRegistrySnapshot registry, int[] floors, int[] overlays,
+                       int[] blocks, int[] teams, byte[] overlayData, List<Core> cores, List<Placed> buildings,
+                       List<String> unknownContent, boolean tilesAvailable) {
         this.metadata = metadata;
         this.registry = registry;
         int expected = tilesAvailable ? Math.multiplyExact(metadata.width(), metadata.height()) : 0;
-        if (floors.length != expected || overlays.length != expected || blocks.length != expected || teams.length != expected)
+        if (floors.length != expected || overlays.length != expected || blocks.length != expected || teams.length != expected
+                || overlayData.length != expected)
             throw new IllegalArgumentException("Snapshot dimensions disagree");
         this.floors = floors.clone();
         this.overlays = overlays.clone();
         this.blocks = blocks.clone();
         this.teams = teams.clone();
+        this.overlayData = overlayData.clone();
         this.cores = List.copyOf(cores);
         this.buildings = List.copyOf(buildings);
         this.unknownContent = List.copyOf(unknownContent);
@@ -44,6 +54,8 @@ public final class MapSnapshot {
     public int overlay(int index) { return overlays[index]; }
     public int block(int index) { return blocks[index]; }
     public int team(int index) { return teams[index]; }
+    /** The overlay's byte of tile data, unsigned: the letter of a character or rune overlay. */
+    public int overlayData(int index) { return overlayData[index] & 0xff; }
     public List<Core> cores() { return cores; }
     /** Every placed building and multiblock centre, in file order, as the engine keeps it. */
     public List<Placed> buildings() { return buildings; }
