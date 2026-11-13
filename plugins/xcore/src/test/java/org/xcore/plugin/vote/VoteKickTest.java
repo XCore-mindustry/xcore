@@ -19,6 +19,7 @@ import org.xcore.protocol.generated.messages.server.ServerMessages.ServerActionV
 
 import java.util.Locale;
 
+import static arc.util.Strings.stripColors;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -78,7 +79,8 @@ class VoteKickTest {
         var args = Bundle.args("target", "Target", "minutes", config.moderation.votekick.banDurationMinutes);
         verify(sessions).broadcast(eq(key), eq(args));
         verify(sessions, never()).broadcast(eq(disconnected ? "votekick-success" : "votekick-success-disconnected"), anyMap());
-        verify(network).post(new ServerActionV1(bundle.format(Locale.ENGLISH, key, args), new TomlXcoreConfig().server.name));
+        // Discord shows the message as text, so it goes out without the bundle's colour tags.
+        verify(network).post(new ServerActionV1(stripColors(bundle.format(Locale.ENGLISH, key, args)), new TomlXcoreConfig().server.name));
         verify(target).kick(Packets.KickReason.vote, (long) config.moderation.votekick.banDurationMinutes * 60_000);
         assertThat(rolledBack).containsExactly(target);
         assertThat(service.isVoting()).isFalse();

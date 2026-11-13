@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import discord
 
 from ..i18n import t
-from ..utils.mindustry_colors import strip_mindustry_colors
+from ..utils.mindustry_colors import strip_mindustry_colors_fully
 from .ids import format_case_number
 from .model import Case, CaseKind, Party, Resolution, utc
 
@@ -27,11 +27,12 @@ def safe_text(
     limit: int = 1024,
     keep_mentions: bool = False,
 ) -> str:
-    text = str(value or "").replace("\x00", "")
+    # Tags go first, and all of them, so that neither a secret nor an IP split by a tag is missed,
+    # and no strip of the result afterwards can put one back together.
+    text = strip_mindustry_colors_fully(str(value or "").replace("\x00", ""))
     for secret in secrets:
         if secret:
             text = text.replace(secret, "…")
-    text = strip_mindustry_colors(text)
     text = _UUID.sub("…", _IP.sub("…", text))
 
     def hide_ipv6(match: re.Match[str]) -> str:

@@ -11,6 +11,7 @@ from test_maps_autocomplete import _autocomplete_bot, _Interaction
 from test_player_replies_i18n import _season
 from test_staff_actions import ACTOR, PLAYER, _action_bot
 
+from xcore_discord_bot.cases.cards import safe_text
 from xcore_discord_bot.cogs.autocomplete import autocomplete_map_file
 from xcore_discord_bot.moderation_logs import format_admin_value
 from xcore_discord_bot.moderation_modals import _build_modal_title
@@ -19,6 +20,7 @@ from xcore_discord_bot.rating_store import PodiumEntry, RankedStanding
 from xcore_discord_bot.season_embeds import build_season_top_embed, podium_line
 from xcore_discord_bot.staff_actions import perform_ban
 from xcore_discord_bot.utils.game_text import clean, code, plain
+from xcore_discord_bot.utils.mindustry_colors import strip_mindustry_colors_fully
 
 # How the game stores a nickname: the player's coloured name.
 COLOURED = "[scarlet]Ta[stat]r_get[]"
@@ -111,3 +113,18 @@ async def test_map_autocomplete_shows_the_map_name_without_colours() -> None:
     )
     choices = await autocomplete_map_file(interaction, "gla")
     assert [choice.name for choice in choices] == ["Glacier (glacier.msav)"]
+
+
+def test_masking_sees_the_name_without_any_tag() -> None:
+    # One strip turns [[red]red] into [red]; the IP must be masked on what is finally shown,
+    # and a strip of the result (format_admin_value cleans its name) must not rebuild it.
+    masked = safe_text("192.168.[[red]red]1.1")
+    assert "192.168" not in masked
+    assert "192.168" not in format_admin_value(admin_name=masked, admin_discord_id=None)
+    # A secret split by a tag is masked too.
+    assert safe_text("uuid-[red]42xyz", secrets=("uuid-42xyz",)) == "…"
+
+
+def test_full_strip_stops_when_no_tag_is_left() -> None:
+    assert strip_mindustry_colors_fully("a[[red]red]b") == "ab"
+    assert strip_mindustry_colors_fully("[[Tag]]") == "[[Tag]]"

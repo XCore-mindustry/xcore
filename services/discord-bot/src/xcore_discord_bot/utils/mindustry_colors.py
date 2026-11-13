@@ -78,6 +78,17 @@ def strip_mindustry_colors(text: str) -> str:
     return "".join(out)
 
 
+def strip_mindustry_colors_fully(text: str) -> str:
+    """Strips until no tag is left: ``[[red]red]`` comes out of one pass as ``[red]``.
+
+    For text that is masked after stripping, so that no later strip can join a hidden value
+    back together. Shows less than the client would for an escaped bracket.
+    """
+    while (stripped := strip_mindustry_colors(text)) != text:
+        text = stripped
+    return text
+
+
 def _parse_color_markup(text: str, start: int, end: int) -> int:  # noqa: C901
     if start >= end:
         return -1
