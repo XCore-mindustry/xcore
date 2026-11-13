@@ -47,6 +47,12 @@ opens every input in turn: a run costs one client start (~10 s) per profile, the
 second per menu. The client checks it got the framebuffer and scale it was asked for. Profiles
 model viewport geometry, not particular devices.
 
+Rendering is software (llvmpipe), so a frame costs what drawing it costs, and the client is kept
+from drawing anything a menu's layout does not depend on: it runs without an FPS cap, the main
+menu's animated background is hidden (a dialog that does not fill the screen shows black behind
+it), and dialogs open and close without their 0.4 s fade. A capture is taken once the geometry
+has held for 8 frames, typically 9 frames after the menu opens.
+
 ## Checks
 
 Once the dialog's geometry has stayed the same for several frames and its actions are done:

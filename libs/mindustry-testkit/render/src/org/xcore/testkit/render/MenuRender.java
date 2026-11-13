@@ -7,6 +7,7 @@ import arc.backend.sdl.SdlApplication;
 import arc.backend.sdl.SdlConfig;
 import arc.files.Fi;
 import arc.scene.Element;
+import arc.scene.actions.Actions;
 import arc.scene.ui.Dialog;
 import arc.scene.ui.layout.Scl;
 import arc.util.ScreenUtils;
@@ -52,9 +53,11 @@ import java.util.Set;
  */
 public final class MenuRender {
 
-    /** Frames before the layout is trusted to have settled at all. */
-    private static final int MIN_FRAMES = 30;
-    /** Frames in a row with unchanged geometry that count as settled. */
+    /**
+     * Frames in a row with unchanged geometry that count as settled. Frames are counted, not
+     * waited for: the client runs uncapped, so on a software renderer a frame costs what drawing
+     * the dialog costs.
+     */
     private static final int STABLE_FRAMES = 8;
     /** How long one input may take to open, settle and close. */
     private static final long INPUT_TIMEOUT_NANOS = 20_000_000_000L;
@@ -131,7 +134,9 @@ public final class MenuRender {
         seed.load();
         seed.put("uiscale", Math.round(profile.scale * 100));
         seed.put("locale", "en");
-        seed.put("fpscap", 60);
+        // Above 240 is no cap, so a frame is drawn as soon as the last one is done. (0 is clamped to
+        // the settings slider's minimum of 10 fps.)
+        seed.put("fpscap", 1000);
         seed.put("vsync", false);
         seed.put("bloom", false);
         seed.put("firsttimeshown", true);
@@ -152,6 +157,13 @@ public final class MenuRender {
                     return true;
                 }
             };
+            // The main menu's animated world is drawn behind every dialog and, on a software renderer,
+            // costs more than the dialog itself. It plays no part in a dialog's layout, so it is hidden.
+            for (Element child : Vars.ui.menuGroup.getChildren()) child.visible(() -> false);
+            // Dialogs open and close at once instead of fading for 0.4 s: a capture waits for the
+            // dialog's actions to finish, so a fade only adds frames, and alpha moves no element.
+            Dialog.setShowAction(() -> Actions.alpha(1f));
+            Dialog.setHideAction(() -> Actions.alpha(1f));
             Events.run(Trigger.uiDrawEnd, () -> guard(this::frame));
         })));
 
@@ -231,7 +243,7 @@ public final class MenuRender {
         stable = current.equals(previous) ? stable + 1 : 0;
         previous = current;
         frames++;
-        if (frames < MIN_FRAMES || stable < STABLE_FRAMES || dialog.hasActions()) return;
+        if (stable < STABLE_FRAMES || dialog.hasActions()) return;
 
         Inspector inspector = new Inspector(dialog).run();
         String stem = stem(input) + "-" + profile.id();

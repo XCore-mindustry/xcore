@@ -12,7 +12,7 @@ RUN test -n "$MINDUSTRY_VERSION" && test -n "$MINDUSTRY_SHA256" \
     && echo "$MINDUSTRY_SHA256  Mindustry.jar" | sha256sum -c -
 COPY src src
 RUN javac -cp Mindustry.jar -d classes $(find src -name '*.java')
-ENV LIBGL_ALWAYS_SOFTWARE=1 LP_NUM_THREADS=2 HOME=/tmp
+ENV LIBGL_ALWAYS_SOFTWARE=1 HOME=/tmp
 ENTRYPOINT ["xvfb-run", "-a", "-f", "/tmp/render.xauth", "-s", "-screen 0 1920x2400x24", \
     "java", "-Xmx512m", "-XX:ActiveProcessorCount=2", "--enable-native-access=ALL-UNNAMED", \
     "-cp", "/renderer/Mindustry.jar:/renderer/classes", "org.xcore.testkit.render.MenuRender"]
