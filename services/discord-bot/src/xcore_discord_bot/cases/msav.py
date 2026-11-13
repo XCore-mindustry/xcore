@@ -8,6 +8,7 @@ validation belongs to the server's detached inspection, not this reader.
 from __future__ import annotations
 
 import hashlib
+import re
 import struct
 import zlib
 from dataclasses import dataclass
@@ -63,6 +64,13 @@ def _mutf8(raw: bytes) -> str:
         raise InvalidMsav("meta") from error
 
 
+def map_file_name(filename: str) -> str | None:
+    """The map's name, or None for a non-map attachment. Phones save a second download of
+    ``x.msav`` as ``x.msav_1``, and authors re-attach that file as it is."""
+    name = re.sub(r"(?i)(\.msav)_\d+$", r"\1", filename)
+    return name if name.lower().endswith(".msav") else None
+
+
 def validate_msav(  # noqa: C901
     data: bytes,
     filename: str,
@@ -70,7 +78,7 @@ def validate_msav(  # noqa: C901
     max_file_bytes: int = 4 * 1024 * 1024,
     max_inflated_bytes: int = MAX_INFLATED_BYTES,
 ) -> MsavInfo:
-    if not filename.lower().endswith(".msav"):
+    if map_file_name(filename) is None:
         raise InvalidMsav("extension")
     if not data or len(data) > max_file_bytes:
         raise InvalidMsav("size")

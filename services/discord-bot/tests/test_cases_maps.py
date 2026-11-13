@@ -116,10 +116,14 @@ async def test_redelivered_creation_and_restart_adopt_one_case_card():
     )
 
 
-async def test_new_author_file_revalidates_refreshes_same_card_ignores_older_redelivery():
+# A phone saves a second download of new.msav as new.msav_1; the author re-attaches that.
+@pytest.mark.parametrize("filename", ["new.msav", "new.msav_1"])
+async def test_new_author_file_revalidates_refreshes_same_card_ignores_older_redelivery(
+    filename,
+):
     env, case = await opened()
     service, db, bot, _, _, author, thread, starter, _ = env
-    replacement = Attachment(3000, msav(meta={"name": "New map"}), "new.msav")
+    replacement = Attachment(3000, msav(meta={"name": "New map"}), filename)
     service.transport.rpc_inspect_map = AsyncMock(
         return_value=inspect_payload(replacement)
     )
@@ -131,12 +135,80 @@ async def test_new_author_file_revalidates_refreshes_same_card_ignores_older_red
         and current.payload["info"]["name"] == "New map"
     )
     assert current.payload["sha256"] != case.payload["sha256"]
+    assert (
+        service.transport.rpc_inspect_map.await_args.kwargs["file_name"] == "new.msav"
+    )
     assert current.discord["card_message_id"] == case.discord["card_message_id"]
     assert len([m for m in thread.messages if m.embeds]) == 1
+    card = f"/{thread.id}/{case.discord['card_message_id']}"
+    (notice,) = [m for m in thread.messages if card in (m.content or "")]
+    assert f"#{case.number}" in notice.content and "`new.msav`" in notice.content
     await maps.on_message(service, starter)
     assert (await service.get(case.number)).payload["file_name"] == "new.msav"
     assert len(db["cases"].docs) == 1
     assert not any("https://" in str(row["payload"]) for row in db["cases"].docs)
+
+
+async def test_misnamed_author_file_is_answered_not_dropped():
+    env, case = await opened()
+    service, _, bot, _, _, author, thread, _, _ = env
+    sent = len(thread.messages)
+    await maps.on_message(
+        service,
+        authored_message(
+            bot, thread, author, Attachment(3000, filename="new.msav.txt")
+        ),
+    )
+    assert thread.messages[-1].content == t(
+        "en", "maps-file-misnamed", file="`new.msav.txt`"
+    )
+    await maps.on_message(
+        service,
+        authored_message(bot, thread, author, Attachment(3001, filename="a.png")),
+    )
+    assert len(thread.messages) == sent + 3  # two author messages, one answer
+    assert (await service.get(case.number)).payload == case.payload
+
+
+async def test_misnamed_file_beside_a_map_is_answered_and_the_map_taken():
+    env, case = await opened()
+    service, _, bot, _, _, author, thread, _, _ = env
+    replacement = Attachment(3000, msav(meta={"name": "New map"}), "new.msav")
+    service.transport.rpc_inspect_map = AsyncMock(
+        return_value=inspect_payload(replacement)
+    )
+    message = authored_message(bot, thread, author, replacement)
+    message.attachments.append(Attachment(3001, filename="new.msav.txt"))
+    await maps.on_message(service, message)
+    contents = [m.content or "" for m in thread.messages]
+    assert t("en", "maps-file-misnamed", file="`new.msav.txt`") in contents
+    assert any(f"#{case.number}" in c and "`new.msav`" in c for c in contents)
+    assert (await service.get(case.number)).payload["attachment_id"] == "3000"
+
+
+async def test_a_file_replaced_during_projection_gets_no_stale_notice():
+    env, case = await opened()
+    service, _, bot, _, _, author, thread, _, _ = env
+    first = Attachment(3000, msav(meta={"name": "First"}), "first.msav")
+    second = Attachment(3001, msav(meta={"name": "Second"}), "second.msav")
+    service.transport.rpc_inspect_map = AsyncMock(
+        side_effect=[inspect_payload(first), inspect_payload(second)]
+    )
+    later = authored_message(bot, thread, author, second, id=bot.next_id() + 10)
+    thread.messages.remove(later)
+    project = service.project
+
+    async def overtaken(number):
+        service.project = project
+        thread.messages.append(later)
+        await maps.on_message(service, later)
+        return await project(number)
+
+    service.project = overtaken
+    await maps.on_message(service, authored_message(bot, thread, author, first))
+    card = f"/{thread.id}/{case.discord['card_message_id']}"
+    (notice,) = [m for m in thread.messages if card in (m.content or "")]
+    assert "`second.msav`" in notice.content
 
 
 async def test_reviewer_file_cannot_replace_author_attachment():
