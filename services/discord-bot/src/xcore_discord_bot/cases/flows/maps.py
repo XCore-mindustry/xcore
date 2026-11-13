@@ -377,16 +377,21 @@ async def on_message(service, message):
         or _ignored(service, thread)
     ):
         return
+    # A map renamed on the way (x.msav (1), x.msav.txt) must not vanish without a word,
+    # even beside a file the bot does take.
+    misnamed = next(
+        (
+            a.filename
+            for a in message.attachments
+            if "msav" in a.filename.lower() and not map_file_name(a.filename)
+        ),
+        None,
+    )
+    if misnamed:
+        locale = await resolve_dm_locale(thread.owner_id, service.store)
+        file = "`" + map_text(misnamed, 100, inline_code=True) + "`"
+        await _say(thread, t(locale, "maps-file-misnamed", file=file))
     if not _file(message):
-        # A map renamed on the way (x.msav (1), x.msav.txt) must not vanish without a word.
-        misnamed = next(
-            (a.filename for a in message.attachments if "msav" in a.filename.lower()),
-            None,
-        )
-        if misnamed:
-            locale = await resolve_dm_locale(thread.owner_id, service.store)
-            file = "`" + map_text(misnamed, 100, inline_code=True) + "`"
-            await _say(thread, t(locale, "maps-file-misnamed", file=file))
         return
     case = await service.store.by_thread(thread.id)
     if case is None or case.kind != CaseKind.MAP or not case.active:
@@ -405,6 +410,9 @@ async def on_message(service, message):
             return
         await _refresh(service, case, message=message)
     await service.project(case.number)
+    # A newer file may have refreshed the card meanwhile; its own notice speaks for it.
+    if (await service.get(case.number)).payload["attachment_id"] != str(attachment.id):
+        return
     # The card is edited far up the post; say here that it now checks this file.
     card = case.discord.get("card_message_id")
     file = (

@@ -170,6 +170,47 @@ async def test_misnamed_author_file_is_answered_not_dropped():
     assert (await service.get(case.number)).payload == case.payload
 
 
+async def test_misnamed_file_beside_a_map_is_answered_and_the_map_taken():
+    env, case = await opened()
+    service, _, bot, _, _, author, thread, _, _ = env
+    replacement = Attachment(3000, msav(meta={"name": "New map"}), "new.msav")
+    service.transport.rpc_inspect_map = AsyncMock(
+        return_value=inspect_payload(replacement)
+    )
+    message = authored_message(bot, thread, author, replacement)
+    message.attachments.append(Attachment(3001, filename="new.msav.txt"))
+    await maps.on_message(service, message)
+    contents = [m.content or "" for m in thread.messages]
+    assert t("en", "maps-file-misnamed", file="`new.msav.txt`") in contents
+    assert any(f"#{case.number}" in c and "`new.msav`" in c for c in contents)
+    assert (await service.get(case.number)).payload["attachment_id"] == "3000"
+
+
+async def test_a_file_replaced_during_projection_gets_no_stale_notice():
+    env, case = await opened()
+    service, _, bot, _, _, author, thread, _, _ = env
+    first = Attachment(3000, msav(meta={"name": "First"}), "first.msav")
+    second = Attachment(3001, msav(meta={"name": "Second"}), "second.msav")
+    service.transport.rpc_inspect_map = AsyncMock(
+        side_effect=[inspect_payload(first), inspect_payload(second)]
+    )
+    later = authored_message(bot, thread, author, second, id=bot.next_id() + 10)
+    thread.messages.remove(later)
+    project = service.project
+
+    async def overtaken(number):
+        service.project = project
+        thread.messages.append(later)
+        await maps.on_message(service, later)
+        return await project(number)
+
+    service.project = overtaken
+    await maps.on_message(service, authored_message(bot, thread, author, first))
+    card = f"/{thread.id}/{case.discord['card_message_id']}"
+    (notice,) = [m for m in thread.messages if card in (m.content or "")]
+    assert "`second.msav`" in notice.content
+
+
 async def test_reviewer_file_cannot_replace_author_attachment():
     env, case = await opened()
     service, _, bot, _, _, _, thread, _, _ = env
