@@ -30,3 +30,17 @@ def test_parse_color_markup() -> None:
     assert _parse_color_markup(text, 1, len(text)) == 7
     text = "[notacolor]"
     assert _parse_color_markup(text, 1, len(text)) == -1
+
+
+def test_strip_mindustry_own_colors() -> None:
+    # Mindustry registers these beside Arc's; a nickname can use any of them.
+    for name in ("accent", "unlaunched", "highlight", "stat", "negstat"):
+        assert strip_mindustry_colors(f"[{name}]Name[]") == "Name"
+
+
+def test_strip_matches_the_client_case_for_case() -> None:
+    # Arc registers RED and LIGHT_GRAY, and red and lightgray; nothing else is a colour.
+    assert strip_mindustry_colors("[RED]a[LIGHT_GRAY]b[lightgray]c[red]d") == "abcd"
+    assert strip_mindustry_colors("[Red]a") == "[Red]a"
+    assert strip_mindustry_colors("[light_gray]a") == "[light_gray]a"
+    assert strip_mindustry_colors("[STAT]a") == "[STAT]a"

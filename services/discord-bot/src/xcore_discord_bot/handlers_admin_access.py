@@ -12,6 +12,7 @@ from .command_helpers import (
     require_player_uuid,
 )
 from .retry import TRANSIENT_EXCEPTIONS
+from .utils.game_text import code as code_span
 
 if TYPE_CHECKING:
     from .bot import XCoreDiscordBot
@@ -193,7 +194,7 @@ async def cmd_reset_password(
         )
         return
     await interaction.followup.send(
-        f"Password reset for `{player.nickname}`"
+        f"Password reset for `{code_span(player.nickname, 'Unknown')}`"
         if changed
         else "Password reset did not update any row"
     )

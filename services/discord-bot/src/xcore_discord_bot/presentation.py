@@ -8,6 +8,7 @@ from bson.datetime_ms import DatetimeMS
 
 from .dto import MERGE_KEEP_PID_SOURCE, AccountMergeResult, PlayerRecord
 from .i18n import DEFAULT, t
+from .utils.game_text import clean, code
 from .utils.mindustry_colors import strip_mindustry_colors
 
 DISCORD_EMBED_TITLE_MAX = 256
@@ -128,7 +129,7 @@ def format_ban_expire_date_from_millis(millis: int) -> str:
 
 def _merge_account_summary(player: PlayerRecord) -> str:
     return (
-        f"Nickname: `{player.nickname}`\n"
+        f"Nickname: `{code(player.nickname, 'Unknown')}`\n"
         f"Playtime: `{format_minutes(player.total_play_time)}`\n"
         f"Hexed points: `{player.hexed_points}`\n"
         f"Badges: `{len(player.unlocked_badges)}`\n"
@@ -156,8 +157,8 @@ def build_merge_preview_embed(
     embed = discord.Embed(
         title="🔄 Confirm account merge",
         description=(
-            f"Merging **#{source.pid} ({source.nickname})** "
-            f"into **#{target.pid} ({target.nickname})**.\n\n"
+            f"Merging **#{source.pid} ({clean(source.nickname, 'Unknown')})** "
+            f"into **#{target.pid} ({clean(target.nickname, 'Unknown')})**.\n\n"
             f"**Reason:** `{reason}`\n\n"
             "⚠️ The source account is closed after the merge and cannot be reopened. "
             "This action is not reversible."
@@ -210,7 +211,7 @@ def build_merge_result_embed(result: AccountMergeResult) -> discord.Embed:  # no
             name="Source account (closed)",
             value=(
                 f"PID: `#{source.pid if result.tombstone_pid is None else result.tombstone_pid}`\n"
-                f"Nickname: `{source.nickname}`\n"
+                f"Nickname: `{code(source.nickname, 'Unknown')}`\n"
                 f"UUID: `{source.uuid}`"
             ),
             inline=True,
@@ -227,7 +228,7 @@ def build_merge_result_embed(result: AccountMergeResult) -> discord.Embed:  # no
             name="Surviving account",
             value=(
                 f"PID: `#{surviving_pid}`{pid_note}\n"
-                f"Nickname: `{target_after.nickname}`\n"
+                f"Nickname: `{code(target_after.nickname, 'Unknown')}`\n"
                 f"UUID: `{target_after.uuid}`"
             ),
             inline=True,
@@ -361,7 +362,7 @@ def build_moderation_reversal_embed(
     format_expire_date,
 ) -> discord.Embed:
     embed = discord.Embed(
-        title=f"{action_label} {subject_name}",
+        title=f"{action_label} {clean(subject_name, 'Unknown')}",
         color=discord.Color.green(),
     )
     embed.add_field(name="PID", value=str(player_id), inline=False)
@@ -370,7 +371,7 @@ def build_moderation_reversal_embed(
         value=previous_actor_value,
         inline=False,
     )
-    embed.add_field(name="Reason", value=reason, inline=False)
+    embed.add_field(name="Reason", value=clean(reason, "Not specified"), inline=False)
     embed.add_field(
         name="Was set to expire",
         value=format_expire_date(expire_value),

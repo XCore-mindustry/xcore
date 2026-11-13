@@ -35,6 +35,7 @@ from .staff_actions import (
 from .staff_actions import (
     perform_ban as perform_staff_ban,
 )
+from .utils.game_text import clean, code
 
 if TYPE_CHECKING:
     from .bot import XCoreDiscordBot
@@ -134,7 +135,7 @@ async def cmd_ban(
         perform_ban=lambda **kwargs: perform_ban(bot, **kwargs),
     )
     await interaction.response.send_message(
-        f"Are you sure you want to ban `{player.nickname}`?",
+        f"Are you sure you want to ban `{code(player.nickname, 'Unknown')}`?",
         view=view,
     )
     view.message = await interaction.original_response()
@@ -349,7 +350,9 @@ async def cmd_pardon(
         return
 
     await bot.container.moderation_bus.publish_pardon_player(uuid_value=uuid_value)
-    await interaction.response.send_message(f"Pardoned `{player.nickname}`")
+    await interaction.response.send_message(
+        f"Pardoned `{code(player.nickname, 'Unknown')}`"
+    )
 
 
 async def cmd_mute(
@@ -391,7 +394,7 @@ async def cmd_mute(
         Actor(str(interaction.user.id), interaction.user.display_name),
         request_id=str(interaction.id),
     )
-    player_name = player.nickname
+    player_name = clean(player.nickname, "Unknown")
     view = MuteUndoView(
         requester_id=interaction.user.id,
         uuid=uuid_value,
@@ -490,11 +493,11 @@ async def cmd_bans(
                 ban_value = (
                     (f"PID: `{ban.pid}`\n" if is_assigned(ban.pid) else "")
                     + f"Admin: {format_admin_value(admin_name=ban.admin_name, admin_discord_id=ban.admin_discord_id)}\n"
-                    + f"Reason: {ban.reason}\n"
+                    + f"Reason: {clean(ban.reason, 'Not specified')}\n"
                     + f"Unban: {unban_date}"
                 )
                 embed.add_field(
-                    name=ban.name,
+                    name=clean(ban.name, "Unknown"),
                     value=ban_value,
                     inline=False,
                 )
