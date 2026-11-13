@@ -6,6 +6,7 @@ from discord import Interaction, app_commands
 
 from ..badges import badge_choice_label, grantable_badges
 from ..player_pids import is_assigned
+from ..utils.game_text import plain
 from ..utils.mindustry_colors import strip_mindustry_colors
 
 if TYPE_CHECKING:
@@ -68,14 +69,14 @@ async def autocomplete_map_file(
         file_name = str(item.get("file_name", "")).strip()
         if not file_name:
             continue
-        map_name = str(item.get("name", "Unknown")).strip() or "Unknown"
+        map_name = plain(item.get("name"), "Unknown")
 
         searchable = f"{map_name} {file_name}".lower()
         if current_norm and current_norm not in searchable:
             continue
 
         choices.append(
-            app_commands.Choice(name=f"{map_name} ({file_name})", value=file_name)
+            app_commands.Choice(name=f"{map_name} ({file_name})"[:100], value=file_name)
         )
         if len(choices) >= 25:
             break

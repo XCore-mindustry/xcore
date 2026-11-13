@@ -8,6 +8,7 @@ from .badges import get_badge
 from .command_helpers import claim_mutation, get_player_or_reply, require_player_uuid
 from .dto import Actor
 from .staff_actions import StaffActionError, perform_badge_grant
+from .utils.game_text import code
 
 if TYPE_CHECKING:
     from .bot import XCoreDiscordBot
@@ -115,7 +116,7 @@ async def _cmd_badge_change(
                 unlocked_badges=updated_player.unlocked_badges,
             )
 
-    player_name = player.nickname
+    player_name = code(player.nickname, "Unknown")
     message = (
         f"Revoked badge `{badge.id}` from `{player_name}`"
         if changed

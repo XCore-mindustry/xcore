@@ -22,7 +22,7 @@ from .presentation import (
 )
 from .rating_store import Placing
 from .season_embeds import FIELD_LIMIT, build_ratings_field
-from .utils.mindustry_colors import strip_mindustry_colors
+from .utils.game_text import clean, code
 
 BIO_LIMIT = 300
 
@@ -50,18 +50,6 @@ class StatsView:
     other_accounts: Sequence[PlayerRecord] = ()
     # The language of whoever asked: the profile is read by them, not by the player.
     locale: str = DEFAULT
-
-
-def clean(text: str | None) -> str:
-    """Game text as Discord can show it: no colour tags, no markdown of its own."""
-    stripped = strip_mindustry_colors(str(text or "")).replace("\n", " ").strip()
-    return discord.utils.escape_markdown(stripped)
-
-
-def code(text: str | None) -> str:
-    """Game text for a code span, where markdown is not read and a backtick would end it."""
-    stripped = strip_mindustry_colors(str(text or "")).replace("\n", " ").strip()
-    return stripped.replace("`", "'")
 
 
 def player_name(player: PlayerRecord, locale: str = DEFAULT) -> str:

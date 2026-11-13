@@ -18,6 +18,7 @@ from .permissions import admin_role_ids, has_any_role, settings_from_interaction
 from .presentation import format_epoch_millis, format_minutes
 from .rating_store import Placing
 from .stats_embed import StaffNotes, StatsView, build_stats_embed, player_name
+from .utils.game_text import clean, code
 
 if TYPE_CHECKING:
     from .bot import XCoreDiscordBot
@@ -183,7 +184,7 @@ async def _game_stats(bot: XCoreDiscordBot, uuid: str) -> GameStats:
 
 
 def _summarize_audit_reason(reason: str | None) -> str:
-    normalized = str(reason or "Not Specified").strip() or "Not Specified"
+    normalized = code(reason, "Not Specified")
     return normalized if len(normalized) <= 80 else normalized[:77] + "..."
 
 
@@ -238,15 +239,16 @@ async def cmd_stats_audit(
                 uuid=uuid_value, limit=page_size, page=page
             )
         embed = discord.Embed(
-            title=f"{'Actions' if mode == 'actor' else 'History'} • {nickname}",
+            title=(
+                f"{'Actions' if mode == 'actor' else 'History'} • "
+                f"{clean(nickname, 'Unknown')}"
+            ),
             color=discord.Color.orange() if rows else discord.Color.red(),
         )
         if rows:
             for row in rows:
-                counterpart = (
-                    str(row.target_name or "Unknown")
-                    if mode == "actor"
-                    else str(row.actor_name or "Unknown")
+                counterpart = code(
+                    row.target_name if mode == "actor" else row.actor_name, "Unknown"
                 )
                 embed.add_field(
                     name=_format_audit_entry_name(row.action, row.occurred_at),

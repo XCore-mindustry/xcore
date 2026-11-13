@@ -18,6 +18,7 @@ from .rating_store import (
     RankedStanding,
     Season,
 )
+from .utils.game_text import clean
 
 LADDER_NAMES = {
     "minipvp": "Mini-PvP",
@@ -86,7 +87,7 @@ def _place_range(prize: Prize) -> str:
 
 
 def podium_line(entry: PodiumEntry) -> str:
-    winner = f"**{_escape(entry.nickname)}**"
+    winner = f"**{clean(entry.nickname, 'Unknown')}**"
     if entry.discord_id:
         winner += f" (<@{entry.discord_id}>)"
     games = f"{entry.wins}/{entry.matches}" if entry.matches else "-"
@@ -284,7 +285,7 @@ def build_season_prizes_embed(
         names = names or {}
         lines = []
         for grant in grants:
-            who = _escape(names.get(grant.player_uuid, grant.player_uuid))
+            who = clean(names.get(grant.player_uuid), grant.player_uuid)
             what = prize_text(
                 Prize(
                     grant.place, grant.place, grant.kind, grant.value, grant.description
@@ -316,7 +317,7 @@ def build_season_top_embed(
         embed.description = t(locale, "season-top-empty")
         return embed
     embed.description = "\n".join(
-        f"{_place(row.rank)} **{_escape(row.nickname)}**"
+        f"{_place(row.rank)} **{clean(row.nickname, 'Unknown')}**"
         f"{f' (#{row.pid})' if row.pid is not None else ''} · `{row.rating}` · "
         + t(locale, "season-top-wins", wins=row.wins, matches=row.matches)
         for row in standings

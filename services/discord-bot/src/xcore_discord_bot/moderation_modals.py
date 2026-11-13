@@ -6,12 +6,13 @@ import discord
 from discord import Interaction
 
 from .dto import PlayerRecord
+from .utils.game_text import plain
 
 DISCORD_MODAL_TITLE_MAX = 45
 
 
 def _build_modal_title(action: str, player: PlayerRecord) -> str:
-    player_name = player.nickname
+    player_name = plain(player.nickname, "Unknown")
     title = f"{action} {player_name}"
     if len(title) <= DISCORD_MODAL_TITLE_MAX:
         return title

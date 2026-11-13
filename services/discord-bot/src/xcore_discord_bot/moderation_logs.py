@@ -11,6 +11,7 @@ from xcore_protocol.generated.shared import VoteKickParticipantV1
 from .cases.cards import case_secrets, safe_text
 from .dto import record_identifiers
 from .player_pids import is_assigned, or_none
+from .utils.game_text import clean
 from .utils.mindustry_colors import strip_mindustry_colors
 
 if TYPE_CHECKING:
@@ -333,5 +334,7 @@ async def post_vote_kick_log(
 
 
 def format_admin_value(*, admin_name: str, admin_discord_id: str | None) -> str:
+    """An admin as the logs show them; one who acted in game is recorded under a coloured name."""
     discord_id = str(admin_discord_id or "").strip()
-    return f"{admin_name} (<@{discord_id}>)" if discord_id else admin_name
+    name = clean(admin_name, "Unknown")
+    return f"{name} (<@{discord_id}>)" if discord_id else name

@@ -8,6 +8,7 @@ from .command_helpers import get_player_or_reply
 from .dto import MERGE_KEEP_PID_TARGET
 from .moderation_views import AccountMergeConfirmView
 from .presentation import build_merge_preview_embed
+from .utils.game_text import clean
 
 if TYPE_CHECKING:
     from .bot import XCoreDiscordBot
@@ -51,7 +52,7 @@ async def cmd_merge_player(
         return
 
     online = [
-        f"#{player.pid} ({player.nickname})"
+        f"#{player.pid} ({clean(player.nickname, 'Unknown')})"
         for player in (source, target)
         if player.online
     ]

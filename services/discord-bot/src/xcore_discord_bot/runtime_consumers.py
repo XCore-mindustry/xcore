@@ -142,7 +142,7 @@ async def consume_join_leave(bot: XCoreDiscordBot) -> None:
             return
 
         action = "joined" if event.joined else "left"
-        safe_player = str(event.playerName).replace("`", "")
+        safe_player = strip_mindustry_colors(str(event.playerName).replace("`", ""))
         await channel.send(f"`{safe_player}` {action}")
 
     await run_consumer_forever(
@@ -159,7 +159,7 @@ async def consume_server_actions(bot: XCoreDiscordBot) -> None:
         if channel is None:
             return
 
-        safe_message = str(event.message).replace("`", "")
+        safe_message = strip_mindustry_colors(str(event.message).replace("`", ""))
         await channel.send(safe_message)
 
     await run_consumer_forever(

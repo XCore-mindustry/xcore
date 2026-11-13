@@ -17,6 +17,7 @@ from .dto import Actor, BanRecord, MuteRecord, PlayerRecord, record_identifiers
 from .moderation_logs import post_ban_log, post_mute_log
 from .protocol_outbound import build_maps_upload_request
 from .retry import TRANSIENT_EXCEPTIONS
+from .utils.game_text import code
 
 if TYPE_CHECKING:
     from .bot import XCoreDiscordBot
@@ -301,7 +302,7 @@ async def perform_ban(
         ban,
         audit_id,
         (
-            f"Banned `{ban.name}` until {discord.utils.format_dt(expire, style='f')} "
+            f"Banned `{code(ban.name, 'Unknown')}` until {discord.utils.format_dt(expire, style='f')} "
             f"({discord.utils.format_dt(expire, style='R')})"
         ),
     )
@@ -361,7 +362,9 @@ async def perform_unban(
     )
     if uuid_value is not None:
         await bot.container.moderation_bus.publish_pardon_player(uuid_value=uuid_value)
-    return BanResult(ban, audit_id, f"Unbanned `{_subject_name(subject)}`")
+    return BanResult(
+        ban, audit_id, f"Unbanned `{code(_subject_name(subject), 'Unknown')}`"
+    )
 
 
 async def perform_shorten_ban(
@@ -581,7 +584,7 @@ async def perform_mute(
         expire,
         audit_id,
         (
-            f"Muted `{player_name}` until {discord.utils.format_dt(expire, style='f')} "
+            f"Muted `{code(player_name, 'Unknown')}` until {discord.utils.format_dt(expire, style='f')} "
             f"({discord.utils.format_dt(expire, style='R')})"
         ),
     )
@@ -725,7 +728,7 @@ async def perform_badge_grant(
                 unlocked_badges=updated_player.unlocked_badges,
             )
     message = (
-        f"Granted badge `{badge.id}` to `{player.nickname}`"
+        f"Granted badge `{badge.id}` to `{code(player.nickname, 'Unknown')}`"
         if changed
         else f"Player already has badge `{badge.id}`"
     )

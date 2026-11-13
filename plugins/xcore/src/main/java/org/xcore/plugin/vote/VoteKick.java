@@ -214,7 +214,7 @@ public class VoteKick extends VoteSession {
         if (network != null) {
             network.post(buildVoteKickEvent());
             network.post(new ServerActionV1(
-                    systemLocal.format(messageKey, bundleArgs), config.server.name));
+                    stripColors(systemLocal.format(messageKey, bundleArgs)), config.server.name));
         }
         onKick.get(target);
     }
