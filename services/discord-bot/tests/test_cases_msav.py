@@ -9,6 +9,7 @@ from xcore_discord_bot.cases.msav import (
     MAX_INFLATED_BYTES,
     InvalidMsav,
     data_patches,
+    map_file_name,
     validate_msav,
 )
 
@@ -178,3 +179,18 @@ def test_data_patches_of_each_asset_format():
         data_patches(msav(tail=v13_assets((0, "patch.json", b"x"))[:-1]))
     with pytest.raises(InvalidMsav):
         data_patches(msav(tail=region(struct.pack(">ii", 0, 1))))
+
+
+@pytest.mark.parametrize(
+    "filename,expected",
+    [
+        ("Arena.msav", "Arena.msav"),
+        ("Arena.MSAV_2", "Arena.MSAV"),
+        ("Arena.msav_12", "Arena.msav"),
+        ("Arena.msav_", None),
+        ("Arena.msav_1.png", None),
+        ("Arena.msav.txt", None),
+    ],
+)
+def test_map_file_name_drops_a_phone_duplicate_suffix(filename, expected):
+    assert map_file_name(filename) == expected

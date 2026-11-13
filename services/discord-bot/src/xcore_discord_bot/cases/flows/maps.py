@@ -60,7 +60,7 @@ from ..model import (
     event,
     utc,
 )
-from ..msav import InvalidMsav, data_patches, validate_msav
+from ..msav import InvalidMsav, data_patches, map_file_name, validate_msav
 from ..notify import Outcome
 from ..registry import Action, Flow, FormField, flow_registry
 from ..views import ActionContext
@@ -134,11 +134,7 @@ def _profile(service, thread) -> str | None:
 
 def _file(message):
     return next(
-        (
-            a
-            for a in reversed(message.attachments)
-            if a.filename.lower().endswith(".msav")
-        ),
+        (a for a in reversed(message.attachments) if map_file_name(a.filename)),
         None,
     )
 
@@ -147,7 +143,7 @@ def _identity(message, attachment) -> dict:
     return {
         "message_id": str(message.id),
         "attachment_id": str(attachment.id),
-        "file_name": attachment.filename,
+        "file_name": map_file_name(attachment.filename),
         "size": attachment.size,
     }
 
@@ -365,15 +361,32 @@ async def on_thread_create(service, thread):
     await intake(service, thread)
 
 
+async def _say(thread, content) -> None:
+    try:
+        await thread.send(content, allowed_mentions=discord.AllowedMentions.none())
+    except discord.HTTPException:
+        logger.warning("Could not post to map post %s", thread.id)
+
+
 async def on_message(service, message):
     thread = message.channel
     if (
         not _belongs(service, thread)
         or message.author.bot
         or str(message.author.id) != str(thread.owner_id)
-        or not _file(message)
         or _ignored(service, thread)
     ):
+        return
+    if not _file(message):
+        # A map renamed on the way (x.msav (1), x.msav.txt) must not vanish without a word.
+        misnamed = next(
+            (a.filename for a in message.attachments if "msav" in a.filename.lower()),
+            None,
+        )
+        if misnamed:
+            locale = await resolve_dm_locale(thread.owner_id, service.store)
+            file = "`" + map_text(misnamed, 100, inline_code=True) + "`"
+            await _say(thread, t(locale, "maps-file-misnamed", file=file))
         return
     case = await service.store.by_thread(thread.id)
     if case is None or case.kind != CaseKind.MAP or not case.active:
@@ -392,6 +405,23 @@ async def on_message(service, message):
             return
         await _refresh(service, case, message=message)
     await service.project(case.number)
+    # The card is edited far up the post; say here that it now checks this file.
+    card = case.discord.get("card_message_id")
+    file = (
+        "`" + map_text(map_file_name(attachment.filename), 100, inline_code=True) + "`"
+    )
+    await _say(
+        thread,
+        t(
+            case.origin.locale,
+            "maps-file-updated",
+            number=case.number,
+            file=file,
+            card=f"https://discord.com/channels/{thread.guild.id}/{thread.id}/{card}"
+            if card
+            else "",
+        ),
+    )
 
 
 async def _attachment(service, case, *, locale=None):
@@ -456,24 +486,24 @@ async def _refresh(service, case, *, message=None):  # noqa: C901
         local = await asyncio.to_thread(
             validate_msav,
             data,
-            attachment.filename,
+            payload["file_name"],
             max_file_bytes=service.settings.maps_max_file_bytes,
         )
-        await _post_patches(service, thread, case, data, local, attachment.filename)
-        _schedule_preview(service, thread, case, data, local, attachment.filename)
+        await _post_patches(service, thread, case, data, local, payload["file_name"])
+        _schedule_preview(service, thread, case, data, local, payload["file_name"])
         payload.update(
             sha256=local.sha256,
             info={
                 "name": local.meta.get("name")
                 or local.meta.get("mapname")
-                or attachment.filename,
+                or payload["file_name"],
                 "saveVersion": local.version,
             },
         )
         try:
             raw = await service.transport.rpc_inspect_map(
                 url=attachment.url,
-                file_name=attachment.filename,
+                file_name=payload["file_name"],
                 profile=payload["profile"],
             )
             response = (
@@ -1162,10 +1192,10 @@ async def accept(context: ActionContext):  # noqa: C901
                     staff,
                     "maps-upload-note-replaced",
                     source="`"
-                    + map_text(attachment.filename, 100, inline_code=True)
+                    + map_text(claimed.payload["file_name"], 100, inline_code=True)
                     + "`",
                 )
-                if target_name != attachment.filename
+                if target_name != claimed.payload["file_name"]
                 else ""
             )
             + f" <#{claimed.discord['thread_id']}>",
