@@ -36,3 +36,12 @@ test("follows merge redirects and stays pending until the backfill is done", asy
   docs.c.redirect_uuid = "a";
   await expect(readTotals(find, async () => true, "a")).rejects.toThrow();
 });
+test("tower defence and Red vs Blue come out of the projection apart from survival", () => {
+  const overview = overviewFromTotals({
+    schema_version: 1, status: "ready", all: { games: 6, wins: 2 },
+    modes: { TOWER_DEFENSE: { games: 4, best_wave: 30, wave_sum: 60, wave_n: 4 }, RVSB: { games: 2, wins: 2 } },
+  });
+  expect(overview.towerDefense).toMatchObject({ gamesPlayed: 4, bestWave: 30, averageWave: 15 });
+  expect(overview.rvsb).toMatchObject({ gamesPlayed: 2, gamesWon: 2 });
+  expect(overview.survival.gamesPlayed).toBe(0);
+});

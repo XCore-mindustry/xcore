@@ -65,6 +65,23 @@ stats-games-hexed = ⬡ **Hexed** · { $games ->
        *[other] { NUMBER($wins, useGrouping: 1) } перемоги
     }
 stats-games-hexed-best = найкраще місце `#{ $place }` · топ-3 ×{ NUMBER($top3, useGrouping: 1) }
+stats-games-tower-defense = 🗼 **Tower Defense** · { $games ->
+        [one] { NUMBER($games, useGrouping: 1) } гра
+        [few] { NUMBER($games, useGrouping: 1) } гри
+        [many] { NUMBER($games, useGrouping: 1) } ігор
+       *[other] { NUMBER($games, useGrouping: 1) } гри
+    } · найкраща хвиля { NUMBER($best, useGrouping: 1) } · у середньому { NUMBER($average, useGrouping: 1) }
+stats-games-rvsb = ✈️ **Red vs Blue** · { $games ->
+        [one] { NUMBER($games, useGrouping: 1) } гра
+        [few] { NUMBER($games, useGrouping: 1) } гри
+        [many] { NUMBER($games, useGrouping: 1) } ігор
+       *[other] { NUMBER($games, useGrouping: 1) } гри
+    } · { $wins ->
+        [one] { NUMBER($wins, useGrouping: 1) } перемога
+        [few] { NUMBER($wins, useGrouping: 1) } перемоги
+        [many] { NUMBER($wins, useGrouping: 1) } перемог
+       *[other] { NUMBER($wins, useGrouping: 1) } перемоги
+    } ({ $rate }%)
 stats-building-blocks = Блоки: збудовано `{ NUMBER($built, useGrouping: 1) }` · розібрано `{ NUMBER($deconstructed, useGrouping: 1) }` · втрачено `{ NUMBER($destroyed, useGrouping: 1) }`
 stats-building-units = Юніти: вироблено `{ NUMBER($produced, useGrouping: 1) }` · втрачено `{ NUMBER($destroyed, useGrouping: 1) }`
 

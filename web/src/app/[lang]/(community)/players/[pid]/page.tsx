@@ -53,7 +53,7 @@ async function Player({ lang, pid }: { lang: Locale; pid: number }) {
         </Link>
       </CommunityWindow>
     );
-  const { overall: overview, pvp, survival, hexed } = profile.overview;
+  const { overall: overview, pvp, survival, hexed, towerDefense, rvsb } = profile.overview;
   const count = (n: number) => n.toLocaleString(lang);
   // Wins sit next to the games they came from, so the rate can be checked at a glance.
   const facts: [string, string, string?][] = [
@@ -71,9 +71,10 @@ async function Player({ lang, pid }: { lang: Locale; pid: number }) {
   if (overview.left !== undefined) facts.push([t.left, count(overview.left)], [t.streak, count(overview.streak ?? 0)]);
   else facts.push([t.destroyed, count(overview.blocksDestroyed)], [t.units, count(overview.unitsDestroyed)]);
   // The all-modes rate mixes PvP with survival and Hexed, where a win is much rarer; per mode it reads plainly.
-  // Event games have no bucket of their own: they are what the three modes leave of the total.
-  const otherGames = Math.max(0, overview.gamesPlayed - pvp.gamesPlayed - survival.gamesPlayed - hexed.gamesPlayed);
-  const otherWins = Math.max(0, overview.gamesWon - pvp.gamesWon - survival.gamesWon - hexed.gamesWon);
+  // Event games have no bucket of their own: they are what the modes leave of the total.
+  const named = [pvp, survival, hexed, towerDefense, rvsb];
+  const otherGames = Math.max(0, named.reduce((left, mode) => left - mode.gamesPlayed, overview.gamesPlayed));
+  const otherWins = Math.max(0, named.reduce((left, mode) => left - mode.gamesWon, overview.gamesWon));
   const modes = [
     { label: t.modePvp, games: pvp.gamesPlayed, wins: pvp.gamesWon, win: t.winPvp },
     {
@@ -84,6 +85,15 @@ async function Player({ lang, pid }: { lang: Locale; pid: number }) {
       win: survival.bestWave ? `${t.winSurvival} · ${t.bestWave} ${count(survival.bestWave)}` : t.winSurvival,
     },
     { label: t.modeHexed, games: hexed.gamesPlayed, wins: hexed.gamesWon, win: t.winHexed },
+    // Tower defence is endless: nobody wins, so the waves held stand where the rate would.
+    {
+      label: t.modeTowerDefense,
+      games: towerDefense.gamesPlayed,
+      wins: 0,
+      value: `${t.bestWave} ${count(towerDefense.bestWave)}`,
+      win: `${t.averageWave} ${count(towerDefense.averageWave)} · ${t.games}: ${count(towerDefense.gamesPlayed)}`,
+    },
+    { label: t.modeRvsb, games: rvsb.gamesPlayed, wins: rvsb.gamesWon, win: t.winPvp },
     { label: t.modeOther, games: otherGames, wins: otherWins, win: t.winOther },
   ].filter((mode) => mode.games > 0);
   const since =
@@ -154,13 +164,13 @@ async function Player({ lang, pid }: { lang: Locale; pid: number }) {
                 {modes.map((mode) => (
                   <div key={mode.label}>
                     <dt>{mode.label}</dt>
-                    <dd>
+                    {"value" in mode ? <dd>{mode.value}</dd> : <dd>
                       {percent(mode.wins, "denominator" in mode ? mode.denominator ?? mode.games : mode.games)}
                       <span className="muted">
                         {" "}
                         {count(mode.wins)} {t.ofPlayers} {count("denominator" in mode ? mode.denominator ?? mode.games : mode.games)}
                       </span>
-                    </dd>
+                    </dd>}
                     <dd className="cx-fact-note">{mode.win}{"denominator" in mode ? ` · ${t.completed}: ${count(mode.denominator ?? mode.games)} ${t.ofPlayers} ${count(mode.games)}` : ""}</dd>
                   </div>
                 ))}

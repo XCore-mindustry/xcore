@@ -94,6 +94,31 @@ async def test_overview_counts_only_the_games_that_count_for_this_player() -> No
     )
 
 
+def test_projection_reads_tower_defense_and_rvsb_apart_from_survival() -> None:
+    from xcore_discord_bot.game_stats import game_stats_from_totals
+
+    stats = game_stats_from_totals(
+        {
+            "schema_version": 1,
+            "status": "ready",
+            "all": {"games": 6, "wins": 2},
+            "modes": {
+                "TOWER_DEFENSE": {
+                    "games": 4,
+                    "best_wave": 30,
+                    "wave_sum": 60,
+                    "wave_n": 4,
+                },
+                "RVSB": {"games": 2, "wins": 2},
+            },
+        }
+    )
+    assert (stats.tower_defense.games, stats.tower_defense.best_wave) == (4, 30)
+    assert stats.tower_defense.average_wave == 15
+    assert (stats.rvsb.games, stats.rvsb.win_rate) == (2, 100)
+    assert stats.survival.games == 0
+
+
 @pytest.mark.asyncio
 async def test_overview_of_a_player_without_a_uuid_is_empty() -> None:
     store, db = await connected_store()

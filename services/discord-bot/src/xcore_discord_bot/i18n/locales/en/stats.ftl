@@ -55,6 +55,17 @@ stats-games-hexed = ⬡ **Hexed** · { $games ->
        *[other] { NUMBER($wins, useGrouping: 1) } wins
     }
 stats-games-hexed-best = best `#{ $place }` · top 3 ×{ NUMBER($top3, useGrouping: 1) }
+stats-games-tower-defense = 🗼 **Tower Defense** · { $games ->
+        [one] { NUMBER($games, useGrouping: 1) } game
+       *[other] { NUMBER($games, useGrouping: 1) } games
+    } · best wave { NUMBER($best, useGrouping: 1) } · average { NUMBER($average, useGrouping: 1) }
+stats-games-rvsb = ✈️ **Red vs Blue** · { $games ->
+        [one] { NUMBER($games, useGrouping: 1) } game
+       *[other] { NUMBER($games, useGrouping: 1) } games
+    } · { $wins ->
+        [one] { NUMBER($wins, useGrouping: 1) } win
+       *[other] { NUMBER($wins, useGrouping: 1) } wins
+    } ({ $rate }%)
 stats-building-blocks = Blocks: `{ NUMBER($built, useGrouping: 1) }` built · `{ NUMBER($deconstructed, useGrouping: 1) }` taken apart · `{ NUMBER($destroyed, useGrouping: 1) }` lost
 stats-building-units = Units: `{ NUMBER($produced, useGrouping: 1) }` produced · `{ NUMBER($destroyed, useGrouping: 1) }` lost
 

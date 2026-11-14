@@ -33,6 +33,7 @@ export function overviewFromTotals(doc: Document | null): PlayerAggregateOvervie
       left: count(all, "left"), streak: count(all, "streak"),
     },
     pvp: mode(modes.PVP), survival: mode(modes.SURVIVAL), hexed: mode(modes.HEXED),
+    towerDefense: mode(modes.TOWER_DEFENSE), rvsb: mode(modes.RVSB),
   };
 }
 

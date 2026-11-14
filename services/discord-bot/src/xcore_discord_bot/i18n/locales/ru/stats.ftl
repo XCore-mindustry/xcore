@@ -65,6 +65,23 @@ stats-games-hexed = ⬡ **Hexed** · { $games ->
        *[other] { NUMBER($wins, useGrouping: 1) } победы
     }
 stats-games-hexed-best = лучшее место `#{ $place }` · топ-3 ×{ NUMBER($top3, useGrouping: 1) }
+stats-games-tower-defense = 🗼 **Tower Defense** · { $games ->
+        [one] { NUMBER($games, useGrouping: 1) } игра
+        [few] { NUMBER($games, useGrouping: 1) } игры
+        [many] { NUMBER($games, useGrouping: 1) } игр
+       *[other] { NUMBER($games, useGrouping: 1) } игры
+    } · лучшая волна { NUMBER($best, useGrouping: 1) } · в среднем { NUMBER($average, useGrouping: 1) }
+stats-games-rvsb = ✈️ **Red vs Blue** · { $games ->
+        [one] { NUMBER($games, useGrouping: 1) } игра
+        [few] { NUMBER($games, useGrouping: 1) } игры
+        [many] { NUMBER($games, useGrouping: 1) } игр
+       *[other] { NUMBER($games, useGrouping: 1) } игры
+    } · { $wins ->
+        [one] { NUMBER($wins, useGrouping: 1) } победа
+        [few] { NUMBER($wins, useGrouping: 1) } победы
+        [many] { NUMBER($wins, useGrouping: 1) } побед
+       *[other] { NUMBER($wins, useGrouping: 1) } победы
+    } ({ $rate }%)
 stats-building-blocks = Блоки: построено `{ NUMBER($built, useGrouping: 1) }` · разобрано `{ NUMBER($deconstructed, useGrouping: 1) }` · потеряно `{ NUMBER($destroyed, useGrouping: 1) }`
 stats-building-units = Юниты: произведено `{ NUMBER($produced, useGrouping: 1) }` · потеряно `{ NUMBER($destroyed, useGrouping: 1) }`
 

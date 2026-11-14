@@ -150,6 +150,14 @@ def _games(games: GameStats | None, locale: str) -> str:
             rate=games.win_rate,
         )
     ]
+    lines += _mode_lines(games, locale)
+    lines += _projection_notes(games, locale)
+    return "\n".join(lines)
+
+
+def _mode_lines(games: GameStats, locale: str) -> list[str]:
+    """A line for each mode the player has games in."""
+    lines = []
     if games.pvp.games > 0:
         lines.append(
             t(
@@ -192,8 +200,27 @@ def _games(games: GameStats | None, locale: str) -> str:
             )
             line += f" · {best}"
         lines.append(line)
-    lines += _projection_notes(games, locale)
-    return "\n".join(lines)
+    if games.tower_defense.games > 0:
+        lines.append(
+            t(
+                locale,
+                "stats-games-tower-defense",
+                games=games.tower_defense.games,
+                best=games.tower_defense.best_wave,
+                average=games.tower_defense.average_wave,
+            )
+        )
+    if games.rvsb.games > 0:
+        lines.append(
+            t(
+                locale,
+                "stats-games-rvsb",
+                games=games.rvsb.games,
+                wins=games.rvsb.wins,
+                rate=games.rvsb.win_rate,
+            )
+        )
+    return lines
 
 
 def _projection_notes(games: GameStats, locale: str) -> list[str]:
