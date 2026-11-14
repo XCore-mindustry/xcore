@@ -474,17 +474,23 @@ public class TileLoggerService {
                 sender.send("tilelogger-error-session");
                 return;
             }
-            checkAdmin(sender);
-            if (error != null) {
-                Log.err("[TileLogger] Target lookup failed", error);
-                sender.send("tilelogger-error-lookup");
-                return;
+            try {
+                checkAdmin(sender);
+                if (error != null) {
+                    Log.err("[TileLogger] Target lookup failed", error);
+                    sender.send("tilelogger-error-lookup");
+                    return;
+                }
+                if (target == null) {
+                    sender.send("error-player-not-found");
+                    return;
+                }
+                rollback(sender.isPlayer() ? sender.player() : null, target, -1, seconds, rect, preview);
+            } catch (XCoreCommandException failure) {
+                // Thrown after the command returned, so the command manager's handler never sees it.
+                if (!failure.isSilent())
+                    sender.send(failure.getKey(), failure.getArgs());
             }
-            if (target == null) {
-                sender.send("error-player-not-found");
-                return;
-            }
-            rollback(sender.isPlayer() ? sender.player() : null, target, -1, seconds, rect, preview);
         });
     }
     public void executeHistoryPlayer(XCoreSender sender, String input, long size) {
@@ -659,6 +665,7 @@ public class TileLoggerService {
         TileState[] changes;
         try { changes = TileLogger.planRollback(rect, target.uuid, teams, time); }
         catch (IllegalArgumentException failure) {
+            Log.info("[TileLogger] Rollback plan rejected: @", failure.getMessage());
             // This native diagnostic is also the machine-readable rejection reason across FFM.
             throw new XCoreCommandException("Rollback crosses a payload move".equals(failure.getMessage())
                     ? "tilelogger-error-payload" : "tilelogger-error-plan");
