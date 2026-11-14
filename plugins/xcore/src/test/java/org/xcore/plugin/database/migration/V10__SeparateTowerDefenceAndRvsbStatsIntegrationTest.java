@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.xcore.plugin.service.stats.ParticipantOutcomes;
 
 import java.util.List;
 
@@ -48,7 +49,9 @@ class V10__SeparateTowerDefenceAndRvsbStatsIntegrationTest {
                 game("td", "tower-defence", "SURVIVAL", true, "a"),
                 game("td-other", "tower-defence", "OTHER", false, "a", "b"),
                 game("rvsb", "rvsb", "SURVIVAL", true, "c"),
-                game("surv", "mini-surv", "SURVIVAL", true, "d")));
+                game("surv", "mini-surv", "SURVIVAL", true, "d"),
+                game("td-event", "tower-defence", "EVENT", true, "e"),
+                game("rvsb-hexed", "rvsb", "HEXED", true, "e")));
         database.getCollection("player_totals").insertOne(new Document("_id", "a").append("status", "ready")
                 .append("rebuild", new Document("dirty", false)));
 
@@ -58,12 +61,17 @@ class V10__SeparateTowerDefenceAndRvsbStatsIntegrationTest {
         assertThat(category("td-other")).isEqualTo("TOWER_DEFENSE");
         assertThat(category("rvsb")).isEqualTo("RVSB");
         assertThat(category("surv")).isEqualTo("SURVIVAL");
+        assertThat(category("td-event")).isEqualTo("EVENT");
+        assertThat(category("rvsb-hexed")).isEqualTo("HEXED");
         assertThat(games.find(new Document("_id", "td-other")).first().getBoolean("counted_in_stats")).isFalse();
 
         var totals = database.getCollection("player_totals");
         assertThat(totals.find(new Document("rebuild.dirty", true)).map(d -> d.getString("_id")).into(new java.util.ArrayList<>()))
                 .containsExactlyInAnyOrder("a", "b", "c");
         assertThat(totals.find(new Document("_id", "a")).first().getString("status")).isEqualTo("ready");
+        // Players are stamped with the new rules, so an older server's rebuild worker leaves them alone.
+        assertThat(totals.find(new Document("rules_version", ParticipantOutcomes.RULES_VERSION))
+                .map(d -> d.getString("_id")).into(new java.util.ArrayList<>())).containsExactlyInAnyOrder("a", "b", "c");
     }
 
     private String category(String id) {
