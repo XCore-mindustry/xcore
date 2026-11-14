@@ -247,6 +247,13 @@ public class GameDataService {
         if (eventGame || "event".equals(config.server.name)) {
             return GameStatsCategory.EVENT;
         }
+        // Both run their own waves and teams on top of survival rules, so the rules alone would file them as survival.
+        if ("tower-defence".equals(config.server.name)) {
+            return GameStatsCategory.TOWER_DEFENSE;
+        }
+        if ("rvsb".equals(config.server.name)) {
+            return GameStatsCategory.RVSB;
+        }
         if (rules != null && rules.waves) {
             return GameStatsCategory.SURVIVAL;
         }
@@ -271,6 +278,8 @@ public class GameDataService {
         return statsCategory == GameStatsCategory.PVP
                 || statsCategory == GameStatsCategory.HEXED
                 || statsCategory == GameStatsCategory.SURVIVAL
+                || statsCategory == GameStatsCategory.TOWER_DEFENSE
+                || statsCategory == GameStatsCategory.RVSB
                 || statsCategory == GameStatsCategory.EVENT;
     }
 

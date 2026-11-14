@@ -46,7 +46,9 @@ public final class PlayerTotalsView {
                 mode(modes.get("PVP", Document.class), false),
                 mode(modes.get("SURVIVAL", Document.class), true),
                 mode(modes.get("HEXED", Document.class), false),
-                "ready", dirty, true, number(all, "left"), number(all, "streak"), recent, number(all, "play_ms"));
+                "ready", dirty, true, number(all, "left"), number(all, "streak"), recent, number(all, "play_ms"),
+                mode(modes.get("TOWER_DEFENSE", Document.class), true),
+                mode(modes.get("RVSB", Document.class), false));
     }
 
     private static PlayerStatsOverview empty(String status, boolean updating) {

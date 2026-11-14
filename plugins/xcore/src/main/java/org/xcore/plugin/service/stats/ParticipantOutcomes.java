@@ -12,9 +12,9 @@ import java.util.TreeMap;
 /** The only participation policy; also interprets legacy reconnect rows during replay. */
 public final class ParticipantOutcomes {
     /** Raise together with {@code stats-rebuild all} whenever a rule below changes. */
-    public static final int RULES_VERSION = 1;
+    public static final int RULES_VERSION = 2;
 
-    private static final Set<String> COUNTED_CATEGORIES = Set.of("PVP", "SURVIVAL", "HEXED", "EVENT");
+    private static final Set<String> COUNTED_CATEGORIES = Set.of("PVP", "SURVIVAL", "HEXED", "TOWER_DEFENSE", "RVSB", "EVENT");
     private static final long MIN_PRESENCE_MS = 60_000;
     private static final double MIN_PRESENCE_SHARE = 0.10;
     private static final double MIN_FINISHER_SHARE = 0.25;

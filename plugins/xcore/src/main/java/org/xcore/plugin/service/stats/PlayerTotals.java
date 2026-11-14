@@ -54,7 +54,7 @@ public final class PlayerTotals {
         accumulate(totals.get("all", Document.class), game, result);
         accumulate(mode, game, result);
 
-        if ("SURVIVAL".equals(category) && result.outcome() != Outcome.LEFT) {
+        if (("SURVIVAL".equals(category) || "TOWER_DEFENSE".equals(category)) && result.outcome() != Outcome.LEFT) {
             long wave = Math.max(0, number(game, "waves_reached"));
             mode.put("best_wave", Math.max(number(mode, "best_wave"), wave));
             add(mode, "wave_sum", wave);

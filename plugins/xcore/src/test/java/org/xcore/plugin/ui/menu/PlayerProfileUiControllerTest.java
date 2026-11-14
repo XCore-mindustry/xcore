@@ -537,6 +537,28 @@ class PlayerProfileUiControllerTest {
     }
 
     @Test
+    @DisplayName("the stats tab gives tower defence and Red vs Blue their own cards")
+    void render_towerDefenceAndRvsbCards() {
+        Session session = createTestSession("uuid-1", true);
+        PlayerProfileUiController controller = new PlayerProfileUiController(
+                null, null, null, null, session, session.data
+        );
+        var stats = new PlayerStatsOverview(
+                new AggregatedPlayerStats(12, 3, 0, 0, 0, 0, 0),
+                ModeStatsSummary.EMPTY, ModeStatsSummary.EMPTY, ModeStatsSummary.EMPTY,
+                "ready", false, true, 0, 0, List.of(), 0,
+                new ModeStatsSummary(8, 0, 37, 14, 0, 0),
+                new ModeStatsSummary(4, 3, 0, 0, 0, 0));
+
+        VNode tree = controller.render(controller.createInitialModel(
+                PlayerProfileUiController.Tab.STATS, new ProfileDetails(stats, null, List.of())));
+
+        String dsl = UiDslWriter.write(new VNodeCompiler(LocalizerResolver.IDENTITY).compile(tree));
+        assertThat(dsl).contains("player-stats-mode-tower-defense", "player-stats-mode-rvsb", "37")
+                .doesNotContain("player-stats-mode-survival", "player-stats-mode-other");
+    }
+
+    @Test
     @DisplayName("a mode section that fails to render is left out without breaking the profile")
     void render_skipsBrokenSection() {
         Session session = createTestSession("uuid-1", false);

@@ -927,13 +927,31 @@ public class PlayerProfileUiController implements UiController<PlayerProfileUiCo
             participation(facts, hexed, detailed, nf, local);
             addFacts(cards, heights, card, ModeLook.HEXED, facts, local);
         }
+        // Tower defence is endless, so the waves held are its result; wins would only ever be zero.
+        ModeStatsSummary towerDefense = overview.towerDefense();
+        if (towerDefense.hasData()) {
+            List<Fact> facts = new ArrayList<>();
+            facts.add(fact(local, "games", nf.format(towerDefense.gamesPlayed())));
+            if (towerDefense.bestWave() > 0) facts.add(fact(local, "waves", "[lime]" + nf.format(towerDefense.bestWave())
+                    + "[] · " + nf.format(towerDefense.averageWave())));
+            participation(facts, towerDefense, detailed, nf, local);
+            addFacts(cards, heights, card, ModeLook.TOWER_DEFENSE, facts, local);
+        }
+        ModeStatsSummary rvsb = overview.rvsb();
+        if (rvsb.hasData()) {
+            List<Fact> facts = new ArrayList<>();
+            facts.add(fact(local, "games", nf.format(rvsb.gamesPlayed())));
+            facts.add(fact(local, "wins", rate(nf, rvsb.gamesWon(), rvsb.winRatePercent())));
+            participation(facts, rvsb, detailed, nf, local);
+            addFacts(cards, heights, card, ModeLook.RVSB, facts, local);
+        }
         long otherGames = overview.otherGamesPlayed();
         if (otherGames > 0) {
             long otherWins = overview.otherGamesWon();
             List<Fact> facts = new ArrayList<>();
             facts.add(fact(local, "games", nf.format(otherGames)));
             facts.add(fact(local, "wins", rate(nf, otherWins, Math.round(otherWins * 100f / otherGames))));
-            long otherMs = overview.playMs() - pvp.playMs() - survival.playMs() - hexed.playMs();
+            long otherMs = overview.otherPlayMs();
             if (detailed && otherMs > 0) facts.add(fact(local, "time", hours(otherMs, nf, local)));
             addFacts(cards, heights, card, ModeLook.EVENT, facts, local);
         }
@@ -964,6 +982,8 @@ public class PlayerProfileUiController implements UiController<PlayerProfileUiCo
         PVP(Iconc.modePvp, Accent.RED, "player-stats-mode-pvp"),
         SURVIVAL(Iconc.defense, Accent.GREEN, "player-stats-mode-survival"),
         HEXED(Iconc.star, Accent.PURPLE, "player-stats-mode-hexed"),
+        TOWER_DEFENSE(Iconc.turret, Accent.TEAL, "player-stats-mode-tower-defense"),
+        RVSB(Iconc.planeOutline, Accent.BLUE, "player-stats-mode-rvsb"),
         EVENT(Iconc.effect, Accent.ORANGE, "player-stats-mode-other");
 
         final char icon;
