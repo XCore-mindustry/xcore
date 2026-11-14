@@ -66,6 +66,29 @@ int main() {
         check(history.Plan(Rect(2, 1, 2, 1), {}, -1, 4).size() == 1,
               "safe post-drop time range blocked");
     });
+    test("others' history elsewhere does not count toward a player's rollback scan", [&] {
+        HistoryStack history;
+        // A long game: 120000 snapshots by player 2 across the map, then one griefed tile by player 3.
+        for (uint64_t i = 0; i < 120000; ++i) {
+            auto built = state(i + 1, 20, 2);
+            built.pos = Pos(static_cast<int>(i % 300), static_cast<int>(i / 300) + 2);
+            history.Record(built);
+        }
+        history.Record(state(200000, 20, 2));
+        history.Record(state(200001, 20, 3, 1, true));
+        auto plan = history.Plan(all, player_t_{3}, -1, 0);
+        check(plan.size() == 1 && plan[0].after.block == 20 && !plan[0].after.destroy,
+              "rollback of one player blocked by others' history");
+        // The limit still bounds the history of the positions being rolled back.
+        HistoryStack deep;
+        for (uint64_t i = 1; i <= 100001; ++i) deep.Record(state(i, 20 + i % 2, 3));
+        bool rejected = false;
+        try { deep.Plan(all, player_t_{3}, -1, 0); }
+        catch (const std::invalid_argument& e) {
+            rejected = std::string(e.what()).starts_with("Rollback scan exceeds 100000 snapshots");
+        }
+        check(rejected, "a deep rollback must still stop at the scan limit");
+    });
     test("zero limit is empty", [&] {
         HistoryStack history;
         history.Reset({}, false);

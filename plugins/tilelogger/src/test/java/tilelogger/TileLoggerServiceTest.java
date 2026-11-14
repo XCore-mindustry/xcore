@@ -204,6 +204,26 @@ class TileLoggerServiceTest {
     }
 
     @Test
+    void rollbackRejectedAfterAsyncLookupIsReportedToTheSender() {
+        var direct = new Async(mock(org.xcore.plugin.concurrent.StorageExecutor.class), Runnable::run);
+        service = new TileLoggerService(
+                playerDataRepository, sessionService, findService, Bundle.INSTANCE, direct);
+        service.resetHistory("", true);
+        var griefer = new org.xcore.plugin.model.PlayerData();
+        griefer.uuid = "griefer";
+        griefer.pid = 439618;
+        when(playerDataRepository.findByPidAsync(439618))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(griefer));
+        for (int i = 0; i <= TileLoggerService.MAX_MUTATIONS; i++)
+            TileLogger.record(i % 32, i / 32, "griefer", 1, Blocks.router.id, 0, ConfigCodec.encode(null),
+                    ActionKind.BUILD_COMPLETED);
+        var sender = mock(org.xcore.plugin.cloud.XCoreSender.class);
+        service.executeRollback(sender, "439618", java.time.Duration.ZERO, false, true);
+        verify(sender).send("tilelogger-error-mutations",
+                java.util.Map.of("max", TileLoggerService.MAX_MUTATIONS));
+    }
+
+    @Test
     void identicalUnknownIdentitiesShareOneLookupAndCacheAbsence() {
         var lookup = new java.util.concurrent.CompletableFuture<org.xcore.plugin.model.PlayerData>();
         when(playerDataRepository.findByUuidAsync("missing")).thenReturn(lookup);

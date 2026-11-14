@@ -78,8 +78,6 @@ public:
         size_t selected_positions = 0, visited = 0;
         for (auto it = records_.rbegin(); it != records_.rend(); ++it) {
             if (!it->isSnapshot() || !rect.contains(it->pos)) continue;
-            if (++visited > 100000)
-                throw std::invalid_argument("Rollback scan exceeds 100000 snapshots; select a smaller area");
             auto entry = map.find(it->pos);
             if (entry == map.end()) {
                 bool selected = (!player || *player == it->player) && SelectedTeam(it->team, teams);
@@ -98,6 +96,10 @@ public:
             }
             auto& candidate = entry->second;
             if (!candidate.unwind) continue;
+            // Only the history of positions being rolled back counts: what others built elsewhere on the
+            // map must not block a rollback of one player.
+            if (++visited > 100000)
+                throw std::invalid_argument("Rollback scan exceeds 100000 snapshots; select a smaller area");
             // A tile-only plan cannot reclaim a building from a carrier or another position.
             candidate.payload |= it->action == ActionKind::Pickup || it->action == ActionKind::Drop;
             const bool legacyConstruction =
