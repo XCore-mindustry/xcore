@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.8.0] - 2026-11-14
+
+### Added
+- Tower defence and Red vs Blue have their own statistics categories, `TOWER_DEFENSE` and `RVSB`, picked by server name (`tower-defence`, `rvsb`). The profile's stats tab shows a card for each: best and average wave for tower defence, wins for Red vs Blue.
+
+### Changed
+- Migration V10 moves the recorded games of both servers out of survival (and the few tower defence games filed as `OTHER`) and queues their players for a rebuild. Event and Hexed games keep their category, and `counted_in_stats` stays as recorded.
+- `ParticipantOutcomes.RULES_VERSION` is 2. A server still on 5.7 does not rebuild totals published under the new rules.
+- The vote-kick message sent to Discord has no colour tags.
+
+### Fixed
+- The map reader keeps a tile's overlay data, so letter and rune overlays are read correctly.
+
 ## [5.7.0] - 2026-11-12
 
 ### Added
