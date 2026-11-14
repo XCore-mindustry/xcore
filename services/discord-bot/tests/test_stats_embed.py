@@ -145,6 +145,23 @@ def test_stats_embed_shows_participation_only_from_the_projection() -> None:
     ].endswith("Left early: 3 · Win streak: 2")
 
 
+def test_stats_embed_gives_tower_defense_and_rvsb_their_own_lines() -> None:
+    view = StatsView(player=PlayerRecord(pid=1, nickname="a"), placings=[])
+    games = GameStats(
+        games=12,
+        wins=3,
+        tower_defense=ModeStats(games=8, best_wave=37, average_wave=14),
+        rvsb=ModeStats(games=4, wins=3),
+    )
+
+    lines = _fields(build_stats_embed(replace(view, games=games)))["🎮 Games"].split(
+        "\n"
+    )
+    assert "🗼 **Tower Defense** · 8 games · best wave 37 · average 14" in lines
+    assert "✈️ **Red vs Blue** · 4 games · 3 wins (75%)" in lines
+    assert not any("Survival" in line for line in lines)
+
+
 def test_stats_embed_says_an_empty_projection_is_being_updated() -> None:
     view = StatsView(player=PlayerRecord(pid=1, nickname="a"), placings=[])
     games = GameStats(games=0, wins=0, detailed=True, updating=True)

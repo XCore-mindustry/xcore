@@ -281,6 +281,8 @@ export async function getPlayerProfile(pid: number, db?: Db): Promise<PlayerProf
     PVP: { ...EMPTY_MODE_STATS },
     SURVIVAL: { ...EMPTY_MODE_STATS },
     HEXED: { ...EMPTY_MODE_STATS },
+    TOWER_DEFENSE: { ...EMPTY_MODE_STATS },
+    RVSB: { ...EMPTY_MODE_STATS },
   };
 
   if (playerUuid && !materialized) {
@@ -443,6 +445,8 @@ export async function getPlayerProfile(pid: number, db?: Db): Promise<PlayerProf
       pvp: modeStatsMap.PVP ?? { ...EMPTY_MODE_STATS },
       survival: modeStatsMap.SURVIVAL ?? { ...EMPTY_MODE_STATS },
       hexed: modeStatsMap.HEXED ?? { ...EMPTY_MODE_STATS },
+      towerDefense: modeStatsMap.TOWER_DEFENSE ?? { ...EMPTY_MODE_STATS },
+      rvsb: modeStatsMap.RVSB ?? { ...EMPTY_MODE_STATS },
     },
   };
 }

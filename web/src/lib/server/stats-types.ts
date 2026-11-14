@@ -62,6 +62,8 @@ export type PlayerAggregateOverview = {
   pvp: ModeStatsSummaryDTO;
   survival: ModeStatsSummaryDTO;
   hexed: ModeStatsSummaryDTO;
+  towerDefense: ModeStatsSummaryDTO;
+  rvsb: ModeStatsSummaryDTO;
 };
 
 export type LadderStandingDTO = {
@@ -118,7 +120,7 @@ export type LeaderboardResult = PaginatedResult<LeaderboardEntry> & {
 export type MatchFilters = {
   pid?: number;
   ladder?: string;
-  category?: string; // stats_category from games_v2 e.g. "PVP", "SURVIVAL", "HEXED"
+  category?: string; // stats_category from games_v2 e.g. "PVP", "SURVIVAL", "HEXED", "TOWER_DEFENSE", "RVSB"
   season?: number;
   page?: number;
   pageSize?: number;

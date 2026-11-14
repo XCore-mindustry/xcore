@@ -17,6 +17,8 @@ BACKFILL_ID = "player_totals_backfill"
 PVP = "PVP"
 SURVIVAL = "SURVIVAL"
 HEXED = "HEXED"
+TOWER_DEFENSE = "TOWER_DEFENSE"
+RVSB = "RVSB"
 
 
 def _int(value: Any) -> int:
@@ -67,6 +69,8 @@ class GameStats:
     pvp: ModeStats = ModeStats()
     survival: ModeStats = ModeStats()
     hexed: ModeStats = ModeStats()
+    tower_defense: ModeStats = ModeStats()
+    rvsb: ModeStats = ModeStats()
     left: int = 0
     streak: int = 0
     status: str = "ready"
@@ -114,6 +118,8 @@ def game_stats_from_rows(rows: list[dict[str, Any]]) -> GameStats:
         pvp=_mode(by_category.get(PVP)),
         survival=_mode(by_category.get(SURVIVAL)),
         hexed=_mode(by_category.get(HEXED)),
+        tower_defense=_mode(by_category.get(TOWER_DEFENSE)),
+        rvsb=_mode(by_category.get(RVSB)),
     )
 
 
@@ -173,7 +179,7 @@ def game_stats_from_totals(doc: dict[str, Any] | None) -> GameStats:
             streak=_int(row.get("streak")),
             best_streak=_int(row.get("best_streak")),
             play_ms=_int(row.get("play_ms")),
-            completed_only=category == SURVIVAL,
+            completed_only=category in (SURVIVAL, TOWER_DEFENSE),
         )
 
     return GameStats(
@@ -184,6 +190,8 @@ def game_stats_from_totals(doc: dict[str, Any] | None) -> GameStats:
         pvp=mode(PVP),
         survival=mode(SURVIVAL),
         hexed=mode(HEXED),
+        tower_defense=mode(TOWER_DEFENSE),
+        rvsb=mode(RVSB),
         left=_int(overall.get("left")),
         streak=_int(overall.get("streak")),
         updating=bool((doc.get("rebuild") or {}).get("dirty")),
