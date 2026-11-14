@@ -333,7 +333,10 @@ public class GameDataRepository extends DataRepository<GameData> {
                 overall,
                 modeStats.getOrDefault(GameStatsCategory.PVP, ModeStatsSummary.EMPTY),
                 modeStats.getOrDefault(GameStatsCategory.SURVIVAL, ModeStatsSummary.EMPTY),
-                modeStats.getOrDefault(GameStatsCategory.HEXED, ModeStatsSummary.EMPTY)
+                modeStats.getOrDefault(GameStatsCategory.HEXED, ModeStatsSummary.EMPTY),
+                "ready", false, false, 0, 0, List.of(), 0,
+                modeStats.getOrDefault(GameStatsCategory.TOWER_DEFENSE, ModeStatsSummary.EMPTY),
+                modeStats.getOrDefault(GameStatsCategory.RVSB, ModeStatsSummary.EMPTY)
         );
     }
 

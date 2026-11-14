@@ -4,6 +4,8 @@ public enum GameStatsCategory {
     PVP,
     SURVIVAL,
     HEXED,
+    TOWER_DEFENSE,
+    RVSB,
     EVENT,
     OTHER
 }

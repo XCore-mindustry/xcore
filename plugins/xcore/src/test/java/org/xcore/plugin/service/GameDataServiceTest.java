@@ -236,6 +236,23 @@ class GameDataServiceTest {
     }
 
     @Test
+    @DisplayName("startNewGame keeps tower defence and Red vs Blue out of survival despite their wave rules")
+    void startNewGameGivesTowerDefenceAndRvsbTheirOwnCategory() {
+        state.rules.waves = true;
+        var map = new MapData("Map", "map.msav", "Author", "survival");
+
+        var towerDefence = new GameDataService(config("tower-defence"), mock(GameDataRepository.class));
+        towerDefence.startNewGame(map, "survival", null);
+        var rvsb = new GameDataService(config("rvsb"), mock(GameDataRepository.class));
+        rvsb.startNewGame(map, "survival", null);
+
+        assertThat(towerDefence.getCurrent().getStatsCategory()).isEqualTo(GameStatsCategory.TOWER_DEFENSE);
+        assertThat(rvsb.getCurrent().getStatsCategory()).isEqualTo(GameStatsCategory.RVSB);
+        assertThat(towerDefence.getCurrent().isRanked()).isFalse();
+        assertThat(rvsb.getCurrent().isRanked()).isFalse();
+    }
+
+    @Test
     void reconnectReusesParticipantAndClosesEachIntervalOnlyOnce() {
         var repository = mock(GameDataRepository.class);
         org.mockito.Mockito.when(repository.saveOnceAsync(org.mockito.ArgumentMatchers.any()))

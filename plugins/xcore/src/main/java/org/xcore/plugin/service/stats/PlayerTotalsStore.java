@@ -278,7 +278,7 @@ public class PlayerTotalsStore {
         return state == null ? null : state.getString("redirect_uuid");
     }
 
-    private static Bson invalidation() {
+    public static Bson invalidation() {
         // $min keeps the place of a player already waiting; a publish replaces rebuild and drops queued_at.
         return combine(inc("revision", 1L), set("rebuild.dirty", true), min("rebuild.queued_at", System.currentTimeMillis()),
                 setOnInsert("status", "pending"), setOnInsert("schema_version", 1));
