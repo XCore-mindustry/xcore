@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.9.0] - 2026-11-15
+
 ### Added
 - A kick from the game's admin menu writes a `KICK` audit row with the admin as actor.
 - Staff with a linked Discord account get their active minutes on the servers counted per UTC day in `staff_activity`, with the minutes spent logged in as staff counted separately. The bot's `/staff activity` reads it.
