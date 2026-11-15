@@ -69,9 +69,11 @@ asset=XCore-plugin-5.4.0.jar
 target=mods/XCore-plugin.jar         # relative to the server home; TileLogger: mods/TileLogger-release.jar
 name=${tag%%/*}-${tag##*/v}
 
-ssh <ssh-host> bash -s -- "$tag" "$asset" "$target" "$name" <<'EOF'
+# Values go through env, not positional parameters: the skill loader replaces
+# those in this file with the skill's arguments.
+ssh <ssh-host> env tag="$tag" asset="$asset" target="$target" name="$name" bash -s <<'EOF'
 set -euo pipefail
-tag=$1 asset=$2 target=$HOME/$3 name=$4
+target=$HOME/$target
 new=~/updates/$(date +%Y%m%d)-$name
 backup=~/backup_plugins_$(date +%Y%m%d-%H%M%S)-$name
 mkdir -p "$new" "$backup"
