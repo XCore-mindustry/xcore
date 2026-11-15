@@ -1,5 +1,6 @@
 package org.xcore.plugin.integration;
 
+import org.xcore.plugin.permission.Actor;
 import org.xcore.plugin.permission.TargetHierarchy;
 import org.xcore.plugin.common.PLog;
 import arc.struct.ObjectSet;
@@ -122,7 +123,7 @@ public class AdminModIntegration {
                     return;
                 }
 
-                var result = moderationService.banPlayer(targetData, player.name, session.data.discordId, req.reason, duration, true);
+                var result = moderationService.banPlayer(targetData, new Actor.PlayerActor(player.uuid(), session).auditName(), session.data.discordId, req.reason, duration, true);
             
                 if (!result.isSuccess() || result.getData().isEmpty()) {
                     session.locale().send("error-processing-request", args());

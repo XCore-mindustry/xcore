@@ -9,8 +9,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.xcore.plugin.integration.AdminModIntegration;
+import org.xcore.plugin.model.PlayerPids;
 import org.xcore.plugin.permission.RolesWorld;
 import org.xcore.plugin.permission.role.PermissionSet;
+import org.xcore.plugin.service.moderation.ModerationService;
 import org.xcore.plugin.session.Session;
 import org.xcore.plugin.session.SessionService;
 import org.xcore.plugin.ui.menu.BanMenu;
@@ -30,6 +32,7 @@ class AdminRequestHandlerTest {
     /** The sessions the permission checks read, apart from the ones the handler itself uses. */
     private SessionService registry;
     private BanMenu banMenu;
+    private ModerationService moderationService;
     private AdminRequestHandler handler;
 
     @BeforeEach
@@ -37,8 +40,9 @@ class AdminRequestHandlerTest {
         sessionService = mock(SessionService.class);
         registry = mock(SessionService.class);
         banMenu = mock(BanMenu.class);
+        moderationService = mock(ModerationService.class);
         handler = new AdminRequestHandler(sessionService, banMenu, mock(AdminModIntegration.class), new Gson(),
-                RolesWorld.permissions(() -> registry));
+                RolesWorld.permissions(() -> registry), moderationService);
     }
 
     /** An online player; an admin holds the role admin and has logged in. */
@@ -76,6 +80,7 @@ class AdminRequestHandlerTest {
 
         verify(target).kick(Packets.KickReason.kick);
         verify(sessionService).broadcast(anyString(), any());
+        verify(moderationService).recordKick("target", PlayerPids.NONE, "target", "admin", null);
     }
 
     @Test
@@ -89,7 +94,7 @@ class AdminRequestHandlerTest {
         }
 
         verify(target, never()).kick(any(Packets.KickReason.class));
-        verifyNoInteractions(sessionService, banMenu);
+        verifyNoInteractions(sessionService, banMenu, moderationService);
     }
 
     @Test
@@ -102,7 +107,7 @@ class AdminRequestHandlerTest {
         request(admin, target, Packets.AdminAction.ban);
 
         verify(target, never()).kick(any(Packets.KickReason.class));
-        verifyNoInteractions(sessionService, banMenu);
+        verifyNoInteractions(sessionService, banMenu, moderationService);
     }
 
     @Test

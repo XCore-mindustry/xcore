@@ -14,10 +14,13 @@ import mindustry.gen.Player;
 import mindustry.net.Administration.TraceInfo;
 import mindustry.net.NetConnection;
 import mindustry.net.Packets;
+import org.xcore.plugin.permission.Actor;
 import org.xcore.plugin.integration.AdminModIntegration;
 import org.xcore.plugin.model.BanRequestData;
+import org.xcore.plugin.model.PlayerPids;
 import org.xcore.plugin.permission.PermissionNodes;
 import org.xcore.plugin.permission.PermissionService;
+import org.xcore.plugin.service.moderation.ModerationService;
 import org.xcore.plugin.session.SessionService;
 import org.xcore.plugin.ui.menu.BanMenu;
 
@@ -31,18 +34,21 @@ public class AdminRequestHandler {
     private final AdminModIntegration adminModIntegration;
     private final Gson rawGson;
     private final PermissionService permissions;
+    private final ModerationService moderationService;
 
     @Inject
     public AdminRequestHandler(SessionService sessionService,
                                BanMenu banMenu,
                                AdminModIntegration adminModIntegration,
                                @Named("raw") Gson rawGson,
-                               PermissionService permissions) {
+                               PermissionService permissions,
+                               ModerationService moderationService) {
         this.sessionService = sessionService;
         this.banMenu = banMenu;
         this.adminModIntegration = adminModIntegration;
         this.rawGson = rawGson;
         this.permissions = permissions;
+        this.moderationService = moderationService;
     }
 
     /** The admin menu of the client needs {@link PermissionNodes#MINDUSTRY_ADMIN}; each of its actions also has a node of its own. */
@@ -70,7 +76,13 @@ public class AdminRequestHandler {
 
         switch (action) {
             case kick -> {
+                var adminSession = sessionService.get(admin);
+                var targetSession = sessionService.get(target);
                 target.kick(Packets.KickReason.kick);
+                moderationService.recordKick(target.uuid(),
+                        targetSession != null && targetSession.data != null ? targetSession.data.pid : PlayerPids.NONE,
+                        target.plainName(), new Actor.PlayerActor(admin.uuid(), adminSession).auditName(),
+                        adminSession != null && adminSession.data != null ? adminSession.data.discordId : null);
 
                 sessionService.broadcast("notification-admin-kick", args(
                         "admin", admin.coloredName(),

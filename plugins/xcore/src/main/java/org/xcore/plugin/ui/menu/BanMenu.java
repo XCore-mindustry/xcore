@@ -1,14 +1,17 @@
 package org.xcore.plugin.ui.menu;
 
+import arc.util.Log;
 import io.avaje.inject.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import mindustry.gen.Player;
+import org.xcore.plugin.permission.Actor;
 import org.xcore.plugin.permission.PermissionNodes;
 import org.xcore.plugin.permission.TargetHierarchy;
 import org.xcore.plugin.config.TomlSecretsConfig;
 import org.xcore.plugin.model.BanData;
 import org.xcore.plugin.service.TimeService;
+import org.xcore.plugin.service.moderation.ModerationResult;
 import org.xcore.plugin.service.moderation.ModerationService;
 import org.xcore.plugin.session.Session;
 import org.xcore.plugin.session.SessionService;
@@ -197,9 +200,27 @@ public class BanMenu extends Menu {
             return;
         }
 
+        // The check below can wait on the database while the confirm menu stays open; a second
+        // press in that time used to issue a second ban.
+        if (state.submitted) {
+            return;
+        }
+        state.submitted = true;
+
         // Asked again here, not only when the menu was opened: roles may have changed since.
         hierarchy.whenAllowed(session, state.targetUuid, PermissionNodes.MODERATION_BAN, () -> {
-            var result = moderationService.banById(state.targetPid, session.player.name, session.data.discordId, state.reason, state.duration, true);
+            ModerationResult<BanData> result;
+            try {
+                result = moderationService.banById(state.targetPid, new Actor.PlayerActor(session.player.uuid(), session).auditName(), session.data.discordId, state.reason, state.duration, true);
+            } catch (RuntimeException error) {
+                // With submitted set, a press after a silent failure would do nothing; end the flow instead.
+                Log.err("Ban menu: ban of pid @ failed", state.targetPid);
+                Log.err(error);
+                session.clearDraft(BanFlowState.class);
+                session.locale().send("error-internal", args());
+                context.close();
+                return;
+            }
             session.clearDraft(BanFlowState.class);
 
             if (!result.isSuccess() || result.getData().isEmpty()) {
@@ -240,6 +261,7 @@ public class BanMenu extends Menu {
         public Duration duration;
         public String reason;
         public Step step = Step.DURATION;
+        public boolean submitted;
 
         public enum Step {
             DURATION,

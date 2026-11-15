@@ -11,6 +11,7 @@ import org.xcore.plugin.model.AuditAction;
 import org.xcore.plugin.model.AuditActor;
 import org.xcore.plugin.model.AuditActorType;
 import org.xcore.plugin.model.AuditAppendCommand;
+import org.xcore.plugin.model.AuditAppendResult;
 import org.xcore.plugin.model.AuditDetails;
 import org.xcore.plugin.model.AuditOrigin;
 import org.xcore.plugin.model.AuditOriginChannel;
@@ -528,6 +529,12 @@ public class ModerationService {
                 adminName, adminDiscordId, true, true);
     }
 
+    /** Records a kick the caller has already done; a kick has no stored state besides this row. */
+    public void recordKick(String uuid, int pid, String playerName, String adminName, String adminDiscordId) {
+        appendAudit(AuditAction.KICK, auditTarget(uuid, PlayerPids.orNull(pid), playerName, null),
+                legacyActor(adminName, adminDiscordId), legacyOrigin(adminName), null, auditDetails(null, null), null);
+    }
+
     public ModerationResult<Void> tempUnban(String uuid, String ip, String adminName, String adminDiscordId) {
         if (hasNoIdentifier(uuid, ip)) {
             return ModerationResult.failure(MISSING_IDENTIFIER_MESSAGE);
@@ -576,15 +583,26 @@ public class ModerationService {
                                     String reason,
                                     AuditDetails details,
                                     String relatedAuditId) {
-        var result = auditService.append(AuditAppendCommand.builder()
-                .action(action)
-                .target(target)
-                .actor(actor)
-                .origin(origin)
-                .reason(reason)
-                .details(details)
-                .relatedAuditId(relatedAuditId)
-                .build());
+        // The sanction is already stored; a lost audit row must not undo it, but must be visible in the log.
+        AuditAppendResult result;
+        try {
+            result = auditService.append(AuditAppendCommand.builder()
+                    .action(action)
+                    .target(target)
+                    .actor(actor)
+                    .origin(origin)
+                    .reason(reason)
+                    .details(details)
+                    .relatedAuditId(relatedAuditId)
+                    .build());
+        } catch (RuntimeException error) {
+            Log.err("Audit @ by @ on @ was not saved", action, actor.id, target.uuid);
+            Log.err(error);
+            return null;
+        }
+        if (!result.isSuccess()) {
+            Log.warn("Audit @ by @ on @ was not saved: @", action, actor.id, target.uuid, result.getMessage().orElse(""));
+        }
         return result.getRecord().orElse(null);
     }
 

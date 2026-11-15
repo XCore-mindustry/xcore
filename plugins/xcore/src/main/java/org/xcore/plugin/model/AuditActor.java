@@ -14,6 +14,8 @@ public class AuditActor {
     @Builder.Default
     public AuditActorType type = AuditActorType.SYSTEM;
 
+    // Without the annotation the POJO codec stores a property named "id" as "_id"; the bot uses "id".
+    @BsonProperty("id")
     @Builder.Default
     public String id = "";
 

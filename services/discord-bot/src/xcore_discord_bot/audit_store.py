@@ -205,7 +205,7 @@ class AuditStore:
             "created_at_ts": occurred,
             "created_at_epoch_ms": created_at_epoch_ms,
             "integrity": {
-                "dedupeKey": f"{str(action or 'NOTE').strip().upper()}:{actor_id}:{normalized_target_uuid}:{normalized_reason}",
+                "dedupe_key": f"{str(action or 'NOTE').strip().upper()}:{actor_id}:{normalized_target_uuid}:{normalized_reason}",
                 "hash": None,
             },
         }
