@@ -53,6 +53,8 @@ class StaffCog(commands.Cog):
         days: app_commands.Range[int, 1, 90] = 14,
         member: discord.User | None = None,
     ) -> None:
+        # Several aggregations over all-time audit and cases can pass Discord's 3 s limit.
+        await interaction.response.defer(ephemeral=True, thinking=True)
         now = datetime.now(UTC)
         report = await staff_activity.load(
             self.bot.store.database, self._roster(), days, now
@@ -80,4 +82,5 @@ class StaffCog(commands.Cog):
             fetch_page,
             ephemeral=True,
             allowed_mentions=discord.AllowedMentions.none(),
+            deferred=True,
         )

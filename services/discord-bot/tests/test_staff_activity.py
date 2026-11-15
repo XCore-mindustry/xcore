@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import os
 from datetime import UTC, date, datetime
+from types import SimpleNamespace
 from uuid import uuid4
 
+import discord
 import pytest
 from pymongo import AsyncMongoClient
 
 from xcore_discord_bot import staff_activity
+from xcore_discord_bot.command_helpers import send_paginated
 from xcore_discord_bot.staff_activity import Counts, Person, Report
 
 NOW = datetime(2026, 11, 15, 12, 0, tzinfo=UTC)
@@ -173,3 +176,21 @@ async def test_load_counts_each_source_by_discord_id() -> None:
     finally:
         await client.drop_database(database.name)
         await client.close()
+
+
+async def test_paginator_answers_a_deferred_interaction_with_a_followup() -> None:
+    sent: list[dict] = []
+
+    async def send(**kwargs: object) -> str:
+        sent.append(kwargs)
+        return "message"
+
+    interaction = SimpleNamespace(followup=SimpleNamespace(send=send))
+
+    async def page(_: int) -> tuple[discord.Embed, bool]:
+        return discord.Embed(description="x"), False
+
+    await send_paginated(interaction, page, ephemeral=True, deferred=True)  # type: ignore[arg-type]
+
+    assert sent[0]["ephemeral"] is True
+    assert sent[0]["wait"] is True
