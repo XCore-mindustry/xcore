@@ -172,6 +172,24 @@ class BanMenuTest {
     }
 
     @Test
+    @DisplayName("a ban that throws ends the flow with an internal error")
+    void confirmAction_banFailureEndsTheFlow() {
+        when(moderationService.banById(eq(42), anyString(), any(), anyString(), any(), eq(true)))
+                .thenThrow(new IllegalStateException("database down"));
+
+        banMenu.open(session.player, target);
+        menuService.onTextInput(session, "2d");
+        menuService.onTextInput(session, "griefing");
+
+        menuService.onMenuOption(session, 0);
+
+        assertThat(session.hasDraft(draftClass())).isFalse();
+        assertThat(session.activeScreen()).isNull();
+        verify(session.localization).send(eq("error-internal"), anyMap());
+        verify(gateway).hideFollowUpMenu(eq(session.player), eq(0));
+    }
+
+    @Test
     @DisplayName("confirm cancel clears draft, hides follow-up, and clears UI state")
     void confirmCancel_clearsDraftAndHidesFollowUp() {
         banMenu.open(session.player, target);
