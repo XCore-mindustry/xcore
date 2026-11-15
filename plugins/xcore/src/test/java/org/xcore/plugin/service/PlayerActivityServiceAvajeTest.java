@@ -92,6 +92,7 @@ class PlayerActivityServiceAvajeTest {
     @Test
     void anActiveMinuteOfLinkedStaffIsAddedToStaffActivity(HeadlessWorld world) {
         var mainLoop = world.mainLoop();
+        var timer = world.timer(); // before the scope, or its tick goes to Arc's real timer thread
         try (var scope = scope()) {
             var sessions = scope.get(SessionService.class);
             var staff = scope.get(StaffAccess.class);
@@ -104,7 +105,7 @@ class PlayerActivityServiceAvajeTest {
             when(staff.mayLogIn(unlinked)).thenReturn(true);
             when(staff.isLoggedIn(admin)).thenReturn(true);
 
-            world.timer().runDue();
+            timer.runDue();
             mainLoop.runUntilIdle();
 
             verify(store).addMinute(eq("769"), eq(true), any());
