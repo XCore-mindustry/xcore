@@ -57,9 +57,9 @@ def test_member_view_lists_days_newest_first() -> None:
     )
     report = Report(NOW, 14, {"1": person}, frozenset({"1"}), 0)
 
-    lines = staff_activity.member_lines(report, "1", NOW.date())
+    lines = staff_activity.member_lines(report, "1", NOW.date(), {"1": "Alice"})
 
-    assert lines[0].startswith("<@1> ")
+    assert lines[0].startswith("<@1> (Alice) cases ")
     assert lines[1].startswith("`2026-11-12` cases 2")
     assert lines[2].startswith("`2026-11-10` cases 0 · bans 1")
     assert staff_activity.member_lines(report, "2", NOW.date())[1] == (
