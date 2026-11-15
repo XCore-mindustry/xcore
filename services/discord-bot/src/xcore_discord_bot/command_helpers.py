@@ -100,13 +100,26 @@ async def send_paginated(
     *,
     ephemeral: bool = False,
     allowed_mentions: discord.AllowedMentions | None = None,
+    deferred: bool = False,
 ) -> None:
-    """Send an embed with Prev/Next pagination buttons via an Interaction."""
+    """Send an embed with Prev/Next pagination buttons via an Interaction.
+
+    ``deferred``: the caller already deferred the response, so this sends a followup.
+    """
     embed, has_next = await fetch_page(0)
     view = PaginatorView(
         page=0, has_prev=False, has_next=has_next, fetch_page=fetch_page
     )
     extra = {} if allowed_mentions is None else {"allowed_mentions": allowed_mentions}
+    if deferred:
+        view.bot_message = await interaction.followup.send(
+            embed=embed,
+            view=view,
+            ephemeral=ephemeral,
+            wait=True,
+            allowed_mentions=allowed_mentions or discord.utils.MISSING,
+        )
+        return
     await interaction.response.send_message(
         embed=embed, view=view, ephemeral=ephemeral, **extra
     )

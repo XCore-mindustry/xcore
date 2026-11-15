@@ -13,7 +13,15 @@ from .bus.transport import RedisTransport
 from .cases._privacy import private_case_command
 from .cases.redis_transport import RedisCaseTransport
 from .cases.views import CaseActionButton, PanelButton
-from .cogs import AdminCog, InfoCog, LinkingCog, MapsCog, SeasonsCog, SubnetCog
+from .cogs import (
+    AdminCog,
+    InfoCog,
+    LinkingCog,
+    MapsCog,
+    SeasonsCog,
+    StaffCog,
+    SubnetCog,
+)
 from .cogs.cases import CasesCog
 from .command_helpers import reply_locale
 from .container import ServiceContainer
@@ -115,6 +123,7 @@ class XCoreDiscordBot(commands.Bot):
         await self.add_cog(MapsCog(self))
         await self.add_cog(SubnetCog(self))
         await self.add_cog(SeasonsCog(self))
+        await self.add_cog(StaffCog(self))
         if self.settings.cases_enabled:
             # /cases and /language exist only while at least one flow is switched on.
             await self.add_cog(CasesCog(self))
