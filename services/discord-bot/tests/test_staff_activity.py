@@ -48,6 +48,22 @@ def test_summary_puts_inactive_first_and_lists_people_outside_the_roster() -> No
     assert lines[8].endswith(": 2")
 
 
+def test_member_view_lists_days_newest_first() -> None:
+    person = Person(
+        "1", days={"2026-11-10": Counts(bans=1), "2026-11-12": Counts(cases=2)}
+    )
+    report = Report(NOW, 14, {"1": person}, frozenset({"1"}), 0)
+
+    lines = staff_activity.member_lines(report, "1", NOW.date())
+
+    assert lines[0].startswith("<@1> ")
+    assert lines[1].startswith("`2026-11-12` cases 2")
+    assert lines[2].startswith("`2026-11-10` cases 0 · bans 1")
+    assert staff_activity.member_lines(report, "2", NOW.date())[1] == (
+        "Nothing in this window."
+    )
+
+
 def test_pages_split_between_lines() -> None:
     lines = ["a" * 30] * 10
     pages = staff_activity.pages(lines, limit=100)

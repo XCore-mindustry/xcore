@@ -112,6 +112,27 @@ class PlayerActivityServiceAvajeTest {
         }
     }
 
+    @Test
+    void anIdleStaffMinuteIsNotAddedToStaffActivity(HeadlessWorld world) {
+        var mainLoop = world.mainLoop();
+        var timer = world.timer();
+        try (var scope = scope()) {
+            var admin = session(scope, "admin-uuid", "769");
+            when(scope.get(SessionService.class).getAllCachedSnapshot()).thenReturn(List.of(admin));
+            when(scope.get(StaffAccess.class).mayLogIn(admin)).thenReturn(true);
+
+            timer.runDue();
+            mainLoop.runUntilIdle();
+            for (int i = 0; i < 29; i++) {
+                timer.advance(60f);
+                mainLoop.runUntilIdle();
+            }
+
+            verify(scope.get(StaffActivityStore.class), times(PlayerActivityService.AFK_AFTER_MINUTES))
+                    .addMinute(eq("769"), eq(false), any());
+        }
+    }
+
     private static Session session(BeanScope scope, String uuid, String discordId) {
         Player player = Player.create();
         var data = new PlayerData();
