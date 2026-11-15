@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -39,6 +40,17 @@ class StaffCog(commands.Cog):
             if not member.bot
         )
 
+    def _names(self, ids: Iterable[str]) -> dict[str, str]:
+        """Display names of the ids still in the guild, with markdown escaped."""
+        guild = self.bot.get_guild(self.bot.settings.discord_guild_id)
+        if guild is None:
+            return {}
+        return {
+            i: discord.utils.escape_markdown(m.display_name)
+            for i in ids
+            if (m := guild.get_member(int(i))) is not None
+        }
+
     @staff_group.command(
         name="activity", description="What each staff member did in the last days"
     )
@@ -60,12 +72,13 @@ class StaffCog(commands.Cog):
             self.bot.store.database, self._roster(), days, now
         )
         today = now.date()
+        names = self._names(report.people)
         if member is None:
             title = f"Staff activity, last {days} days"
-            lines = staff_activity.summary_lines(report, today)
+            lines = staff_activity.summary_lines(report, today, names)
         else:
             title = f"{member.display_name}, last {days} days"
-            lines = staff_activity.member_lines(report, str(member.id), today)
+            lines = staff_activity.member_lines(report, str(member.id), today, names)
         pages = staff_activity.pages(lines)
 
         async def fetch_page(page: int) -> tuple[discord.Embed, bool]:

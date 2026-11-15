@@ -7,7 +7,7 @@ plugin once a minute). Nothing is stored; the report is built on each call.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -293,10 +293,16 @@ def counts_line(counts: Counts) -> str:
     )
 
 
-def person_line(person: Person, today: date) -> str:
+def person_line(
+    person: Person, today: date, names: Mapping[str, str] | None = None
+) -> str:
+    """``names``: display names by Discord id. A client shows an embed mention as raw
+    ``<@id>`` until it has that user cached, so the name keeps the line readable."""
     last_action = person.last_action.date() if person.last_action else None
+    name = (names or {}).get(person.discord_id)
+    who = f"<@{person.discord_id}>" + (f" ({name})" if name else "")
     return (
-        f"<@{person.discord_id}> {counts_line(person.total)}"
+        f"{who} {counts_line(person.total)}"
         f" · action {_ago(last_action, today)} · seen {_ago(person.last_seen, today)}"
     )
 
@@ -309,7 +315,9 @@ LEGEND = (
 )
 
 
-def summary_lines(report: Report, today: date) -> list[str]:
+def summary_lines(
+    report: Report, today: date, names: Mapping[str, str] | None = None
+) -> list[str]:
     roster = [report.person(i) for i in report.roster]
     inactive = sorted(
         (p for p in roster if p.inactive),
@@ -327,14 +335,14 @@ def summary_lines(report: Report, today: date) -> list[str]:
     lines: list[str] = []
     if inactive:
         lines.append(f"**Inactive ({len(inactive)})**")
-        lines += [person_line(p, today) for p in inactive]
+        lines += [person_line(p, today, names) for p in inactive]
     lines.append(f"**Active ({len(active)})**")
-    lines += [person_line(p, today) for p in active] or ["nobody"]
+    lines += [person_line(p, today, names) for p in active] or ["nobody"]
     if outside := report.outside_roster:
         lines.append(
             f"**Acted in the window, not in the staff roles ({len(outside)})**"
         )
-        lines += [person_line(p, today) for p in outside]
+        lines += [person_line(p, today, names) for p in outside]
     if report.unattributed:
         lines.append(
             f"In-game actions by admins without a linked Discord: {report.unattributed}"
@@ -342,9 +350,14 @@ def summary_lines(report: Report, today: date) -> list[str]:
     return lines
 
 
-def member_lines(report: Report, discord_id: str, today: date) -> list[str]:
+def member_lines(
+    report: Report,
+    discord_id: str,
+    today: date,
+    names: Mapping[str, str] | None = None,
+) -> list[str]:
     person = report.person(discord_id)
-    lines = [person_line(person, today)]
+    lines = [person_line(person, today, names)]
     for day in sorted(person.days, reverse=True):
         lines.append(f"`{day}` {counts_line(person.days[day])}")
     if len(lines) == 1:
