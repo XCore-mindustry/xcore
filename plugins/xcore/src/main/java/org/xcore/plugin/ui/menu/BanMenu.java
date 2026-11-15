@@ -197,9 +197,16 @@ public class BanMenu extends Menu {
             return;
         }
 
+        // The check below can wait on the database while the confirm menu stays open; a second
+        // press in that time used to issue a second ban.
+        if (state.submitted) {
+            return;
+        }
+        state.submitted = true;
+
         // Asked again here, not only when the menu was opened: roles may have changed since.
         hierarchy.whenAllowed(session, state.targetUuid, PermissionNodes.MODERATION_BAN, () -> {
-            var result = moderationService.banById(state.targetPid, session.player.name, session.data.discordId, state.reason, state.duration, true);
+            var result = moderationService.banById(state.targetPid, session.player.plainName(), session.data.discordId, state.reason, state.duration, true);
             session.clearDraft(BanFlowState.class);
 
             if (!result.isSuccess() || result.getData().isEmpty()) {
@@ -240,6 +247,7 @@ public class BanMenu extends Menu {
         public Duration duration;
         public String reason;
         public Step step = Step.DURATION;
+        public boolean submitted;
 
         public enum Step {
             DURATION,

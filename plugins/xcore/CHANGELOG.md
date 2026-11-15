@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- A kick from the game's admin menu writes a `KICK` audit row with the admin as actor.
+
+### Fixed
+- Audit rows written by the plugin store the actor id as `actor.id`, the field the bot writes and both sides query. It was stored as `actor._id`, so looking up an admin's actions found none of their in-game ones. Migration V11 renames the field in existing rows, and renames the bot's `integrity.dedupeKey` to `integrity.dedupe_key`.
+- A ban or mute whose audit row cannot be saved is logged; an exception from the audit store no longer escapes after the sanction was stored.
+- Bans from the admin menu and the Admin mod record the admin's plain name, not the coloured one.
+- Pressing confirm twice in the ban menu while the target's rank was still being read no longer issues two bans.
+
 ## [5.8.0] - 2026-11-14
 
 ### Added

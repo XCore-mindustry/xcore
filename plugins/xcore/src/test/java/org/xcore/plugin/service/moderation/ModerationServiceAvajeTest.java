@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -476,6 +477,32 @@ class ModerationServiceAvajeTest {
                         && "remote-console@hub".equals(command.actor().nameSnapshot)
                         && "hub".equals(command.actor().serverId)
                         && command.origin().channel == org.xcore.plugin.model.AuditOriginChannel.SERVER_CONSOLE));
+    }
+
+    @Test
+    @DisplayName("A kick from the admin menu is audited as the admin, in game")
+    void recordKick_auditsTheAdmin() {
+        moderationService.recordKick("uuid-3", 7, "Target", "Admin", "769");
+
+        verify(auditService).append(argThat(command ->
+                command.action() == org.xcore.plugin.model.AuditAction.KICK
+                        && "uuid-3".equals(command.target().uuid)
+                        && Integer.valueOf(7).equals(command.target().pid)
+                        && "769".equals(command.actor().id)
+                        && "769".equals(command.actor().discordId)
+                        && command.origin().channel == org.xcore.plugin.model.AuditOriginChannel.IN_GAME));
+    }
+
+    @Test
+    @DisplayName("A ban whose audit row cannot be saved is still a ban")
+    void ban_survivesAuditFailure() {
+        when(banDataRepository.save(any())).thenReturn(true);
+        when(auditService.append(any())).thenThrow(new IllegalStateException("mongo down"));
+
+        var result = moderationService.tempBanByUuidOrIp("uuid-1", "1.2.3.4", null, Duration.ofDays(1), "grief", "Admin", "769");
+
+        assertThat(result.isSuccess()).isTrue();
+        verify(network, atLeastOnce()).post(argThat(event -> event instanceof ModerationBanCreatedV1));
     }
 
     @Test
