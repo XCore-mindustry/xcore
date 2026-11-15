@@ -14,6 +14,7 @@ import mindustry.gen.Player;
 import mindustry.net.Administration.TraceInfo;
 import mindustry.net.NetConnection;
 import mindustry.net.Packets;
+import org.xcore.plugin.permission.Actor;
 import org.xcore.plugin.integration.AdminModIntegration;
 import org.xcore.plugin.model.BanRequestData;
 import org.xcore.plugin.model.PlayerPids;
@@ -80,7 +81,7 @@ public class AdminRequestHandler {
                 target.kick(Packets.KickReason.kick);
                 moderationService.recordKick(target.uuid(),
                         targetSession != null && targetSession.data != null ? targetSession.data.pid : PlayerPids.NONE,
-                        target.plainName(), admin.plainName(),
+                        target.plainName(), new Actor.PlayerActor(admin.uuid(), adminSession).auditName(),
                         adminSession != null && adminSession.data != null ? adminSession.data.discordId : null);
 
                 sessionService.broadcast("notification-admin-kick", args(
