@@ -9,12 +9,16 @@ import mindustry.game.EventType.PlayerChatEvent;
 import mindustry.gen.Player;
 import org.xcore.plugin.concurrent.ScheduledTasks;
 import org.xcore.plugin.config.TomlSecretsConfig;
+import org.xcore.plugin.database.repository.StaffActivityStore;
 import org.xcore.plugin.event.EventSubscriptions;
 import org.xcore.plugin.localization.Localization;
 import org.xcore.plugin.model.PlayerData;
+import org.xcore.plugin.permission.StaffAccess;
 import org.xcore.plugin.session.Session;
 import org.xcore.plugin.session.SessionService;
 import org.xcore.plugin.startup.ShutdownOrder;
+
+import java.time.Instant;
 
 import static com.ospx.flubundle.Bundle.args;
 
@@ -27,16 +31,22 @@ public class PlayerActivityService {
     private final SessionService sessionService;
     private final FindService findService;
     private final TomlSecretsConfig secretsConfig;
+    private final StaffAccess staffAccess;
+    private final StaffActivityStore staffActivity;
     private final ScheduledTasks tasks = new ScheduledTasks(PlayerActivityService.class);
     private final EventSubscriptions subscriptions = new EventSubscriptions();
 
     @Inject
     public PlayerActivityService(SessionService sessionService,
                                  FindService findService,
-                                 TomlSecretsConfig secretsConfig) {
+                                 TomlSecretsConfig secretsConfig,
+                                 StaffAccess staffAccess,
+                                 StaffActivityStore staffActivity) {
         this.sessionService = sessionService;
         this.findService = findService;
         this.secretsConfig = secretsConfig;
+        this.staffAccess = staffAccess;
+        this.staffActivity = staffActivity;
     }
 
     @PostConstruct
@@ -55,6 +65,9 @@ public class PlayerActivityService {
                 Localization local = session.locale();
 
                 sessionService.incrementPlayTimeAsync(session, 1);
+                if (data.discordId != null && !data.discordId.isBlank() && staffAccess.mayLogIn(session)) {
+                    staffActivity.addMinute(data.discordId, staffAccess.isLoggedIn(session), Instant.now());
+                }
 
                 if (data.totalPlayTime == secretsConfig.moderation.votekick.minPlayTimeMinutes) {
                     local.send("notification-votekick-playtime",

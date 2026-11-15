@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - A kick from the game's admin menu writes a `KICK` audit row with the admin as actor.
+- Staff with a linked Discord account get their active minutes on the servers counted per UTC day in `staff_activity`, with the minutes spent logged in as staff counted separately. The bot's `/staff activity` reads it.
 
 ### Fixed
 - Audit rows written by the plugin store the actor id as `actor.id`, the field the bot writes and both sides query. It was stored as `actor._id`, so looking up an admin's actions found none of their in-game ones. Migration V11 renames the field in existing rows, and renames the bot's `integrity.dedupeKey` to `integrity.dedupe_key`.
