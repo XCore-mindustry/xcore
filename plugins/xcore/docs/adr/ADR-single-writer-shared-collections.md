@@ -109,10 +109,14 @@ overwrite, give that collection a `schema_version` and a guarded write, as V10 d
    the schema and fixtures in `protocol/storage`.
 2. Add `moderation.*.request` / `.response` RPC messages for ban, unban, mute, unmute, IP release
    and expiry changes, with receipts, and handle them in `ModerationService`.
-3. Switch the bot to the RPC per operation, keeping the direct write as a fallback while servers
-   on older jars remain. Remove `bot` from `x-written-by` in the schemas as each write goes.
+3. Switch the bot to the RPC per operation. It decides before sending: if the chosen server does
+   not support the RPC, it writes directly as today. Once a request is sent, it never falls back
+   to a direct write: if the answer is lost, it retries with the same idempotency key until the
+   receipt settles the outcome, because the server may already have applied the change.
 4. Move the account merge.
-5. Remove the fallback once every server has restarted onto a jar with the handlers.
+5. Remove the direct writes once every server has restarted onto a jar with the handlers. Only then
+   remove `bot` from `x-written-by` of each field, when no path in the bot (fallback or merge)
+   still writes it.
 
 ## Typed document models
 The natural next step after the schemas is to generate document models (Java records, Python
