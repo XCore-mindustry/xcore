@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from bot_fakes import make_settings
+from bson import json_util
 from pymongo import AsyncMongoClient
 
 from xcore_discord_bot.bus.transport import RedisTransport
@@ -20,8 +20,11 @@ from xcore_discord_bot.store_mappers import player_record_from_doc
 async def test_player_contract_roundtrips_through_mongo() -> None:
     uri = os.environ["XCORE_TEST_MONGO_URL"]
     database = f"xcore_migration_test_{uuid4().hex}"
-    document = json.loads(
-        (Path(__file__).parent / "fixtures/player_document.json").read_text()
+    document = json_util.loads(
+        (
+            Path(__file__).resolve().parents[3]
+            / "protocol/storage/fixtures/players/valid/plugin-written.json"
+        ).read_text()
     )
     client = AsyncMongoClient(uri, serverSelectionTimeoutMS=5000)
     store = MongoStore(make_settings(mongo_uri=uri, mongo_db_name=database))
