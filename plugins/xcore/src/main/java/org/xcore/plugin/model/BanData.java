@@ -12,7 +12,4 @@ public class BanData extends Punishment {
     @Builder.Default public String ip = null;
     @BsonProperty("ban_id")
     public Integer banId;
-    public Integer pid;
-    @BsonProperty("case_number")
-    public Integer caseNumber;
 }
