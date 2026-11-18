@@ -31,7 +31,8 @@ This repository contains only **cross-process / cross-service wire protocol arti
 - application business logic
 - Discord handlers or presentation code
 - Mindustry runtime integration
-- Mongo persistence
+- Mongo persistence (the schemas of the MongoDB collections several components share live in
+  [`storage/`](storage/README.md), next to the protocol but outside the published packages)
 - app-specific reconnect/worker orchestration
 
 ## Repository Layout
@@ -42,6 +43,7 @@ This repository contains only **cross-process / cross-service wire protocol arti
 - `java/` — generated Java protocol artifacts for the canonical model surface
 - `python/` — generated Python protocol package and thin helpers
 - `compat/` — cross-language compatibility checks
+- `storage/` — the shared MongoDB contract; not published, see [storage/README.md](storage/README.md)
 - `scripts/` — validation and generation helper scripts
 
 ## Migrated Families

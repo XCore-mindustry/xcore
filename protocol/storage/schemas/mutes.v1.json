@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:storage:mutes:v1",
+  "title": "mutes",
+  "description": "At most one mute per player uuid; both writers replace the document by uuid and unmuting deletes it.",
+  "x-collection": "mutes",
+  "x-owner": "plugin",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["_id", "uuid", "name", "admin_name", "reason", "expire_date"],
+  "properties": {
+    "_id": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/objectId",
+      "description": "The plugin decodes mutes into a POJO whose id is an ObjectId.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/MuteDataRepository.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
+      },
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/MuteDataRepository.java"]}
+    },
+    "uuid": {
+      "type": "string",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/mongo_store.py"]
+      },
+      "x-fallback": {"bot": "MuteDoc requires it: find_mute raises on a mute without uuid"}
+    },
+    "pid": {
+      "oneOf": [{"$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32"}, {"type": "null"}],
+      "description": "Written by the bot only.",
+      "x-disagreement": "The plugin's MuteData has no pid: the plugin never writes it, and a mute the plugin replaces (a new mute for the same player, or an account merge) loses the pid the bot wrote.",
+      "x-written-by": {
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
+        ]
+      },
+      "x-read-by": {"bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]},
+      "x-fallback": {"bot": "None when missing or the sentinel"}
+    },
+    "case_number": {
+      "oneOf": [{"$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32"}, {"type": "null"}],
+      "description": "Written by the bot only.",
+      "x-disagreement": "The plugin's MuteData has no case_number, so a mute the plugin replaces loses its case link (bans keep it: BanData has the field).",
+      "x-written-by": {"bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]},
+      "x-read-by": {"bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]},
+      "x-fallback": {"bot": "None when missing or 0"}
+    },
+    "name": {
+      "type": "string",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/mongo_store.py"]
+      },
+      "x-fallback": {"plugin": "\"Unknown\"", "bot": "MuteDoc requires it; \"Unknown\" when blank"}
+    },
+    "admin_name": {
+      "type": "string",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/mongo_store.py"]
+      },
+      "x-fallback": {"plugin": "\"Unknown\"", "bot": "MuteDoc requires it; \"Unknown\" when blank"}
+    },
+    "admin_discord_id": {
+      "type": ["string", "null"],
+      "x-disagreement": "The plugin writes \"\" for no moderator id, the bot writes null.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]
+      },
+      "x-fallback": {"plugin": "\"\"", "bot": "None when missing or blank"}
+    },
+    "reason": {
+      "type": "string",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/mongo_store.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
+        ]
+      },
+      "x-fallback": {"plugin": "\"Not Specified\"", "bot": "MuteDoc requires it; \"Not Specified\" when blank"}
+    },
+    "expire_date": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/date",
+      "description": "Every mute expires: both writers set a date, and the bot cannot read a mute without one.",
+      "x-disagreement": "The plugin's model allows a mute without expiry (Punishment.expireDate may be null, and its codec would then omit the field), but no command creates one today. The bot's MuteDoc requires a date, so such a mute would make find_mute raise.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/mongo_store.py",
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py"
+        ]
+      }
+    },
+    "created_at": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "description": "Epoch milliseconds. Only the plugin writes it.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "updated_at": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "deleted_at": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "is_visible": {
+      "type": "boolean",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "visible": {
+      "type": "boolean",
+      "description": "A second copy of is_visible from Lombok's isVisible() getter. Nothing reads it.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "version": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/integer",
+      "description": "Always 1. Not a schema version. int64 from the plugin's model; int32 on documents V1 back-filled.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "_id": {"$oid": "6650a1b2c3d4e5f601000004"},
+  "ban_id": 44,
+  "case_number": null,
+  "uuid": "uuid-banned-4",
+  "ip": null,
+  "pid": null,
+  "name": "Raider",
+  "admin_name": "Discord Mod",
+  "admin_discord_id": null,
+  "reason": "raid",
+  "expire_date": null
+}

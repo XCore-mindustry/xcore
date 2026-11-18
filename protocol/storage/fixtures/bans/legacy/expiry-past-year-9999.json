@@ -1,0 +1,14 @@
+{
+  "_id": {"$oid": "5f50a1b2c3d4e5f601000007"},
+  "created_at": 1600000000000,
+  "updated_at": 1600000000000,
+  "deleted_at": 1600000000000,
+  "is_visible": true,
+  "version": 1,
+  "uuid": "uuid-banned-forever",
+  "name": "Forever",
+  "admin_name": "Admin",
+  "reason": "permanent, the old way",
+  "expire_date": {"$date": {"$numberLong": "253402300800000"}},
+  "ban_id": 7
+}

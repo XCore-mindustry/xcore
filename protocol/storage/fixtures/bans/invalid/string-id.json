@@ -1,0 +1,9 @@
+{
+  "_id": "not-an-object-id",
+  "ban_id": 47,
+  "uuid": "uuid-banned-9",
+  "name": "Undecodable",
+  "admin_name": "Moderator",
+  "reason": "the plugin cannot decode a ban whose _id is not an ObjectId",
+  "expire_date": null
+}
