@@ -91,6 +91,7 @@ jobs:
             # any of them must update it.
             storage:
               - .github/workflows/ci.yml
+              - uv.lock
               - *storage-contract
               - plugins/xcore/src/main/**
               - services/discord-bot/src/**
@@ -192,7 +193,7 @@ jobs:
 
   storage-inventory:
     needs: changes
-    if: needs.changes.outputs.storage == 'true'
+    if: needs.changes.outputs.storage == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: "3.11"
