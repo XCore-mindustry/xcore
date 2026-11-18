@@ -19,7 +19,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 
@@ -61,19 +63,23 @@ class StorageMigrationContractIntegrationTest {
     void aMigrationThatChangesASharedCollectionShipsFixtures() throws Exception {
         for (var migration : migrations()) {
             if (migration.getVersion() <= BASELINE) continue;
-            var database = fresh();
-            var before = new TreeMap<String, List<BsonDocument>>();
-            for (var collection : collections()) {
-                seedEveryStoredShape(database, collection);
-                before.put(collection, rows(database, collection));
-            }
-            migration.up(database);
-            for (var collection : collections()) {
-                if (rows(database, collection).equals(before.get(collection))) continue;
-                assertThat(StorageContract.files(fixtures(migration, "before", collection)))
-                        .as("V%d changes %s: add protocol/storage/migrations/V%d/before/%s and after/%s fixtures",
-                                migration.getVersion(), collection, migration.getVersion(), collection, collection)
-                        .isNotEmpty();
+            for (int variant = 0; variant < variants(); variant++) {
+                var database = fresh();
+                var before = new TreeMap<String, List<BsonDocument>>();
+                for (var collection : collections()) {
+                    seedStoredShapes(database, collection, variant);
+                    before.put(collection, rows(database, collection));
+                }
+                migration.up(database);
+                for (var collection : collections()) {
+                    if (rows(database, collection).equals(before.get(collection))) continue;
+                    boolean shipped = !StorageContract.files(fixtures(migration, "before", collection)).isEmpty()
+                            && Files.isDirectory(fixtures(migration, "after", collection));
+                    assertThat(shipped)
+                            .as("V%d changes %s: add protocol/storage/migrations/V%d/before/%s and after/%s fixtures",
+                                    migration.getVersion(), collection, migration.getVersion(), collection, collection)
+                            .isTrue();
+                }
             }
         }
     }
@@ -100,9 +106,10 @@ class StorageMigrationContractIntegrationTest {
             migration.up(database);
 
             for (var collection : touched) {
-                var after = StorageContract.files(fixtures(migration, "after", collection));
-                var expected = (after.isEmpty() ? StorageContract.files(fixtures(migration, "before", collection)) : after)
-                        .stream().map(StorageContract::read).sorted(BY_ID).toList();
+                // No after directory: the collection comes out unchanged. An empty one: no documents remain.
+                var after = fixtures(migration, Files.isDirectory(fixtures(migration, "after", collection)) ? "after" : "before",
+                        collection);
+                var expected = StorageContract.files(after).stream().map(StorageContract::read).sorted(BY_ID).toList();
                 assertThat(rows(database, collection)).as("V%d: %s", migration.getVersion(), collection)
                         .isEqualTo(expected);
                 if (collections().contains(collection)) {
@@ -132,15 +139,32 @@ class StorageMigrationContractIntegrationTest {
                 .stream().sorted(BY_ID).toList();
     }
 
-    /** Current and legacy documents of a collection; one per _id, since counters are keyed by name. */
-    private static void seedEveryStoredShape(MongoDatabase database, String collection) {
-        var ids = new HashSet<String>();
+    /**
+     * The stored shapes of a collection that share an _id (counters are keyed by name, and a migration's
+     * before and after fixtures share ids) cannot sit side by side, so variant n seeds the n-th shape of
+     * each id, or its last one.
+     */
+    private static void seedStoredShapes(MongoDatabase database, String collection, int variant) {
+        for (var shapes : shapesById(collection).values()) {
+            database.getCollection(collection, BsonDocument.class).insertOne(shapes.get(Math.min(variant, shapes.size() - 1)));
+        }
+    }
+
+    private static int variants() throws IOException {
+        int most = 1;
+        for (var collection : collections()) {
+            for (var shapes : shapesById(collection).values()) most = Math.max(most, shapes.size());
+        }
+        return most;
+    }
+
+    private static Map<String, List<BsonDocument>> shapesById(String collection) {
+        var shapes = new LinkedHashMap<String, List<BsonDocument>>();
         for (var path : StorageContract.stored(collection)) {
             var document = StorageContract.read(path);
-            if (ids.add(document.get("_id").toString())) {
-                database.getCollection(collection, BsonDocument.class).insertOne(document);
-            }
+            shapes.computeIfAbsent(document.get("_id").toString(), id -> new ArrayList<>()).add(document);
         }
+        return shapes;
     }
 
     private static List<String> collections() throws IOException {

@@ -11,7 +11,6 @@ import org.xcore.plugin.model.enums.IdentityDisplayMode;
 
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -95,16 +94,17 @@ class StorageModelContractTest {
                 .containsAll(document.keySet());
     }
 
-    /** Numbers by value, whatever their width; arrays in any order, as the plugin keeps them in sets. */
+    /** Numbers by value, whatever their width; arrays as sets of members, as the plugin keeps them in sets. */
     private static boolean same(BsonValue expected, BsonValue actual) {
         if (actual == null) return false;
         if (expected.isNumber() && actual.isNumber()) {
             return expected.asNumber().decimal128Value().equals(actual.asNumber().decimal128Value());
         }
         if (expected.isArray() && actual.isArray()) {
-            var left = new ArrayList<>(expected.asArray().getValues());
-            var right = new ArrayList<>(actual.asArray().getValues());
-            return left.size() == right.size() && left.stream().allMatch(v -> right.stream().anyMatch(w -> same(v, w)));
+            var left = expected.asArray().getValues();
+            var right = actual.asArray().getValues();
+            return left.stream().allMatch(v -> right.stream().anyMatch(w -> same(v, w)))
+                    && right.stream().allMatch(w -> left.stream().anyMatch(v -> same(v, w)));
         }
         if (expected.isDocument() && actual.isDocument()) {
             var left = expected.asDocument();

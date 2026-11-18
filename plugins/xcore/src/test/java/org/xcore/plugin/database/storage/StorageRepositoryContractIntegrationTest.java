@@ -4,6 +4,7 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
 import org.bson.BsonDocument;
+import org.bson.Document;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -109,7 +110,9 @@ class StorageRepositoryContractIntegrationTest {
         player.nickname = "Written";
         players.save(player);
         var linked = players.updateDiscordLink("uuid-written", player.pid, "300000000000000003", "written", 1715000000000L);
-        players.clearDiscordLink("uuid-written", "300000000000000003", linked.discordLinkedAt);
+        assertThat(players.clearDiscordLink("uuid-written", "300000000000000003", linked.discordLinkedAt)).isTrue();
+        assertThat(database.getCollection("players").find(new Document("uuid", "uuid-written")).first().getString("discord_id"))
+                .isEmpty();
         players.updateConnectionData("uuid-written", "203.0.113.30", "Renamed");
         players.incrementPlayTime("uuid-written", 5);
         var legacy = players.findByUuid("uuid-old-admin");
@@ -125,6 +128,7 @@ class StorageRepositoryContractIntegrationTest {
         mutes.save(MuteData.builder().uuid("uuid-written").name("Written").adminName("Mod").reason("r")
                 .expireDate(Instant.parse("2026-06-01T00:00:00Z")).build());
         new MapDataRepository(database, new TomlSecretsConfig()).checkMapDecay();
+        assertThat(database.getCollection("counters").find(new Document("_id", "last_map_decay")).first()).isNotNull();
 
         for (var collection : List.of("players", "bans", "mutes", "counters")) {
             var rows = database.getCollection(collection, BsonDocument.class).find().into(new java.util.ArrayList<>());
