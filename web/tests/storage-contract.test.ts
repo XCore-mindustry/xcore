@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { BSON, type Db, type Document } from "mongodb";
 
 const { getLeaderboard, getLinkedProfiles, getPlayerProfile, searchPlayers } = await import("../src/lib/server/stats");
+const { NO_PID } = await import("../src/lib/pid");
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const STORAGE = join(import.meta.dir, "../../protocol/storage");
@@ -83,9 +84,13 @@ function recordingDb(docs: Document[], seen: Set<string>): Db {
   };
   const sortBy = (rows: Document[], sort?: Record<string, number>) => {
     named(sort, seen);
+    // BSON order: missing and null before numbers, numbers before strings.
+    const rank = (v: any): [number, any] => (v == null ? [0, 0] : typeof v === "number" ? [1, v] : [2, String(v)]);
     return [...rows].sort((a, b) => {
       for (const [key, dir] of Object.entries(sort ?? {})) {
-        if (a[key] !== b[key]) return (a[key] > b[key] ? 1 : -1) * dir;
+        const [ra, va] = rank(a[key]), [rb, vb] = rank(b[key]);
+        if (ra !== rb) return (ra - rb) * dir;
+        if (va !== vb) return (va > vb ? 1 : -1) * dir;
       }
       return 0;
     });
@@ -157,13 +162,16 @@ describe("players, as stored", () => {
   it("search, leaderboards and linked profiles read declared fields", async () => {
     const seen = new Set<string>();
     const db = recordingDb(docs, seen);
-    for (const doc of docs) {
-      const name = String(doc.nickname ?? "").replace(/\[[^\]]*\]/g, "");
+    // Search and leaderboards leave out players without an assigned pid.
+    const ranked = docs.filter(d => typeof d.pid === "number" && d.pid !== NO_PID);
+    for (const doc of ranked) {
+      const name = String(doc.nickname ?? "").slice(0, 64);
       if (name) expect((await searchPlayers(name, 1, 50, db)).items.some(p => p.pid === doc.pid)).toBe(true);
       if (doc.discord_id) expect((await getLinkedProfiles(doc.discord_id, db)).map(p => p.pid)).toContain(doc.pid);
     }
     const playtime = await getLeaderboard("playtime", 1, undefined, 50, db);
-    expect(playtime.items.length).toBe(docs.length);
+    expect(playtime.total).toBe(ranked.length);
+    expect(playtime.items.length).toBe(Math.min(ranked.length, 50));
     await getLeaderboard("hexed", 1, undefined, 50, db);
     declaredOnly(seen);
   });
