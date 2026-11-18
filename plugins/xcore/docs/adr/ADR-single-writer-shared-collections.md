@@ -18,9 +18,10 @@ Moderation is where this costs the most. `bans`, `mutes`, the `ban_id` sequence 
   it, the bot's appeal flow treated a row without the key as no ban, so a permanent ban issued in
   game could not be appealed from Discord. "No IP" and "no moderator id" have two or three shapes
   each in the same way.
-- **Fields lost on rewrite.** The bot writes `pid` and `case_number` on mutes. The plugin's
-  `MuteData` has neither, and its save replaces the document, so the next plugin write of that
-  mute drops both.
+- **Fields lost on rewrite.** The bot wrote `pid` and `case_number` on mutes, but the plugin's
+  `MuteData` had neither, and its save replaces the document, so a mute the plugin wrote dropped
+  both. The plugin's model now carries them, and a contract test checks that replacing any stored
+  ban or mute keeps every field.
 - **Two implementations of one operation.** An account merge exists in the plugin
   (`AccountMergeService`) and in the bot (`account_merge_store.py`). They copy a ban differently: the
   plugin gives the copy the target's IP, the bot keeps the source's IP on the copy and removes it
@@ -104,9 +105,9 @@ overwrite, give that collection a `schema_version` and a guarded write, as V10 d
   twice, as `account_operation_receipts` does for linking.
 
 ## Rollout
-1. Fix the shape disagreements in place while both writers exist: `MuteData` keeps `pid` and
-   `case_number` (the appeal reader already accepts a ban without `expire_date`). Each fix updates
-   the schema and fixtures in `protocol/storage`.
+1. Fix the shape disagreements in place while both writers exist, each with its schema and
+   fixtures in `protocol/storage`. Done for the two that lost data: the appeal reader accepts a ban
+   without `expire_date`, and mutes keep `pid` and `case_number`.
 2. Add `moderation.*.request` / `.response` RPC messages for ban, unban, mute, unmute, IP release
    and expiry changes, with receipts, and handle them in `ModerationService`.
 3. Switch the bot to the RPC per operation. It decides before sending: if the chosen server does
