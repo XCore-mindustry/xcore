@@ -213,18 +213,20 @@ async def test_punishment_writes_match_the_schema() -> None:
     await punishments.upsert_ban(
         uuid="u2", ip=None, pid=None, name="Two", expire_date=NOW, **common
     )
-    await punishments.update_ban_expiry(ban_id=1, new_expiry=NOW - timedelta(days=1))
-    await punishments.release_ban_ip(ban_id=1, ip="192.0.2.1")
-    await db["bans"].insert_one(
-        json_util.loads(
-            contract.fixtures("bans", "legacy")[0].read_text(), json_options=STORED
-        )
+    assert await punishments.update_ban_expiry(
+        ban_id=1, new_expiry=NOW - timedelta(days=1)
     )
-    await punishments.ensure_ban_id(uuid="uuid-banned-old", ip=None)
+    assert await punishments.release_ban_ip(ban_id=1, ip="192.0.2.1")
+    legacy = contract.FIXTURES / "bans/legacy/before-v7-no-ban-id.json"
+    await db["bans"].insert_one(
+        json_util.loads(legacy.read_text(), json_options=STORED)
+    )
+    numbered = await punishments.ensure_ban_id(uuid="uuid-banned-old", ip=None)
+    assert numbered is not None and numbered.ban_id == 3
     await punishments.upsert_mute(
         uuid="u1", pid=5, name="One", expire_date=NOW, case_number=2002, **common
     )
-    await punishments.update_mute_expiry(
+    assert await punishments.update_mute_expiry(
         uuid="u1", expire_date=NOW, new_expiry=NOW + timedelta(hours=1)
     )
     await CaseStore(store).ensure_indexes()
@@ -258,5 +260,8 @@ async def test_badge_and_merge_writes_match_the_schema() -> None:
     )
 
     assert result.success, result.error
+    assert result.ban_transferred
+    copied = await db["bans"].find_one({"uuid": "uuid-contract"})
+    assert copied is not None and copied["ban_id"] == 51
     for collection in ("players", "bans", "counters"):
         await assert_written_match_schema(db, collection)

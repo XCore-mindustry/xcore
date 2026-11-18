@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import datetime
 from types import SimpleNamespace
 
 from bson import DatetimeMS, ObjectId
@@ -154,8 +154,8 @@ def sortable(value):
     if isinstance(value, DatetimeMS):
         return int(value)
     if isinstance(value, datetime):
-        aware = value if value.tzinfo else value.replace(tzinfo=UTC)
-        return int(aware.timestamp() * 1000)
+        # Exact milliseconds, a naive value read as UTC, as the driver encodes it.
+        return int(DatetimeMS(value))
     return value
 
 
