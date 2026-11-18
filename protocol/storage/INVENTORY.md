@@ -82,15 +82,15 @@ Disagreements and constraints:
 
 At most one mute per player uuid; both writers replace the document by uuid and unmuting deletes it.
 
-- **plugin**: [`MuteDataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/MuteDataRepository.java), [`ModelData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java), [`Punishment.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java)
-- **bot**: [`account_merge_store.py`](../../services/discord-bot/src/xcore_discord_bot/account_merge_store.py), [`mongo_store.py`](../../services/discord-bot/src/xcore_discord_bot/mongo_store.py), [`punishment_store.py`](../../services/discord-bot/src/xcore_discord_bot/punishment_store.py), [`store_mappers.py`](../../services/discord-bot/src/xcore_discord_bot/store_mappers.py)
+- **plugin**: [`MuteDataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/MuteDataRepository.java), [`ModelData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java), [`Punishment.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java), [`AccountMergeService.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/service/AccountMergeService.java), [`ModerationService.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/service/moderation/ModerationService.java)
+- **bot**: [`account_merge_store.py`](../../services/discord-bot/src/xcore_discord_bot/account_merge_store.py), [`appeals.py`](../../services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py), [`mongo_store.py`](../../services/discord-bot/src/xcore_discord_bot/mongo_store.py), [`punishment_store.py`](../../services/discord-bot/src/xcore_discord_bot/punishment_store.py), [`staff_actions.py`](../../services/discord-bot/src/xcore_discord_bot/staff_actions.py), [`store_mappers.py`](../../services/discord-bot/src/xcore_discord_bot/store_mappers.py)
 
 | Field | Type | Written by | Read by | Fallback when missing |
 |---|---|---|---|---|
 | `_id` | objectId | **plugin** `MuteDataRepository.java`<br>**bot** `punishment_store.py` | **plugin** `MuteDataRepository.java` |  |
 | `uuid` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `mongo_store.py` | **bot** MuteDoc requires it: find_mute raises on a mute without uuid |
-| `pid` | int32 \| null | **bot** `punishment_store.py`, `account_merge_store.py` | **bot** `store_mappers.py` | **bot** None when missing or the sentinel |
-| `case_number` | int32 \| null | **bot** `punishment_store.py` | **bot** `store_mappers.py` | **bot** None when missing or 0 |
+| `pid` | int32 \| null | **plugin** `Punishment.java`, `ModerationService.java`, `AccountMergeService.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `staff_actions.py`, `appeals.py` | **bot** None when missing or the sentinel: the logs leave the PID out, the appeal subject takes the PID of the player with the mute's uuid |
+| `case_number` | int32 \| null | **plugin** `Punishment.java`, `AccountMergeService.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py` | **bot** None when missing or 0 |
 | `name` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `mongo_store.py` | **plugin** "Unknown"; **bot** MuteDoc requires it; "Unknown" when blank |
 | `admin_name` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `mongo_store.py` | **plugin** "Unknown"; **bot** MuteDoc requires it; "Unknown" when blank |
 | `admin_discord_id` | string \| null | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py` | **plugin** ""; **bot** None when missing or blank |
@@ -105,8 +105,7 @@ At most one mute per player uuid; both writers replace the document by uuid and 
 
 Disagreements and constraints:
 
-- `pid`: The plugin's MuteData has no pid: the plugin never writes it, and a mute the plugin replaces (a new mute for the same player, or an account merge) loses the pid the bot wrote.
-- `case_number`: The plugin's MuteData has no case_number, so a mute the plugin replaces loses its case link (bans keep it: BanData has the field).
+- `case_number`: Nothing reads it back today: the case flows pass the number of the case they are working on.
 - `admin_discord_id`: The plugin writes "" for no moderator id, the bot writes null.
 - `expire_date`: The plugin's model allows a mute without expiry (Punishment.expireDate may be null, and its codec would then omit the field), but no command creates one today. The bot's MuteDoc requires a date, so such a mute would make find_mute raise.
 

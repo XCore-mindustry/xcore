@@ -35,23 +35,45 @@
     },
     "pid": {
       "oneOf": [{"$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32"}, {"type": "null"}],
-      "description": "Written by the bot only.",
-      "x-disagreement": "The plugin's MuteData has no pid: the plugin never writes it, and a mute the plugin replaces (a new mute for the same player, or an account merge) loses the pid the bot wrote.",
+      "description": "The muted player's PID; null or missing when unknown, and on mutes older plugins wrote. The bot shows it in the mute log and the audit entry of an unmute or a shortened mute; the appeal flow falls back to the player found by uuid.",
       "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/service/moderation/ModerationService.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/service/AccountMergeService.java"
+        ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
           "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
         ]
       },
-      "x-read-by": {"bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]},
-      "x-fallback": {"bot": "None when missing or the sentinel"}
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/staff_actions.py",
+          "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"
+        ]
+      },
+      "x-fallback": {
+        "bot": "None when missing or the sentinel: the logs leave the PID out, the appeal subject takes the PID of the player with the mute's uuid"
+      }
     },
     "case_number": {
       "oneOf": [{"$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32"}, {"type": "null"}],
-      "description": "Written by the bot only.",
-      "x-disagreement": "The plugin's MuteData has no case_number, so a mute the plugin replaces loses its case link (bans keep it: BanData has the field).",
-      "x-written-by": {"bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]},
-      "x-read-by": {"bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]},
+      "description": "The Discord case the mute came from. A mute issued in game has none, and a new mute replaces the case link of the one before it; an account merge keeps it on the moved mute.",
+      "x-note": "Nothing reads it back today: the case flows pass the number of the case they are working on.",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/service/AccountMergeService.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]
+      },
       "x-fallback": {"bot": "None when missing or 0"}
     },
     "name": {

@@ -431,8 +431,11 @@ public class AccountMergeService {
                     : muteDataRepository.findByUuid(targetWorking.uuid);
 
             if (targetMute == null || targetMute.expired()) {
+                // Still the mute its case is about, now on the surviving account and under its PID.
                 MuteData newMute = MuteData.builder()
                         .uuid(targetWorking.uuid)
+                        .pid(PlayerPids.orNull(targetWorking.pid))
+                        .caseNumber(sourceMute.caseNumber)
                         .name(targetWorking.nickname)
                         .adminName(sourceMute.adminName)
                         .adminDiscordId(sourceMute.adminDiscordId)
