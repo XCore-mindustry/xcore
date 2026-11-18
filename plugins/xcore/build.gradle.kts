@@ -80,6 +80,7 @@ dependencies {
     testImplementation(project(":libs:mindustry-testkit:fixtures"))
     testImplementation(libs.testcontainers.junit.jupiter)
     testImplementation(libs.testcontainers)
+    testImplementation(libs.json.schema.validator)
     testImplementation(libs.avaje.inject.test)
     testImplementation(toxopid.dependencies.arcCore)
     testImplementation(toxopid.dependencies.mindustryCore)
@@ -218,6 +219,11 @@ tasks.withType<Test>().configureEach {
     // reaching a deployment. Overridable with -PxcoreStrictThreads=false.
     val strictThreads = providers.gradleProperty("xcoreStrictThreads").orElse("true").get()
     systemProperty("xcore.strictThreads", strictThreads)
+
+    // The shared MongoDB contract: schemas and fixtures the bot and the website test against too.
+    val storage = rootProject.layout.projectDirectory.dir("protocol/storage")
+    inputs.dir(storage).withPropertyName("storageContract").withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty("xcore.storage.dir", storage.asFile.absolutePath)
 }
 
 tasks.test {

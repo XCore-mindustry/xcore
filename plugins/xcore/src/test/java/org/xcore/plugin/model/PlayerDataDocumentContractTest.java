@@ -12,17 +12,16 @@ import org.junit.jupiter.api.Test;
 import org.xcore.plugin.model.enums.IdentityDisplayMode;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The players document as the plugin writes it. XCore-discord-bot reads the same collection and
- * maps a copy of contract/player_document.json in its tests/fixtures, so a renamed field breaks one
- * side's tests instead of production. Change both copies together.
+ * The players document as the plugin writes it: protocol/storage/fixtures/players/valid/plugin-written.json,
+ * which the Discord bot and the website also read in their tests.
  */
 class PlayerDataDocumentContractTest {
     @Test
@@ -32,13 +31,14 @@ class PlayerDataDocumentContractTest {
         var document = new BsonDocument();
         codecs.get(PlayerData.class).encode(new BsonDocumentWriter(document), player(), EncoderContext.builder().build());
 
-        String expected;
-        try (var in = Objects.requireNonNull(getClass().getResourceAsStream("/contract/player_document.json"))) {
-            expected = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        }
+        var expected = BsonDocument.parse(Files.readString(Path.of(System.getProperty("xcore.storage.dir"),
+                "fixtures/players/valid/plugin-written.json")));
+        // Mongo assigns the id, and only the link operations write discord_link_generation.
+        expected.remove("_id");
+        expected.remove("discord_link_generation");
         // Relaxed JSON reads 1 the same whether it was stored as int or long, as the bot sees it.
         var relaxed = JsonWriterSettings.builder().outputMode(JsonMode.RELAXED).build();
-        assertThat(BsonDocument.parse(document.toJson(relaxed))).isEqualTo(BsonDocument.parse(expected));
+        assertThat(BsonDocument.parse(document.toJson(relaxed))).isEqualTo(expected);
     }
 
     // Every persisted field differs from its default; collections hold one item so their order is fixed.
