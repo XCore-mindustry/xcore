@@ -21,6 +21,7 @@ jobs:
       python: ${{ steps.filter.outputs.python }}
       web: ${{ steps.filter.outputs.web }}
       dev: ${{ steps.filter.outputs.dev }}
+      storage: ${{ steps.filter.outputs.storage }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v3
@@ -34,11 +35,15 @@ jobs:
               - '*.gradle.kts'
               - gradle.properties
               - gradlew
+            # The shared MongoDB contract: the plugin, the bot and the website all test against it.
+            storage-contract: &storage-contract
+              - protocol/storage/**
             web:
               - .github/workflows/ci.yml
               - .dockerignore
               - web/**
               - protocol/typescript/**
+              - *storage-contract
             dev:
               - .github/workflows/ci.yml
               - dev
@@ -82,6 +87,14 @@ jobs:
               - plugins/tilelogger/plugin.json
             protocol:
               - *python
+            # The inventory names the files that read and write each shared field; a rename in
+            # any of them must update it.
+            storage:
+              - .github/workflows/ci.yml
+              - *storage-contract
+              - plugins/xcore/src/main/**
+              - services/discord-bot/src/**
+              - web/src/lib/server/**
 
   gradle:
     needs: changes
@@ -176,6 +189,23 @@ jobs:
       - name: Built wheel installs
         working-directory: /tmp
         run: uv run --isolated --with "$GITHUB_WORKSPACE"/protocol/dist/*.whl python -c 'import xcore_protocol'
+
+  storage-inventory:
+    needs: changes
+    if: needs.changes.outputs.storage == 'true'
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.11"
+    defaults:
+      run:
+        working-directory: protocol
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv python install 3.11
+      - run: uv sync --locked --package xcore-protocol --extra dev
+      - name: Storage schemas, fixtures and inventory
+        run: uv run --no-sync pytest storage
 
   tilelogger-native:
     needs: changes
@@ -344,7 +374,7 @@ jobs:
 
   # The only required check. Jobs skipped by the path filter count as passed.
   ci-ok:
-    needs: [changes, gradle, menu-render, renderer-selfcheck, protocol, tilelogger-native, python-services, gateway-compat, python-images, web, dev]
+    needs: [changes, gradle, menu-render, renderer-selfcheck, protocol, storage-inventory, tilelogger-native, python-services, gateway-compat, python-images, web, dev]
     if: always()
     runs-on: ubuntu-latest
     steps:
