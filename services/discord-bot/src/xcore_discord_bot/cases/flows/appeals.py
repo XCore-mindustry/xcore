@@ -102,7 +102,9 @@ def _valid_ban(ban) -> bool:
         and bool(ban.uuid or ban.ip)
         and (
             not ban.admin_discord_id
-            or ban.admin_discord_id.isdigit()
+            # isdigit() alone accepts digits such as "²" that int() rejects.
+            or ban.admin_discord_id.isascii()
+            and ban.admin_discord_id.isdigit()
             and int(ban.admin_discord_id) > 0
         )
     )

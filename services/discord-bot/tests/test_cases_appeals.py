@@ -180,6 +180,15 @@ async def test_active_expiry_including_permanent(expiry):
     assert case.payload["ban_snapshot"]["expire_date"] == expiry
 
 
+@pytest.mark.parametrize("expiry", [NOW + timedelta(days=1), None, "missing"])
+def test_a_moderator_id_with_non_ascii_digits_is_not_a_ban(expiry):
+    # "²".isdigit() is true, but int("²") raises.
+    row = ban_row(admin_discord_id="\u00b2", expire_date=expiry)
+    if expiry == "missing":
+        del row["expire_date"]
+    assert appeals._row_ban(row) is None
+
+
 async def test_permanent_ban_from_the_game_server_can_be_appealed():
     # The plugin's codec leaves a null expire_date out of the document.
     ban = ban_row()
