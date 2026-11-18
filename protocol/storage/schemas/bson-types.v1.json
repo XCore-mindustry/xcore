@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:xcore:storage:bson-types:v1",
   "title": "BSON types in Extended JSON",
-  "description": "Fixtures are relaxed Extended JSON; a writer's output is checked in canonical Extended JSON, so the width of a number is part of the contract where a field says so.",
+  "description": "Fixtures are relaxed Extended JSON; a writer's output is checked in canonical Extended JSON, so the width of a number is part of the contract where a field says so. Canonical wrappers come from real BSON values, whose type already bounds them; only their sign is checked where a field needs it.",
   "$defs": {
     "objectId": {
       "type": "object",
@@ -33,14 +33,51 @@
       "description": "Stored as a 32-bit integer.",
       "oneOf": [{"type": "integer", "minimum": -2147483648, "maximum": 2147483647}, {"$ref": "#/$defs/canonicalInt32"}]
     },
-    "int64": {"description": "Stored as a 64-bit integer.", "oneOf": [{"type": "integer"}, {"$ref": "#/$defs/canonicalInt64"}]},
+    "int64": {
+      "description": "Stored as a 64-bit integer.",
+      "oneOf": [{"type": "integer", "minimum": -9223372036854775808, "maximum": 9223372036854775807}, {"$ref": "#/$defs/canonicalInt64"}]
+    },
     "integer": {
       "description": "Stored as a 32- or 64-bit integer; every reader accepts both.",
-      "oneOf": [{"type": "integer"}, {"$ref": "#/$defs/canonicalInt32"}, {"$ref": "#/$defs/canonicalInt64"}]
+      "oneOf": [
+        {"type": "integer", "minimum": -9223372036854775808, "maximum": 9223372036854775807},
+        {"$ref": "#/$defs/canonicalInt32"},
+        {"$ref": "#/$defs/canonicalInt64"}
+      ]
     },
     "number": {
       "description": "Any BSON number.",
       "oneOf": [{"type": "number"}, {"$ref": "#/$defs/canonicalInt32"}, {"$ref": "#/$defs/canonicalInt64"}, {"$ref": "#/$defs/canonicalDouble"}]
+    },
+    "positiveInt32": {
+      "description": "A 32-bit integer of at least 1.",
+      "oneOf": [
+        {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["$numberInt"],
+          "properties": {"$numberInt": {"type": "string", "pattern": "^[1-9][0-9]*$"}}
+        }
+      ]
+    },
+    "positiveInteger": {
+      "description": "A 32- or 64-bit integer of at least 1.",
+      "oneOf": [
+        {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["$numberInt"],
+          "properties": {"$numberInt": {"type": "string", "pattern": "^[1-9][0-9]*$"}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["$numberLong"],
+          "properties": {"$numberLong": {"type": "string", "pattern": "^[1-9][0-9]*$"}}
+        }
+      ]
     }
   }
 }

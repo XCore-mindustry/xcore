@@ -14,10 +14,10 @@
         "web": ["web/src/lib/server/player-totals.ts", "web/src/lib/server/stats.ts"]
       },
       "notes": [
-        "Materialized per-player stats, keyed by uuid. Readers refuse schema_version other than 1 and follow redirect_uuid after merges.",
+        "Materialized per-player stats, keyed by uuid. Every reader follows redirect_uuid after merges.",
         "The bot's account merge writes the same invalidation as the plugin (revision, rebuild.dirty, rebuild.queued_at, status, schema_version) but $inc's revision by an int32 1 where the plugin uses an int64.",
         "V10 stamps rules_version so a server still on the old jar does not claim these players; neither the plugin's invalidation nor the bot's merge sets rules_version on a new document, so those stay claimable by old jars.",
-        "The website checks schema_version before status, the bot checks status first: a pending document without schema_version is an error on the site and 'pending' in Discord."
+        "The plugin (PlayerTotalsView) and the bot check status before schema_version, the website the other way round: a pending document with an unknown schema_version is 'pending' in game and in Discord and an error on the site."
       ]
     },
     "games_v2": {

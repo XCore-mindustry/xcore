@@ -36,12 +36,12 @@ One ban per document. A ban matches a player by uuid or by ip; unbanning deletes
 | Field | Type | Written by | Read by | Fallback when missing |
 |---|---|---|---|---|
 | `_id` | objectId | **plugin** `BanDataRepository.java`<br>**bot** `punishment_store.py` | **plugin** `BanDataRepository.java`<br>**bot** `punishment_store.py` |  |
-| `ban_id` | int32 | **plugin** `BanData.java`, `V7__AssignBanIds.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `BanData.java`<br>**bot** `store_mappers.py`, `appeals.py` | **bot** None when missing or 0; appeals reject a ban_id that is not a positive int |
+| `ban_id` | positiveInt32 | **plugin** `BanData.java`, `V7__AssignBanIds.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `BanData.java`<br>**bot** `store_mappers.py`, `appeals.py` | **bot** None when missing or 0; appeals reject a ban_id that is not a positive int |
 | `uuid` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `punishment_store.py`, `appeals.py` | **bot** None when blank |
 | `ip` | string \| null | **plugin** `BanData.java`, `BanDataRepository.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `BanData.java`<br>**bot** `store_mappers.py`, `punishment_store.py`, `appeals.py` | **bot** None when blank |
 | `pid` | int32 \| null | **plugin** `BanData.java`, `V7__AssignBanIds.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `BanData.java`<br>**bot** `store_mappers.py`, `appeals.py` | **plugin** looked up from players by uuid on save and on lazy ban_id assignment; **bot** None when missing or the sentinel |
 | `case_number` | int32 \| null | **plugin** `BanData.java`<br>**bot** `punishment_store.py` | **plugin** `BanData.java`<br>**bot** `store_mappers.py` | **bot** None when missing or 0 |
-| `name` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `punishment_store.py` | **plugin** "Unknown"; **bot** "Unknown" when missing or blank |
+| `name` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `punishment_store.py`, `appeals.py` | **plugin** "Unknown"; **bot** "Unknown" when missing or blank; "" in the appeal flow |
 | `admin_name` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `appeals.py` | **plugin** "Unknown"; **bot** "Unknown" when missing or blank |
 | `admin_discord_id` | string \| null | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `appeals.py` | **plugin** ""; **bot** None when missing or blank |
 | `reason` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `appeals.py` | **plugin** "Not Specified"; **bot** "Not Specified" when missing or blank |
@@ -75,6 +75,7 @@ Sequences and singletons, one document per _id. Every allocation is a findOneAnd
 
 Disagreements and constraints:
 
+- `banId`: Ban numbers are 32-bit: the highest both allocators can hand out is 2147483647. Past it the plugin has already advanced seq when Math.toIntExact throws, so every later allocation fails too, while the bot returns the out-of-range number and stores it as an int64 ban_id that the unique index does not cover.
 - `playerId`: The plugin reads seq with Document.getInteger, so an int64 seq here would make every new player fail to save.
 
 ## `mutes`
@@ -111,7 +112,7 @@ Disagreements and constraints:
 
 ## `players`
 
-One document per Mindustry UUID. The plugin saves a player with {$set: <every field it models>} rather than replacing the document, so fields written by others or by older versions survive its saves. Any field can be missing on a document an older plugin created.
+One document per Mindustry UUID. The plugin saves a player with {$set: <every field it models>} rather than replacing the document, so fields written by others or by older versions survive its saves. Those saves leave out every discord_* field: only the link operations and the account merges write them. Any field can be missing on a document an older plugin created.
 
 - **plugin**: [`V1__InitModernDatabase.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V1__InitModernDatabase.java), [`BanDataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java), [`PlayerDataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java), [`ModelData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java), [`PlayerData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java)
 - **bot**: [`account_merge_store.py`](../../services/discord-bot/src/xcore_discord_bot/account_merge_store.py), [`mongo_store.py`](../../services/discord-bot/src/xcore_discord_bot/mongo_store.py), [`rating_store.py`](../../services/discord-bot/src/xcore_discord_bot/rating_store.py), [`store_mappers.py`](../../services/discord-bot/src/xcore_discord_bot/store_mappers.py)
@@ -179,10 +180,10 @@ No schema yet.
 - **bot**: [`account_merge_store.py`](../../services/discord-bot/src/xcore_discord_bot/account_merge_store.py), [`game_stats.py`](../../services/discord-bot/src/xcore_discord_bot/game_stats.py)
 - **web**: [`player-totals.ts`](../../web/src/lib/server/player-totals.ts), [`stats.ts`](../../web/src/lib/server/stats.ts)
 
-- Materialized per-player stats, keyed by uuid. Readers refuse schema_version other than 1 and follow redirect_uuid after merges.
+- Materialized per-player stats, keyed by uuid. Every reader follows redirect_uuid after merges.
 - The bot's account merge writes the same invalidation as the plugin (revision, rebuild.dirty, rebuild.queued_at, status, schema_version) but $inc's revision by an int32 1 where the plugin uses an int64.
 - V10 stamps rules_version so a server still on the old jar does not claim these players; neither the plugin's invalidation nor the bot's merge sets rules_version on a new document, so those stay claimable by old jars.
-- The website checks schema_version before status, the bot checks status first: a pending document without schema_version is an error on the site and 'pending' in Discord.
+- The plugin (PlayerTotalsView) and the bot check status before schema_version, the website the other way round: a pending document with an unknown schema_version is 'pending' in game and in Discord and an error on the site.
 
 ## `games_v2`
 

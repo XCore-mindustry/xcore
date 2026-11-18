@@ -30,14 +30,18 @@ def load(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def schemas() -> dict[str, dict[str, Any]]:
-    """Collection name to schema, for every collection with one."""
+def schema_paths() -> dict[str, Path]:
+    """Collection name to its schema file, for every collection with one."""
     found = {}
     for path in sorted(SCHEMAS.glob("*.json")):
         schema = load(path)
         if "x-collection" in schema:
-            found[schema["x-collection"]] = schema
+            found[schema["x-collection"]] = path
     return found
+
+
+def schemas() -> dict[str, dict[str, Any]]:
+    return {collection: load(path) for collection, path in schema_paths().items()}
 
 
 def validator(collection: str):
@@ -86,8 +90,8 @@ def declared(collection: str) -> set[str]:
 def literal_misses() -> list[str]:
     """Annotations naming a file that does not mention the field, or a file that does not exist.
 
-    A rename on either side leaves the old name in the schema and drops it from the file, so the
-    inventory cannot quietly go stale.
+    This checks a mention, not a read or a write: a renamed access is caught only once the old
+    name is gone from the file, not while a comment or another access still mentions it.
     """
     misses = []
     for collection, schema in schemas().items():
@@ -173,12 +177,13 @@ def inventory() -> str:
         "|---|---|---|---|",
     ]
     described = schemas()
+    paths = schema_paths()
     rows = []
     for collection, schema in described.items():
         props = schema["properties"].values()
         writers = {c for p in props for c in p.get("x-written-by", {})}
         readers = {c for p in props for c in p.get("x-read-by", {})}
-        rows.append((collection, f"[{collection}.v1](schemas/{collection}.v1.json)",
+        rows.append((collection, f"[{paths[collection].stem}](schemas/{paths[collection].name})",
                      ", ".join(c for c in COMPONENTS if c in writers), ", ".join(c for c in COMPONENTS if c in readers)))
     for collection, entry in shared["shared"].items():
         rows.append((collection, "—", _components(entry["writers"]), _components(entry["readers"])))

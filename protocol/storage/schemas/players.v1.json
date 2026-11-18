@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:xcore:storage:players:v1",
   "title": "players",
-  "description": "One document per Mindustry UUID. The plugin saves a player with {$set: <every field it models>} rather than replacing the document, so fields written by others or by older versions survive its saves. Any field can be missing on a document an older plugin created.",
+  "description": "One document per Mindustry UUID. The plugin saves a player with {$set: <every field it models>} rather than replacing the document, so fields written by others or by older versions survive its saves. Those saves leave out every discord_* field: only the link operations and the account merges write them. Any field can be missing on a document an older plugin created.",
   "x-collection": "players",
   "x-owner": "plugin",
   "type": "object",

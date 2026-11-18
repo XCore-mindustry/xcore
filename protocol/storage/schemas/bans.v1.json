@@ -22,8 +22,7 @@
       }
     },
     "ban_id": {
-      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32",
-      "minimum": 1,
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/positiveInt32",
       "description": "Public ban number, from counters.ban_id. Missing on bans older than V7 that nobody has looked at since; both components assign one lazily.",
       "x-note": "Must be a 32-bit int: the unique index on ban_id only covers {$type: 'int'}, so an int64 copy would escape it.",
       "x-written-by": {
@@ -129,9 +128,13 @@
       },
       "x-read-by": {
         "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
-        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"
+        ]
       },
-      "x-fallback": {"plugin": "\"Unknown\"", "bot": "\"Unknown\" when missing or blank"}
+      "x-fallback": {"plugin": "\"Unknown\"", "bot": "\"Unknown\" when missing or blank; \"\" in the appeal flow"}
     },
     "admin_name": {
       "type": "string",

@@ -32,8 +32,9 @@ Each field in a schema says who uses it, with the files that do:
 - `x-disagreement` — where the components do not agree on the field. Recorded, not resolved.
 - `x-note` — a constraint the type alone does not show.
 
-The protocol tests check that every named file mentions the field, so renaming a field in code
-without updating the schema fails.
+The protocol tests check that every named file still mentions the field. This catches a field
+renamed in code once the old name is gone from the file; it does not prove the file reads or writes
+the field. The components' contract tests check the actual reads and writes.
 
 ## What the tests check
 
@@ -55,8 +56,10 @@ CI runs all of them when anything under `protocol/storage/` changes.
 3. A plugin migration that changes a collection with a schema needs fixtures in
    `migrations/V<n>/before/<collection>` and `after/<collection>`. The plugin's tests run every
    migration over every stored shape and fail if it changes one without them; they also replay
-   `before` and compare with `after`. A collection without an `after` directory must come out
-   unchanged. The bot's and the website's tests read both sides.
+   `before` and compare with `after`; an empty `after/<collection>` directory (keep a `.gitkeep`
+   in it) means the migration leaves no documents. The bot's and the website's tests read both
+   sides, and both must pass the current schema: while servers can still write the `before` shape,
+   the schema has to accept it.
 4. Migrations up to V11 predate this contract and need no fixtures; V7 has some as an example.
 
 ## Adding a collection

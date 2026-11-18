@@ -59,7 +59,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["_id", "seq"],
-      "properties": {"_id": {"const": "ban_id"}, "seq": {"$ref": "urn:xcore:storage:bson-types:v1#/$defs/integer", "minimum": 1}}
+      "properties": {"_id": {"const": "ban_id"}, "seq": {"$ref": "urn:xcore:storage:bson-types:v1#/$defs/positiveInteger"}},
+      "x-note": "Ban numbers are 32-bit: the highest both allocators can hand out is 2147483647. Past it the plugin has already advanced seq when Math.toIntExact throws, so every later allocation fails too, while the bot returns the out-of-range number and stores it as an int64 ban_id that the unique index does not cover."
     },
     "playerId": {
       "description": "Player PIDs. Plugin only.",
