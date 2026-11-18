@@ -181,7 +181,7 @@
     "expire_date": {
       "oneOf": [{"$ref": "urn:xcore:storage:bson-types:v1#/$defs/date"}, {"type": "null"}],
       "description": "When the ban ends. A permanent ban has null or no expire_date. Old rows can hold dates past year 9999, which Python cannot represent.",
-      "x-disagreement": "A permanent ban from the plugin has no expire_date (its codec skips nulls); one from the bot has expire_date: null. The bot's appeal flow (cases/flows/appeals.py _row_ban) treats a row without the key as no ban at all, so a permanent ban issued in game cannot be appealed from Discord.",
+      "x-disagreement": "A permanent ban from the plugin has no expire_date (its codec skips nulls); one from the bot has expire_date: null. Every reader treats both as permanent.",
       "x-written-by": {
         "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
         "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
@@ -194,7 +194,10 @@
           "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"
         ]
       },
-      "x-fallback": {"bot": "list_bans re-reads the page with expire_date as a long when a date is out of Python's range"}
+      "x-fallback": {
+        "bot": "permanent when missing or null; list_bans re-reads the page with expire_date as a long when a date is out of Python's range",
+        "plugin": "permanent when missing or null"
+      }
     },
     "created_at": {
       "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",

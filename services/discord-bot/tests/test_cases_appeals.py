@@ -180,6 +180,15 @@ async def test_active_expiry_including_permanent(expiry):
     assert case.payload["ban_snapshot"]["expire_date"] == expiry
 
 
+async def test_permanent_ban_from_the_game_server_can_be_appealed():
+    # The plugin's codec leaves a null expire_date out of the document.
+    ban = ban_row()
+    del ban["expire_date"]
+    service, _, bot, *_ = await appeal_core(bans=[ban])
+    case = await opened(service, bot)
+    assert case.payload["ban_snapshot"]["expire_date"] is None
+
+
 @pytest.mark.parametrize(
     "change",
     [

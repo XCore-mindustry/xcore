@@ -14,9 +14,10 @@ Moderation is where this costs the most. `bans`, `mutes`, the `ban_id` sequence 
 `moderation_audit` are each written by the plugin and by the bot:
 
 - **Two shapes for the same fact.** A permanent ban from the plugin has no `expire_date` (its POJO
-  codec skips nulls); one from the bot has `expire_date: null`. The bot's appeal flow treats a row
-  without the key as no ban, so a permanent ban issued in game cannot be appealed from Discord.
-  "No IP" and "no moderator id" have two or three shapes each in the same way.
+  codec skips nulls); one from the bot has `expire_date: null`. Until the storage contract surfaced
+  it, the bot's appeal flow treated a row without the key as no ban, so a permanent ban issued in
+  game could not be appealed from Discord. "No IP" and "no moderator id" have two or three shapes
+  each in the same way.
 - **Fields lost on rewrite.** The bot writes `pid` and `case_number` on mutes. The plugin's
   `MuteData` has neither, and its save replaces the document, so the next plugin write of that
   mute drops both.
@@ -103,9 +104,9 @@ overwrite, give that collection a `schema_version` and a guarded write, as V10 d
   twice, as `account_operation_receipts` does for linking.
 
 ## Rollout
-1. Fix the shape disagreements in place while both writers exist: the appeal reader accepts a ban
-   without `expire_date`, and `MuteData` keeps `pid` and `case_number`. Each fix updates the
-   schema and fixtures in `protocol/storage`.
+1. Fix the shape disagreements in place while both writers exist: `MuteData` keeps `pid` and
+   `case_number` (the appeal reader already accepts a ban without `expire_date`). Each fix updates
+   the schema and fixtures in `protocol/storage`.
 2. Add `moderation.*.request` / `.response` RPC messages for ban, unban, mute, unmute, IP release
    and expiry changes, with receipts, and handle them in `ModerationService`.
 3. Switch the bot to the RPC per operation, keeping the direct write as a fallback while servers

@@ -45,7 +45,7 @@ One ban per document. A ban matches a player by uuid or by ip; unbanning deletes
 | `admin_name` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `appeals.py` | **plugin** "Unknown"; **bot** "Unknown" when missing or blank |
 | `admin_discord_id` | string \| null | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `appeals.py` | **plugin** ""; **bot** None when missing or blank |
 | `reason` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `appeals.py` | **plugin** "Not Specified"; **bot** "Not Specified" when missing or blank |
-| `expire_date` | date \| null | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `punishment_store.py`, `appeals.py` | **bot** list_bans re-reads the page with expire_date as a long when a date is out of Python's range |
+| `expire_date` | date \| null | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `punishment_store.py`, `appeals.py` | **plugin** permanent when missing or null; **bot** permanent when missing or null; list_bans re-reads the page with expire_date as a long when a date is out of Python's range |
 | `created_at` | int64 | **plugin** `ModelData.java` | **plugin** `ModelData.java` |  |
 | `updated_at` | int64 | **plugin** `ModelData.java` | **plugin** `ModelData.java` |  |
 | `deleted_at` | int64 | **plugin** `ModelData.java` | **plugin** `ModelData.java` |  |
@@ -58,7 +58,7 @@ Disagreements and constraints:
 - `ban_id`: Must be a 32-bit int: the unique index on ban_id only covers {$type: 'int'}, so an int64 copy would escape it.
 - `ip`: No IP has three shapes: the plugin omits the field (its codec skips nulls) and releases an IP with {$set: null}, the bot writes null, and the bot's account merge removes it with $unset. Every reader treats all three alike.
 - `admin_discord_id`: The plugin writes "" for no moderator id, the bot writes null. The bot normalises both to None; the plugin passes the raw value on.
-- `expire_date`: A permanent ban from the plugin has no expire_date (its codec skips nulls); one from the bot has expire_date: null. The bot's appeal flow (cases/flows/appeals.py _row_ban) treats a row without the key as no ban at all, so a permanent ban issued in game cannot be appealed from Discord.
+- `expire_date`: A permanent ban from the plugin has no expire_date (its codec skips nulls); one from the bot has expire_date: null. Every reader treats both as permanent.
 
 ## `counters`
 
