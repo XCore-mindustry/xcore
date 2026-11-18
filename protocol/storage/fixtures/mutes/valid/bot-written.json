@@ -1,0 +1,11 @@
+{
+  "_id": {"$oid": "6650a1b2c3d4e5f602000002"},
+  "case_number": 2103,
+  "uuid": "uuid-muted-2",
+  "pid": 1302,
+  "name": "Rude",
+  "admin_name": "Discord Mod",
+  "admin_discord_id": null,
+  "reason": "insults",
+  "expire_date": {"$date": "2026-06-02T00:00:00Z"}
+}

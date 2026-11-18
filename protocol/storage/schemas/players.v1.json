@@ -1,0 +1,523 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:storage:players:v1",
+  "title": "players",
+  "description": "One document per Mindustry UUID. The plugin saves a player with {$set: <every field it models>} rather than replacing the document, so fields written by others or by older versions survive its saves. Those saves leave out every discord_* field: only the link operations and the account merges write them. Any field can be missing on a document an older plugin created.",
+  "x-collection": "players",
+  "x-owner": "plugin",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["_id", "uuid"],
+  "properties": {
+    "_id": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/objectId",
+      "description": "The plugin decodes players into a POJO whose id is an ObjectId.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"]},
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      }
+    },
+    "uuid": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Mindustry UUID. A closed account after a merge has \"merged:\" + its old uuid.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java"
+        ],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py",
+          "services/discord-bot/src/xcore_discord_bot/mongo_store.py",
+          "services/discord-bot/src/xcore_discord_bot/rating_store.py"
+        ],
+        "web": ["web/src/lib/server/stats.ts", "web/src/lib/server/accounts.ts"]
+      },
+      "x-fallback": {"bot": "None when blank", "web": "\"\""}
+    },
+    "pid": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32",
+      "description": "Public player number from counters.player_id. Signed; -2147483648 means not assigned yet.",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java"
+        ],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py",
+          "services/discord-bot/src/xcore_discord_bot/mongo_store.py",
+          "services/discord-bot/src/xcore_discord_bot/rating_store.py"
+        ],
+        "web": ["web/src/lib/server/stats.ts", "web/src/lib/server/accounts.ts"]
+      },
+      "x-fallback": {"bot": "-2147483648 when missing", "web": "0 when missing (safeInt); search and leaderboards skip the sentinel"}
+    },
+    "username": {
+      "type": "string",
+      "description": "Login name; \"\" when none. Unique, case-insensitively, among non-empty values.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/mongo_store.py"],
+        "web": ["web/src/lib/server/stats.ts"]
+      },
+      "x-fallback": {"bot": "None when blank", "web": "null when empty"}
+    },
+    "can_change_username": {
+      "type": "boolean",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
+    },
+    "identity_display_mode": {
+      "enum": ["PID", "USERNAME", "BOTH", "NONE"],
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-fallback": {"plugin": "BOTH"}
+    },
+    "last_ip": {
+      "type": "string",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-fallback": {"bot": "None when blank"}
+    },
+    "nickname": {
+      "type": "string",
+      "description": "In-game name with its colour tags.",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py",
+          "services/discord-bot/src/xcore_discord_bot/mongo_store.py",
+          "services/discord-bot/src/xcore_discord_bot/rating_store.py"
+        ],
+        "web": ["web/src/lib/server/stats.ts", "web/src/lib/server/accounts.ts"]
+      },
+      "x-fallback": {"plugin": "\"Unknown\"", "bot": "\"Unknown\" when missing or blank", "web": "\"Unknown\" when missing"}
+    },
+    "custom_nickname": {
+      "type": "string",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py",
+          "services/discord-bot/src/xcore_discord_bot/mongo_store.py"
+        ]
+      },
+      "x-fallback": {"bot": "None when blank"}
+    },
+    "description": {
+      "type": "string",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"],
+        "web": ["web/src/lib/server/stats.ts"]
+      },
+      "x-fallback": {"bot": "None when blank", "web": "null when empty"}
+    },
+    "password_hash": {
+      "type": "string",
+      "description": "bcrypt hash, or \"\".",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ]
+      },
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
+    },
+    "device_token_hashes": {
+      "type": "array",
+      "items": {"type": "string"},
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      }
+    },
+    "device_tokens": {
+      "type": "object",
+      "additionalProperties": {"$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64"},
+      "description": "Token hash to expiry in epoch milliseconds.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      }
+    },
+    "local_language": {
+      "type": "string",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]
+      },
+      "x-fallback": {"plugin": "\"auto\"", "bot": "None when blank"}
+    },
+    "translator_language": {
+      "type": "string",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]
+      },
+      "x-fallback": {"plugin": "\"off\"", "bot": "None when blank"}
+    },
+    "show_global_chat": {
+      "type": "boolean",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
+    },
+    "show_discord_relay": {
+      "type": "boolean",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
+    },
+    "legacy_pvp_rating": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32",
+      "description": "The PvP rating from before the Elo ladders, kept by V4.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
+    },
+    "hexed_rank": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32",
+      "description": "Index into the plugin's HexedRanks.",
+      "x-disagreement": "The bot's account merge recomputes the rank from hexed_points with its own copy of the thresholds (0, 3, 10, 20, 25, 30); the plugin's HexedRanks holds the original.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"],
+        "web": ["web/src/lib/server/stats.ts"]
+      },
+      "x-fallback": {"plugin": "the first rank when out of range", "bot": "0", "web": "sort key only"}
+    },
+    "hexed_points": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"],
+        "web": ["web/src/lib/server/stats.ts"]
+      },
+      "x-fallback": {"bot": "0", "web": "0"}
+    },
+    "total_play_time": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32",
+      "description": "Minutes.",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"],
+        "web": ["web/src/lib/server/stats.ts"]
+      },
+      "x-fallback": {"bot": "0", "web": "0"}
+    },
+    "event_votes": {
+      "type": "object",
+      "additionalProperties": {"type": "boolean"},
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ]
+      },
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
+    },
+    "map_votes": {
+      "type": "object",
+      "additionalProperties": {"type": "boolean"},
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ]
+      },
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
+    },
+    "blocked_private_uuids": {
+      "type": "array",
+      "items": {"type": "string"},
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      }
+    },
+    "unlocked_badges": {
+      "type": "array",
+      "items": {"type": "string"},
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/mongo_store.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"],
+        "web": ["web/src/lib/server/stats.ts"]
+      },
+      "x-fallback": {"bot": "() when not a list", "web": "[] when not an array"}
+    },
+    "active_badge": {
+      "type": "string",
+      "description": "\"\" when none.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/mongo_store.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py",
+          "services/discord-bot/src/xcore_discord_bot/mongo_store.py"
+        ],
+        "web": ["web/src/lib/server/stats.ts"]
+      },
+      "x-fallback": {"bot": "None when blank", "web": "null when empty"}
+    },
+    "badge_symbol_color_mode": {
+      "type": "string",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-fallback": {"plugin": "\"default\""}
+    },
+    "is_admin": {
+      "type": "boolean",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"], "web": ["web/src/lib/server/stats.ts"]},
+      "x-fallback": {"web": "false"}
+    },
+    "admin_source": {
+      "type": "string",
+      "description": "Where admin rights came from: NONE, DISCORD, ...; V2 set NONE on older documents.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
+    },
+    "leaderboard": {
+      "type": "boolean",
+      "description": "Whether the player appears on leaderboards.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]
+      },
+      "x-fallback": {"bot": "true"}
+    },
+    "discord_id": {
+      "type": "string",
+      "description": "\"\" when unlinked; missing on a player that was never linked, because ordinary saves leave discord_* to the link operations.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py",
+          "services/discord-bot/src/xcore_discord_bot/mongo_store.py"
+        ],
+        "web": ["web/src/lib/server/stats.ts", "web/src/lib/server/accounts.ts"]
+      },
+      "x-fallback": {"plugin": "\"\"; link filters match \"\" or missing", "bot": "None when blank", "web": "falsy means unlinked"}
+    },
+    "discord_username": {
+      "type": "string",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-fallback": {"bot": "None when blank"}
+    },
+    "discord_linked_at": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/integer",
+      "description": "Epoch milliseconds of the current link, 0 when unlinked. Also the optimistic-lock token of unlink.",
+      "x-disagreement": "The plugin writes an int64 kept monotonic through discord_link_generation; the bot's account merge writes a plain int (0 is stored as int32) and does not advance discord_link_generation. Every reader compares numerically, so the width is harmless.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"],
+        "web": ["web/src/lib/server/accounts.ts"]
+      },
+      "x-fallback": {"plugin": "0; unlink matches 0 or missing", "bot": "None when missing", "web": "0"}
+    },
+    "discord_link_generation": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "description": "Highest discord_linked_at ever written, so a relink in the same millisecond still moves forward.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"]}
+    },
+    "online": {
+      "type": "boolean",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"],
+        "web": ["web/src/lib/server/stats.ts", "web/src/lib/server/accounts.ts"]
+      },
+      "x-fallback": {"bot": "false", "web": "false"}
+    },
+    "online_since": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "description": "Epoch milliseconds, 0 when offline.",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]
+      }
+    },
+    "online_server": {
+      "type": "string",
+      "description": "\"\" when offline.",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"],
+        "web": ["web/src/lib/server/stats.ts", "web/src/lib/server/accounts.ts"]
+      },
+      "x-fallback": {"bot": "None when blank", "web": "ignored unless online"}
+    },
+    "created_at": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "description": "Epoch milliseconds.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"],
+        "web": ["web/src/lib/server/stats.ts"]
+      },
+      "x-fallback": {"web": "created_model_time, then null"}
+    },
+    "created_model_time": {
+      "not": {},
+      "description": "No document has this field.",
+      "x-disagreement": "The website falls back to created_model_time when created_at is missing. No writer has used that name: before V1 the field was createdModelTime, and V1 renamed it to created_at.",
+      "x-read-by": {"web": ["web/src/lib/server/stats.ts"]}
+    },
+    "updated_at": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]
+      }
+    },
+    "deleted_at": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "is_visible": {
+      "type": "boolean",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "visible": {
+      "type": "boolean",
+      "description": "A second copy of is_visible from Lombok's isVisible() getter. Nothing reads it.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "version": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/integer",
+      "description": "Always 1 on new documents. Not a schema version: nothing increments it. int64 from the plugin's model; int32 on documents V1 back-filled.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "admin_confirmed": {
+      "type": "boolean",
+      "description": "Legacy: copied from the old admins collection by V1. The plugin no longer has the field, but its partial saves ($set) keep it.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V1__InitModernDatabase.java"]}
+    }
+  }
+}

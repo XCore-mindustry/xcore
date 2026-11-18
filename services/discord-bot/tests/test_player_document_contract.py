@@ -6,12 +6,11 @@ from pathlib import Path
 from xcore_discord_bot.dto import PlayerRecord
 from xcore_discord_bot.store_mappers import player_record_from_doc
 
-# The players document as XCore-plugin writes it. PlayerDataDocumentContractTest in the plugin
-# checks its own copy against the real codec; change both copies together.
-FIXTURE = Path(__file__).with_name("fixtures") / "player_document.json"
-PLUGIN_COPY = (
+# The players document as XCore-plugin writes it, from the shared storage contract.
+# PlayerDataDocumentContractTest in the plugin checks the same file against the real codec.
+FIXTURE = (
     Path(__file__).resolve().parents[3]
-    / "plugins/xcore/src/test/resources/contract/player_document.json"
+    / "protocol/storage/fixtures/players/valid/plugin-written.json"
 )
 
 
@@ -46,7 +45,3 @@ def test_maps_every_field_the_plugin_writes() -> None:
         created_at=1700000000003,
         updated_at=1700000000004,
     )
-
-
-def test_fixture_matches_the_plugin_copy() -> None:
-    assert json.loads(FIXTURE.read_text()) == json.loads(PLUGIN_COPY.read_text())

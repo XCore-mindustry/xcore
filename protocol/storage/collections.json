@@ -1,0 +1,157 @@
+{
+  "shared": {
+    "player_totals": {
+      "writers": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/service/stats/PlayerTotalsStore.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V10__SeparateTowerDefenceAndRvsbStats.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "readers": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/service/stats/PlayerTotalsStore.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/game_stats.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"],
+        "web": ["web/src/lib/server/player-totals.ts", "web/src/lib/server/stats.ts"]
+      },
+      "notes": [
+        "Materialized per-player stats, keyed by uuid. Every reader follows redirect_uuid after merges.",
+        "The bot's account merge writes the same invalidation as the plugin (revision, rebuild.dirty, rebuild.queued_at, status, schema_version) but $inc's revision by an int32 1 where the plugin uses an int64.",
+        "V10 stamps rules_version so a server still on the old jar does not claim these players; neither the plugin's invalidation nor the bot's merge sets rules_version on a new document, so those stay claimable by old jars.",
+        "The plugin (PlayerTotalsView) and the bot check status before schema_version, the website the other way round: a pending document with an unknown schema_version is 'pending' in game and in Discord and an error on the site."
+      ]
+    },
+    "games_v2": {
+      "writers": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/GameDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/service/stats/PlayerTotalsStore.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V10__SeparateTowerDefenceAndRvsbStats.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "readers": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/GameDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/service/stats/PlayerTotalsStore.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/game_stats.py"],
+        "web": ["web/src/lib/server/stats.ts"]
+      },
+      "notes": [
+        "The bot's account merge rewrites player_stats.$[].uuid. stats_category values are shared with the bot and the website (V10 added TOWER_DEFENSE and RVSB)."
+      ]
+    },
+    "moderation_audit": {
+      "writers": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/AuditRecordRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V11__NormalizeAuditActors.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/audit_store.py"]
+      },
+      "readers": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/AuditRecordRepository.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/audit_store.py",
+          "services/discord-bot/src/xcore_discord_bot/staff_activity.py",
+          "services/discord-bot/src/xcore_discord_bot/cases/store.py",
+          "services/discord-bot/src/xcore_discord_bot/cases/flows/reports.py"
+        ]
+      },
+      "notes": ["V11 renamed actor._id to actor.id; a server on a jar older than V11 still writes actor._id until it restarts."]
+    },
+    "settings": {
+      "writers": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/MigrationService.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V8__CreatePlayerTotals.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/service/stats/PlayerTotalsStore.java"
+        ]
+      },
+      "readers": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/MigrationService.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/service/stats/PlayerTotalsStore.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/game_stats.py"],
+        "web": ["web/src/lib/server/stats.ts"]
+      },
+      "notes": ["Only the player_totals_backfill document (done) crosses components; db_version and migration_lock are the plugin's."]
+    },
+    "rating_seasons": {
+      "writers": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/rating/season/MongoSeasonStore.java"]},
+      "readers": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/rating/season/MongoSeasonStore.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/rating_store.py"],
+        "web": ["web/src/lib/server/stats.ts"]
+      }
+    },
+    "rating_standings": {
+      "writers": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/rating/ladder/MongoLadderStore.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V5__CreateRatingStandings.java"
+        ]
+      },
+      "readers": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/rating/ladder/MongoLadderStore.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/rating_store.py"],
+        "web": ["web/src/lib/server/stats.ts"]
+      }
+    },
+    "rating_matches": {
+      "writers": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/rating/match/MongoMatchStore.java"]},
+      "readers": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/rating/match/MongoMatchStore.java"], "web": ["web/src/lib/server/stats.ts"]},
+      "notes": ["The website reads both snake_case and camelCase names (match_id/matchId, rating_after/ratingAfter, team_sizes/teamSizes)."]
+    },
+    "rating_prize_grants": {
+      "writers": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/rating/prize/MongoPrizeGrantRepository.java"]},
+      "readers": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/rating/prize/MongoPrizeGrantRepository.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/rating_store.py"]
+      }
+    },
+    "case_notices": {
+      "writers": {
+        "bot": ["services/discord-bot/src/xcore_discord_bot/cases/store.py", "services/discord-bot/src/xcore_discord_bot/cases/service.py"],
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/cases/CaseNoticeRepository.java"]
+      },
+      "readers": {
+        "bot": ["services/discord-bot/src/xcore_discord_bot/cases/flows/reports.py"],
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/cases/CaseNoticeRepository.java"]
+      },
+      "notes": [
+        "The bot inserts notices; the plugin claims and marks them delivered (claim_token, claim_server, claim_until, delivered_at, delivered_server)."
+      ]
+    },
+    "staff_activity": {
+      "writers": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/StaffActivityStore.java"]},
+      "readers": {"bot": ["services/discord-bot/src/xcore_discord_bot/staff_activity.py"]}
+    },
+    "maps": {
+      "writers": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/MapDataRepository.java"]},
+      "readers": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/MapDataRepository.java"],
+        "web": ["web/src/lib/server/stats.ts"]
+      },
+      "notes": ["The website only resolves map names by _id."]
+    }
+  },
+  "single_component": {
+    "cases": "bot",
+    "case_panels": "bot",
+    "case_report_limits": "bot",
+    "discord_user_prefs": "bot",
+    "discord_season_posts": "bot",
+    "rating_merge_pending": "bot",
+    "web_account_intents": "web (its own database)",
+    "account_operation_receipts": "plugin",
+    "admins": "plugin (legacy, read by V1)",
+    "events": "plugin",
+    "map_entities": "plugin",
+    "map_uploads": "plugin",
+    "map_upload_history": "plugin",
+    "permission_grants": "plugin",
+    "private_messages": "plugin"
+  }
+}

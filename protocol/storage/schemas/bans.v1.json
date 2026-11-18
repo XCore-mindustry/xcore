@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:storage:bans:v1",
+  "title": "bans",
+  "description": "One ban per document. A ban matches a player by uuid or by ip; unbanning deletes the document.",
+  "x-collection": "bans",
+  "x-owner": "plugin",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["_id"],
+  "properties": {
+    "_id": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/objectId",
+      "description": "The plugin decodes bans into a POJO whose id is an ObjectId; any other _id fails to decode.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
+      }
+    },
+    "ban_id": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/positiveInt32",
+      "description": "Public ban number, from counters.ban_id. Missing on bans older than V7 that nobody has looked at since; both components assign one lazily.",
+      "x-note": "Must be a 32-bit int: the unique index on ban_id only covers {$type: 'int'}, so an int64 copy would escape it.",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V7__AssignBanIds.java"
+        ],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"]
+      },
+      "x-fallback": {"bot": "None when missing or 0; appeals reject a ban_id that is not a positive int"}
+    },
+    "uuid": {
+      "type": "string",
+      "description": "Missing when the plugin banned an IP alone.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"
+        ]
+      },
+      "x-fallback": {"bot": "None when blank"}
+    },
+    "ip": {
+      "type": ["string", "null"],
+      "description": "null once an IP was released from the ban; missing when the plugin wrote no IP or after an account merge.",
+      "x-disagreement": "No IP has three shapes: the plugin omits the field (its codec skips nulls) and releases an IP with {$set: null}, the bot writes null, and the bot's account merge removes it with $unset. Every reader treats all three alike.",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java"
+        ],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"
+        ]
+      },
+      "x-fallback": {"bot": "None when blank"}
+    },
+    "pid": {
+      "oneOf": [{"$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32"}, {"type": "null"}],
+      "description": "The banned player's PID; null or missing when unknown. Never the unassigned sentinel -2147483648.",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V7__AssignBanIds.java"
+        ],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"]
+      },
+      "x-fallback": {"plugin": "looked up from players by uuid on save and on lazy ban_id assignment", "bot": "None when missing or the sentinel"}
+    },
+    "case_number": {
+      "oneOf": [{"$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32"}, {"type": "null"}],
+      "description": "The Discord case the ban came from.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]
+      },
+      "x-fallback": {"bot": "None when missing or 0"}
+    },
+    "name": {
+      "type": "string",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"
+        ]
+      },
+      "x-fallback": {"plugin": "\"Unknown\"", "bot": "\"Unknown\" when missing or blank; \"\" in the appeal flow"}
+    },
+    "admin_name": {
+      "type": "string",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"]
+      },
+      "x-fallback": {"plugin": "\"Unknown\"", "bot": "\"Unknown\" when missing or blank"}
+    },
+    "admin_discord_id": {
+      "type": ["string", "null"],
+      "description": "Discord id of the moderator; empty or null when the ban came from the game console or an unlinked admin.",
+      "x-disagreement": "The plugin writes \"\" for no moderator id, the bot writes null. The bot normalises both to None; the plugin passes the raw value on.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"]
+      },
+      "x-fallback": {"plugin": "\"\"", "bot": "None when missing or blank"}
+    },
+    "reason": {
+      "type": "string",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
+        ]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py",
+          "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"
+        ]
+      },
+      "x-fallback": {"plugin": "\"Not Specified\"", "bot": "\"Not Specified\" when missing or blank"}
+    },
+    "expire_date": {
+      "oneOf": [{"$ref": "urn:xcore:storage:bson-types:v1#/$defs/date"}, {"type": "null"}],
+      "description": "When the ban ends. A permanent ban has null or no expire_date. Old rows can hold dates past year 9999, which Python cannot represent.",
+      "x-disagreement": "A permanent ban from the plugin has no expire_date (its codec skips nulls); one from the bot has expire_date: null. Every reader treats both as permanent.",
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
+          "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"
+        ]
+      },
+      "x-fallback": {
+        "bot": "permanent when missing or null; list_bans re-reads the page with expire_date as a long when a date is out of Python's range",
+        "plugin": "permanent when missing or null"
+      }
+    },
+    "created_at": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "description": "Epoch milliseconds. Only the plugin writes it; bans from the bot have none.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "updated_at": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "deleted_at": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "is_visible": {
+      "type": "boolean",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "visible": {
+      "type": "boolean",
+      "description": "A second copy of is_visible: the codec also maps Lombok's isVisible() getter. Nothing reads it.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    },
+    "version": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/integer",
+      "description": "Always 1. Not a schema version: nothing increments it. int64 from the plugin's model; int32 on documents V1 back-filled.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java"]}
+    }
+  }
+}

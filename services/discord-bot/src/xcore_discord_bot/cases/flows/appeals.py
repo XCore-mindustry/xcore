@@ -102,7 +102,9 @@ def _valid_ban(ban) -> bool:
         and bool(ban.uuid or ban.ip)
         and (
             not ban.admin_discord_id
-            or ban.admin_discord_id.isdigit()
+            # isdigit() alone accepts digits such as "²" that int() rejects.
+            or ban.admin_discord_id.isascii()
+            and ban.admin_discord_id.isdigit()
             and int(ban.admin_discord_id) > 0
         )
     )
@@ -124,7 +126,7 @@ def _same_subject(first: BanRecord, second: BanRecord) -> bool:
 
 
 def _row_ban(raw) -> BanRecord | None:
-    if raw is None or "expire_date" not in raw:
+    if raw is None:
         return None
     if raw.get("ban_id") is not None and (
         type(raw["ban_id"]) is not int or raw["ban_id"] <= 0
@@ -148,7 +150,8 @@ def _row_ban(raw) -> BanRecord | None:
         reason=raw.get("reason") or "",
         admin_name=raw.get("admin_name") or "",
         admin_discord_id=raw.get("admin_discord_id"),
-        expire_date=raw["expire_date"],
+        # A permanent ban from the game server has no expire_date at all.
+        expire_date=raw.get("expire_date"),
     )
     return current if _valid_ban(current) else None
 

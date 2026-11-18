@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:storage:counters:v1",
+  "title": "counters",
+  "description": "Sequences and singletons, one document per _id. Every allocation is a findOneAndUpdate with {$inc: {seq: 1}} and upsert, so concurrent writers never hand out a number twice.",
+  "x-collection": "counters",
+  "x-owner": "plugin",
+  "type": "object",
+  "required": ["_id"],
+  "oneOf": [{"$ref": "#/$defs/banId"}, {"$ref": "#/$defs/playerId"}, {"$ref": "#/$defs/caseNumber"}, {"$ref": "#/$defs/lastMapDecay"}],
+  "properties": {
+    "_id": {
+      "enum": ["ban_id", "player_id", "case_number", "last_map_decay"],
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/MapDataRepository.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py", "services/discord-bot/src/xcore_discord_bot/cases/store.py"]
+      },
+      "x-read-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/MapDataRepository.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py", "services/discord-bot/src/xcore_discord_bot/cases/store.py"]
+      }
+    },
+    "seq": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/integer",
+      "description": "The last number handed out.",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V7__AssignBanIds.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py", "services/discord-bot/src/xcore_discord_bot/cases/store.py"]
+      },
+      "x-read-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py", "services/discord-bot/src/xcore_discord_bot/cases/store.py"]
+      }
+    },
+    "time": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/MapDataRepository.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/MapDataRepository.java"]}
+    }
+  },
+  "$defs": {
+    "banId": {
+      "description": "Ban numbers, shared by the plugin and the bot. Both read seq as any integer and the plugin refuses a value below 1.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_id", "seq"],
+      "properties": {"_id": {"const": "ban_id"}, "seq": {"$ref": "urn:xcore:storage:bson-types:v1#/$defs/positiveInteger"}},
+      "x-note": "Ban numbers are 32-bit: the highest both allocators can hand out is 2147483647. Past it the plugin has already advanced seq when Math.toIntExact throws, so every later allocation fails too, while the bot returns the out-of-range number and stores it as an int64 ban_id that the unique index does not cover."
+    },
+    "playerId": {
+      "description": "Player PIDs. Plugin only.",
+      "x-note": "The plugin reads seq with Document.getInteger, so an int64 seq here would make every new player fail to save.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_id", "seq"],
+      "properties": {"_id": {"const": "player_id"}, "seq": {"$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32"}}
+    },
+    "caseNumber": {
+      "description": "Discord case numbers. Bot only; seeded at 2000.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_id", "seq"],
+      "properties": {"_id": {"const": "case_number"}, "seq": {"$ref": "urn:xcore:storage:bson-types:v1#/$defs/integer"}}
+    },
+    "lastMapDecay": {
+      "description": "When a server last decayed map popularity; a lease shared by every game server. Plugin only.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_id", "time"],
+      "properties": {"_id": {"const": "last_map_decay"}, "time": {"$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64"}}
+    }
+  }
+}

@@ -5,9 +5,10 @@ from __future__ import annotations
 
 import re
 from copy import deepcopy
+from datetime import datetime
 from types import SimpleNamespace
 
-from bson import ObjectId
+from bson import DatetimeMS, ObjectId
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
@@ -148,6 +149,16 @@ def order(value):
     return (1, value)
 
 
+def sortable(value):
+    """Dates past year 9999 decode as DatetimeMS; the server orders them with the others."""
+    if isinstance(value, DatetimeMS):
+        return int(value)
+    if isinstance(value, datetime):
+        # Exact milliseconds, a naive value read as UTC, as the driver encodes it.
+        return int(DatetimeMS(value))
+    return value
+
+
 def numbers(found):
     return [v for v in found if isinstance(v, int | float) and not isinstance(v, bool)]
 
@@ -245,7 +256,7 @@ class Cursor:
         fields = key if isinstance(key, list) else [(key, direction)]
         for name, order in reversed(fields):
             self.docs.sort(
-                key=lambda doc: (get(doc, name) is not None, get(doc, name)),
+                key=lambda doc: (get(doc, name) is not None, sortable(get(doc, name))),
                 reverse=order == -1,
             )
         return self
