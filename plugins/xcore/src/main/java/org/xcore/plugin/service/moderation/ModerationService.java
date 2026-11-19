@@ -448,6 +448,7 @@ public class ModerationService {
 
         MuteData mute = MuteData.builder()
                 .uuid(target.uuid)
+                .pid(PlayerPids.orNull(target.pid))
                 .name(target.nickname)
                 .adminName(adminName)
                 .adminDiscordId(resolveAdminDiscordId(adminDiscordId))

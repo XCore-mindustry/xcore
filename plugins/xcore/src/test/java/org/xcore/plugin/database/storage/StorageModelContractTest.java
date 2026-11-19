@@ -54,7 +54,14 @@ class StorageModelContractTest {
 
     @Test
     void encodedMuteMatchesTheSchema() {
-        assertWritten("mutes", MuteData.class, punishment(MuteData.builder()).build());
+        assertWritten("mutes", MuteData.class, punishment(MuteData.builder().pid(42).caseNumber(2001)).build());
+    }
+
+    @Test
+    void savingABanOrAMuteKeepsEveryStoredField() {
+        // Both repositories save with replaceOne, so a field the model does not carry is erased.
+        assertReplaceKeepsEveryField("bans", BanData.class);
+        assertReplaceKeepsEveryField("mutes", MuteData.class);
     }
 
     @Test
@@ -79,6 +86,20 @@ class StorageModelContractTest {
                 assertThat(same(value, again.get(field)))
                         .as("%s: %s is %s in the fixture but %s once the plugin decodes it", path.getFileName(), field, value,
                                 again.get(field))
+                        .isTrue();
+            }
+        }
+    }
+
+    private static <T extends ModelData> void assertReplaceKeepsEveryField(String collection, Class<T> type) {
+        for (var path : StorageContract.stored(collection)) {
+            var stored = StorageContract.read(path);
+            var again = StorageContract.encode(type, StorageContract.decode(type, stored));
+            for (var field : stored.keySet()) {
+                // _id stays with the document; a null is left out, which every reader takes the same way.
+                if (field.equals("_id") || stored.get(field).isNull()) continue;
+                assertThat(same(stored.get(field), again.get(field)))
+                        .as("%s: the plugin's %s drops %s", path.getFileName(), type.getSimpleName(), field)
                         .isTrue();
             }
         }

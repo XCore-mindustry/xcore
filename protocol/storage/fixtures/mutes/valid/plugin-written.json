@@ -11,5 +11,6 @@
   "admin_name": "Moderator",
   "admin_discord_id": "",
   "reason": "caps",
-  "expire_date": {"$date": "2026-06-01T01:00:00Z"}
+  "expire_date": {"$date": "2026-06-01T01:00:00Z"},
+  "pid": 1301
 }

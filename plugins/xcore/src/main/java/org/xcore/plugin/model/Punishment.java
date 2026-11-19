@@ -23,6 +23,12 @@ public abstract class Punishment extends ModelData {
     @BsonProperty("expire_date")
     public Instant expireDate;
 
+    /** The punished player's PID; null when unknown. Never {@link PlayerPids#NONE}. */
+    public Integer pid;
+    /** The Discord case the punishment came from. */
+    @BsonProperty("case_number")
+    public Integer caseNumber;
+
     public boolean expired() {
         return expireDate != null && expireDate.isBefore(Instant.now());
     }

@@ -90,7 +90,7 @@
       "description": "The banned player's PID; null or missing when unknown. Never the unassigned sentinel -2147483648.",
       "x-written-by": {
         "plugin": [
-          "plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java",
           "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V7__AssignBanIds.java"
         ],
         "bot": [
@@ -99,7 +99,7 @@
         ]
       },
       "x-read-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java"],
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
         "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py"]
       },
       "x-fallback": {"plugin": "looked up from players by uuid on save and on lazy ban_id assignment", "bot": "None when missing or the sentinel"}
@@ -108,11 +108,11 @@
       "oneOf": [{"$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32"}, {"type": "null"}],
       "description": "The Discord case the ban came from.",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java"],
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
         "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
       },
       "x-read-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java"],
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
         "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py"]
       },
       "x-fallback": {"bot": "None when missing or 0"}
