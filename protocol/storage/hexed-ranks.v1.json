@@ -1,7 +1,8 @@
 {
   "description": "Hexed points needed for each rank. players.hexed_rank is the index of the highest rank whose points players.hexed_points reaches. The plugin bundles this file into its jar and the bot into its wheel; neither keeps a copy of the numbers.",
   "x-read-by": {
-    "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/gamemode/hexed/HexedRanks.java"]
+    "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/gamemode/hexed/HexedRanks.java"],
+    "bot": ["services/discord-bot/src/xcore_discord_bot/hexed_ranks.py"]
   },
   "points": [0, 3, 10, 20, 25, 30]
 }

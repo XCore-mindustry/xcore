@@ -11,10 +11,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from bson import Int64
 from pymongo.asynchronous.client_session import AsyncClientSession
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import OperationFailure
 
+from . import hexed_ranks
 from .audit_store import AuditStore
 from .dto import (
     MERGE_KEEP_PID_CHOICES,
@@ -216,18 +218,24 @@ class AccountMergeStore:
         target_updates = self._merged_target_fields(source_raw, target_raw)
         target_updates["pid"] = surviving_pid
 
+        # The closed account keeps nothing it could sign in or act with, and no live Discord link,
+        # otherwise staff role sync and link lookups would resolve to a dead player.
         source_updates: dict[str, Any] = {
             "pid": tombstone_pid,
             "uuid": f"merged:{source_uuid}",
+            "username": "",
+            "can_change_username": False,
+            "password_hash": "",
+            "device_tokens": {},
+            "device_token_hashes": [],
+            "is_admin": False,
+            "admin_source": "NONE",
+            "discord_id": "",
+            "discord_username": "",
+            "discord_linked_at": Int64(0),
             "total_play_time": 0,
             "description": f"Merged into PID #{surviving_pid} ({target_raw.get('nickname')})",
         }
-        if source_discord_id:
-            # The closed account must not keep a live Discord link, otherwise staff
-            # role sync and link lookups would resolve to a dead player.
-            source_updates["discord_id"] = ""
-            source_updates["discord_username"] = ""
-            source_updates["discord_linked_at"] = 0
 
         return _MergePlan(
             source_raw=source_raw,
@@ -250,46 +258,59 @@ class AccountMergeStore:
     def _merged_target_fields(
         self, source_raw: dict[str, Any], target_raw: dict[str, Any]
     ) -> dict[str, Any]:
-        """The surviving account's fields: the target's values, filled in from the source."""
+        """The surviving account's fields: the target's values, filled in from the source.
 
-        def first(key: str, default: Any) -> Any:
-            return target_raw.get(key) or source_raw.get(key) or default
+        As protocol/storage/merges/README.md defines it. The target's credentials and admin
+        rights stay its own: inheriting the source's would hand access to an account that
+        never earned it.
+        """
+
+        def first(key: str) -> str:
+            for raw in (target_raw, source_raw):
+                if _filled(raw.get(key)):
+                    return str(raw[key])
+            return ""
 
         def union(key: str) -> list[Any]:
             return sorted(
                 set((target_raw.get(key) or []) + (source_raw.get(key) or []))
             )
 
+        def votes(key: str) -> dict[str, Any]:
+            # Where both voted, the surviving account's vote stands.
+            return {**(source_raw.get(key) or {}), **(target_raw.get(key) or {})}
+
+        # The Discord link moves as a whole, and only to an account without one.
+        link = target_raw if _filled(target_raw.get("discord_id")) else source_raw
+        if not _filled(link.get("discord_id")):
+            link = {}
+
         hexed_points = to_int(target_raw.get("hexed_points")) + to_int(
             source_raw.get("hexed_points")
         )
-        hexed_rank_reqs = [0, 3, 10, 20, 25, 30]
-        hexed_rank = 0
-        for idx, req in enumerate(hexed_rank_reqs):
-            if hexed_points >= req:
-                hexed_rank = idx
-
-        fields: dict[str, Any] = {
+        return {
+            "username": first("username"),
+            "can_change_username": _to_bool(target_raw.get("can_change_username"))
+            or _to_bool(source_raw.get("can_change_username")),
             "total_play_time": to_int(target_raw.get("total_play_time"))
             + to_int(source_raw.get("total_play_time")),
+            "legacy_pvp_rating": max(
+                to_int(target_raw.get("legacy_pvp_rating")),
+                to_int(source_raw.get("legacy_pvp_rating")),
+            ),
             "hexed_points": hexed_points,
-            "hexed_rank": hexed_rank,
+            "hexed_rank": hexed_ranks.rank_for(hexed_points),
             "unlocked_badges": union("unlocked_badges"),
-            "active_badge": first("active_badge", ""),
-            "custom_nickname": first("custom_nickname", ""),
-            "description": first("description", ""),
-            "discord_id": str(target_raw.get("discord_id") or "").strip()
-            or str(source_raw.get("discord_id") or "").strip(),
-            "discord_username": first("discord_username", ""),
-            "discord_linked_at": first("discord_linked_at", 0),
-            "device_tokens": {
-                **(source_raw.get("device_tokens") or {}),
-                **(target_raw.get("device_tokens") or {}),
-            },
-            "device_token_hashes": union("device_token_hashes"),
+            "active_badge": first("active_badge"),
+            "custom_nickname": first("custom_nickname"),
+            "description": first("description"),
+            "discord_id": str(link.get("discord_id") or "").strip(),
+            "discord_username": str(link.get("discord_username") or ""),
+            "discord_linked_at": Int64(to_int(link.get("discord_linked_at"))),
             "blocked_private_uuids": union("blocked_private_uuids"),
+            "map_votes": votes("map_votes"),
+            "event_votes": votes("event_votes"),
         }
-        return fields
 
     async def _apply_merge(
         self,
@@ -304,12 +325,19 @@ class AccountMergeStore:
         source_raw = plan.source_raw
         target_raw = plan.target_raw
 
-        await db["players"].update_one(
-            {"_id": target_raw["_id"]}, {"$set": plan.target_updates}, session=session
-        )
-        await db["players"].update_one(
-            {"_id": source_raw["_id"]}, {"$set": plan.source_updates}, session=session
-        )
+        # discord_link_generation is the highest discord_linked_at ever written.
+        for raw, updates in (
+            (target_raw, plan.target_updates),
+            (source_raw, plan.source_updates),
+        ):
+            await db["players"].update_one(
+                {"_id": raw["_id"]},
+                {
+                    "$set": updates,
+                    "$max": {"discord_link_generation": updates["discord_linked_at"]},
+                },
+                session=session,
+            )
 
         games_transferred = 0
         punishment_transfers = {"bans": False, "mutes": False}
@@ -325,7 +353,7 @@ class AccountMergeStore:
                 await db["player_totals"].update_one(
                     {"_id": uuid},
                     {
-                        "$inc": {"revision": 1},
+                        "$inc": {"revision": Int64(1)},
                         "$set": {"rebuild.dirty": True},
                         # A player already waiting keeps its place, as in the plugin.
                         "$min": {
@@ -404,48 +432,77 @@ class AccountMergeStore:
         plan: _MergePlan,
         collection: str,
     ) -> bool:
-        """Copy the closed account's ban or mute to the surviving one unless it has its own.
+        """Copy the closed account's ban or mute to the surviving one, as
+        protocol/storage/merges/README.md defines it. Returns whether a copy was made.
 
-        Returns whether a copy was made. Both documents get the PID their account now has.
+        Only an active one is copied, only if the surviving account has no active one of its
+        own, and in place of its expired one: there is one per uuid, and a lookup could find the
+        expired one first.
         """
-        tombstone: dict[str, Any] = {"$set": {"pid": plan.tombstone_pid}}
-        if collection == "bans":
-            # Bans match by UUID or IP and unban deletes one ban_id, so a kept IP would
-            # keep banning the surviving account after its own ban is lifted.
-            tombstone["$unset"] = {"ip": ""}
-        source_punishment = await db[collection].find_one(
+        source = await db[collection].find_one(
             {"uuid": plan.source_uuid}, session=session
         )
-        if source_punishment is not None:
-            await db[collection].update_one(
-                {"_id": source_punishment["_id"]}, tombstone, session=session
-            )
-
-        target_punishment = await db[collection].find_one(
+        target = await db[collection].find_one(
             {"uuid": plan.target_uuid}, session=session
         )
-        if target_punishment is not None:
-            await db[collection].update_one(
-                {"_id": target_punishment["_id"]},
-                {"$set": {"pid": plan.surviving_pid}},
-                session=session,
-            )
-            return False
-
-        if source_punishment is None:
-            return False
-
-        transferred = dict(source_punishment)
-        transferred.pop("_id", None)
-        transferred["uuid"] = plan.target_uuid
-        transferred["pid"] = plan.surviving_pid
-        transferred["name"] = plan.target_raw.get("nickname") or "Unknown"
-        transferred["reason"] = (
-            f"[Merged from #{plan.source_raw.get('pid')}] "
-            f"{source_punishment.get('reason', '')}"
+        copied = (
+            source is not None
+            and _active(source)
+            and (target is None or not _active(target))
         )
-        if collection == "bans":
-            # ban_id is unique and the closed account keeps its ban, so the copy needs its own.
-            transferred["ban_id"] = await self._punishments.next_ban_id(session=session)
-        await db[collection].insert_one(transferred, session=session)
+        if source is not None and copied:
+            transferred = dict(source)
+            transferred.pop("_id", None)
+            transferred["uuid"] = plan.target_uuid
+            transferred["pid"] = plan.surviving_pid
+            transferred["name"] = plan.target_raw.get("nickname") or "Unknown"
+            transferred["reason"] = (
+                f"[Merged from #{plan.source_raw.get('pid')}] {source.get('reason', '')}"
+            )
+            if collection == "bans":
+                # ban_id is unique and the closed account keeps its ban, so the copy needs its own.
+                transferred["ban_id"] = await self._punishments.next_ban_id(
+                    session=session
+                )
+            if target is not None:
+                await db[collection].replace_one(
+                    {"_id": target["_id"]}, transferred, session=session
+                )
+            else:
+                await db[collection].insert_one(transferred, session=session)
+            if collection == "bans":
+                # The IP goes with the copy: bans match by uuid or IP and unban deletes one
+                # ban_id, so an IP kept here would outlive the copy being lifted.
+                await db[collection].update_one(
+                    {"_id": source["_id"]}, {"$unset": {"ip": ""}}, session=session
+                )
+
+        # PIDs only move with keep_pid=source; then the punishments follow their accounts.
+        if plan.keep_pid == MERGE_KEEP_PID_SOURCE:
+            if source is not None:
+                await db[collection].update_one(
+                    {"_id": source["_id"]},
+                    {"$set": {"pid": plan.tombstone_pid}},
+                    session=session,
+                )
+            if target is not None and not copied:
+                await db[collection].update_one(
+                    {"_id": target["_id"]},
+                    {"$set": {"pid": plan.surviving_pid}},
+                    session=session,
+                )
+        return copied
+
+
+def _filled(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _active(punishment: dict[str, Any]) -> bool:
+    """No expire_date is a permanent punishment."""
+    expiry = punishment.get("expire_date")
+    if not isinstance(expiry, datetime):
         return True
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=UTC)
+    return expiry > datetime.now(UTC)

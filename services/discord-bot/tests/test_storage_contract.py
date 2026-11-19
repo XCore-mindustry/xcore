@@ -243,7 +243,12 @@ async def test_badge_and_merge_writes_match_the_schema() -> None:
             json_util.loads(path.read_text(), json_options=STORED)
         )
     # The account merged away is banned, so the merge copies its ban to the surviving one.
-    ban = dict(stored("bans")[0][1], _id=ObjectId(), uuid="uuid-new-player")
+    ban = dict(
+        stored("bans")[0][1],
+        _id=ObjectId(),
+        uuid="uuid-new-player",
+        expire_date=datetime(2999, 1, 1),
+    )
     await db["bans"].insert_one(ban)
     await db["counters"].insert_one({"_id": "ban_id", "seq": 50})
     await db["players"].update_many({}, {"$set": {"online": False}})

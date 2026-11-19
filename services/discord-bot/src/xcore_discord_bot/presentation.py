@@ -6,6 +6,7 @@ from typing import Literal
 import discord
 from bson.datetime_ms import DatetimeMS
 
+from . import hexed_ranks
 from .dto import MERGE_KEEP_PID_SOURCE, AccountMergeResult, PlayerRecord
 from .i18n import DEFAULT, t
 from .utils.game_text import clean, code
@@ -14,15 +15,14 @@ from .utils.mindustry_colors import strip_mindustry_colors
 DISCORD_EMBED_TITLE_MAX = 256
 
 # The rank tags are glyphs of the game font, which Discord cannot draw: names only.
-# (id of the name in stats.ftl, wins needed)
-HEXED_RANKS: list[tuple[str, int]] = [
-    ("newbie", 0),
-    ("regular", 3),
-    ("advanced", 10),
-    ("veteran", 20),
-    ("devastator", 25),
-    ("legend", 30),
-]
+# (id of the name in stats.ftl, wins needed); the wins come from hexed-ranks.v1.json.
+HEXED_RANKS: list[tuple[str, int]] = list(
+    zip(
+        ("newbie", "regular", "advanced", "veteran", "devastator", "legend"),
+        hexed_ranks.POINTS,
+        strict=True,
+    )
+)
 
 
 def format_size(size_bytes: int) -> str:

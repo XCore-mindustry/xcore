@@ -122,37 +122,37 @@ One document per Mindustry UUID. The plugin saves a player with {$set: <every fi
 | `_id` | objectId | **plugin** `PlayerDataRepository.java` | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` |  |
 | `uuid` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `BanDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`, `rating_store.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** None when blank; **web** "" |
 | `pid` | int32 | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `BanDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`, `rating_store.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** -2147483648 when missing; **web** 0 when missing (safeInt); search and leaderboards skip the sentinel |
-| `username` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `mongo_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
-| `can_change_username` | boolean | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` |  |
+| `username` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `mongo_store.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
+| `can_change_username` | boolean | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
 | `identity_display_mode` | "PID" \| "USERNAME" \| "BOTH" \| "NONE" | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` | **plugin** BOTH |
 | `last_ip` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py` | **bot** None when blank |
 | `nickname` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`, `rating_store.py`<br>**web** `stats.ts`, `accounts.ts` | **plugin** "Unknown"; **bot** "Unknown" when missing or blank; **web** "Unknown" when missing |
 | `custom_nickname` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py` | **bot** None when blank |
 | `description` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
-| `password_hash` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java` |  |
-| `device_token_hashes` | array of string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
-| `device_tokens` | map to int64 | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
+| `password_hash` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
+| `device_token_hashes` | array of string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
+| `device_tokens` | map to int64 | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
 | `local_language` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py` | **plugin** "auto"; **bot** None when blank |
 | `translator_language` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py` | **plugin** "off"; **bot** None when blank |
 | `show_global_chat` | boolean | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` |  |
 | `show_discord_relay` | boolean | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` |  |
-| `legacy_pvp_rating` | int32 | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` |  |
+| `legacy_pvp_rating` | int32 | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
 | `hexed_rank` | int32 | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`<br>**web** `stats.ts` | **plugin** the first rank when out of range; **bot** 0; **web** sort key only |
 | `hexed_points` | int32 | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** 0; **web** 0 |
 | `total_play_time` | int32 | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** 0; **web** 0 |
-| `event_votes` | map to boolean | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java` |  |
-| `map_votes` | map to boolean | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java` |  |
+| `event_votes` | map to boolean | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
+| `map_votes` | map to boolean | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
 | `blocked_private_uuids` | array of string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py` |  |
 | `unlocked_badges` | array of string | **plugin** `PlayerData.java`<br>**bot** `mongo_store.py`, `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** () when not a list; **web** [] when not an array |
 | `active_badge` | string | **plugin** `PlayerData.java`<br>**bot** `mongo_store.py`, `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
 | `badge_symbol_color_mode` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` | **plugin** "default" |
-| `is_admin` | boolean | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**web** `stats.ts` | **web** false |
-| `admin_source` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` |  |
+| `is_admin` | boolean | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**web** `stats.ts` | **web** false |
+| `admin_source` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
 | `leaderboard` | boolean | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py` | **bot** true |
 | `discord_id` | string | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`<br>**web** `stats.ts`, `accounts.ts` | **plugin** ""; link filters match "" or missing; **bot** None when blank; **web** falsy means unlinked |
 | `discord_username` | string | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py` | **bot** None when blank |
 | `discord_linked_at` | integer | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `accounts.ts` | **plugin** 0; unlink matches 0 or missing; **bot** None when missing; **web** 0 |
-| `discord_link_generation` | int64 | **plugin** `PlayerDataRepository.java` | **plugin** `PlayerDataRepository.java` |  |
+| `discord_link_generation` | int64 | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerDataRepository.java` |  |
 | `online` | boolean | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** false; **web** false |
 | `online_since` | int64 | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py` |  |
 | `online_server` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** None when blank; **web** ignored unless online |
@@ -180,7 +180,7 @@ No schema yet.
 - **web**: [`player-totals.ts`](../../web/src/lib/server/player-totals.ts), [`stats.ts`](../../web/src/lib/server/stats.ts)
 
 - Materialized per-player stats, keyed by uuid. Every reader follows redirect_uuid after merges.
-- The bot's account merge writes the same invalidation as the plugin (revision, rebuild.dirty, rebuild.queued_at, status, schema_version) but $inc's revision by an int32 1 where the plugin uses an int64.
+- The bot's account merge writes the same invalidation as the plugin (revision, rebuild.dirty, rebuild.queued_at, status, schema_version); protocol/storage/merges holds the cases both run.
 - V10 stamps rules_version so a server still on the old jar does not claim these players; neither the plugin's invalidation nor the bot's merge sets rules_version on a new document, so those stay claimable by old jars.
 - The plugin (PlayerTotalsView) and the bot check status before schema_version, the website the other way round: a pending document with an unknown schema_version is 'pending' in game and in Discord and an error on the site.
 
