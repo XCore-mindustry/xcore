@@ -399,7 +399,8 @@ class Collection:
         self._unique(doc)
         self.docs.append(deepcopy(doc))
 
-    async def replace_one(self, query, replacement, *, upsert=False):
+    async def replace_one(self, query, replacement, *, upsert=False, session=None):
+        self._join(session)
         target = next((doc for doc in self.docs if matches(doc, query)), None)
         if target is None and not upsert:
             return SimpleNamespace(matched_count=0, modified_count=0, upserted_id=None)

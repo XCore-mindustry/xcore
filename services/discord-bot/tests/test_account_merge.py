@@ -599,7 +599,8 @@ async def test_merge_unban_of_the_surviving_account_lifts_the_ip_ban() -> None:
 
 
 @pytest.mark.asyncio
-async def test_merge_strips_the_ip_when_the_target_has_its_own_ban() -> None:
+async def test_merge_keeps_the_ip_of_a_ban_it_does_not_copy() -> None:
+    # Nothing carries the IP over, so taking it off would lift an active IP ban unasked.
     target_ban = dict(SOURCE_BAN, _id="ban-2", ban_id=3, uuid="target-uuid", pid=20)
     store, db = await _merge_store(bans=(SOURCE_BAN, target_ban))
 
@@ -607,7 +608,7 @@ async def test_merge_strips_the_ip_when_the_target_has_its_own_ban() -> None:
 
     assert result.ban_transferred is False
     kept, own = db["bans"].docs
-    assert "ip" not in kept
+    assert kept == SOURCE_BAN
     assert own["ip"] == "1.2.3.4"
 
 
@@ -635,7 +636,7 @@ def _fail_call(collection: Collection, method: str, call: int) -> None:
         ("games_v2", "update_many", 1),
         ("bans", "insert_one", 1),
         ("counters", "find_one_and_update", 1),
-        ("mutes", "update_one", 1),
+        ("bans", "update_one", 1),
         ("mutes", "insert_one", 1),
         ("moderation_audit", "insert_one", 1),
     ],

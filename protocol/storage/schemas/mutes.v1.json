@@ -21,7 +21,10 @@
     "uuid": {
       "type": "string",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/DataRepository.java"
+        ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
           "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
@@ -40,7 +43,7 @@
         "plugin": [
           "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java",
           "plugins/xcore/src/main/java/org/xcore/plugin/service/moderation/ModerationService.java",
-          "plugins/xcore/src/main/java/org/xcore/plugin/service/AccountMergeService.java"
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/DataRepository.java"
         ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
@@ -65,8 +68,7 @@
       "x-note": "Nothing reads it back today: the case flows pass the number of the case they are working on.",
       "x-written-by": {
         "plugin": [
-          "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java",
-          "plugins/xcore/src/main/java/org/xcore/plugin/service/AccountMergeService.java"
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"
         ],
         "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
       },
@@ -79,7 +81,10 @@
     "name": {
       "type": "string",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/DataRepository.java"
+        ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
           "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
@@ -119,7 +124,10 @@
     "reason": {
       "type": "string",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/DataRepository.java"
+        ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
           "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"

@@ -1,0 +1,4 @@
+{
+  "description": "Staff keep the source's PID (the bot's keep_pid=source; the console merge has no such option). The accounts swap PIDs, and so do the bans and mutes on them.",
+  "request": {"source_pid": 10, "target_pid": 20, "keep_pid": "source"}
+}

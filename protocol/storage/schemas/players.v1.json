@@ -20,7 +20,6 @@
     },
     "uuid": {
       "type": "string",
-      "minLength": 1,
       "description": "The Mindustry UUID. A closed account after a merge has \"merged:\" + its old uuid.",
       "x-written-by": {
         "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
@@ -39,7 +38,8 @@
         ],
         "web": ["web/src/lib/server/stats.ts", "web/src/lib/server/accounts.ts"]
       },
-      "x-fallback": {"bot": "None when blank", "web": "\"\""}
+      "x-fallback": {"bot": "None when blank", "web": "\"\""},
+      "minLength": 1
     },
     "pid": {
       "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32",
@@ -69,18 +69,31 @@
     "username": {
       "type": "string",
       "description": "Login name; \"\" when none. Unique, case-insensitively, among non-empty values.",
-      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
       "x-read-by": {
         "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
-        "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/mongo_store.py"],
+        "bot": [
+          "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
+          "services/discord-bot/src/xcore_discord_bot/mongo_store.py",
+          "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
+        ],
         "web": ["web/src/lib/server/stats.ts"]
       },
       "x-fallback": {"bot": "None when blank", "web": "null when empty"}
     },
     "can_change_username": {
       "type": "boolean",
-      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
-      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      }
     },
     "identity_display_mode": {
       "enum": ["PID", "USERNAME", "BOTH", "NONE"],
@@ -159,7 +172,8 @@
         "plugin": [
           "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
           "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
-        ]
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
       "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
     },
@@ -170,10 +184,7 @@
         "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
-      "x-read-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
-        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
-      }
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
     },
     "device_tokens": {
       "type": "object",
@@ -183,10 +194,7 @@
         "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
-      "x-read-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
-        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
-      }
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
     },
     "local_language": {
       "type": "string",
@@ -219,12 +227,18 @@
     "legacy_pvp_rating": {
       "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32",
       "description": "The PvP rating from before the Elo ladders, kept by V4.",
-      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
-      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      }
     },
     "hexed_rank": {
       "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32",
-      "description": "Index into the plugin's HexedRanks.",
+      "description": "The rank hexed_points reaches: an index into hexed-ranks.v1.json. An account merge recomputes it from the summed points.",
       "x-disagreement": "The bot's account merge recomputes the rank from hexed_points with its own copy of the thresholds (0, 3, 10, 20, 25, 30); the plugin's HexedRanks holds the original.",
       "x-written-by": {
         "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
@@ -274,9 +288,13 @@
         "plugin": [
           "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
           "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
-        ]
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
-      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      }
     },
     "map_votes": {
       "type": "object",
@@ -285,9 +303,13 @@
         "plugin": [
           "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
           "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
-        ]
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
-      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      }
     },
     "blocked_private_uuids": {
       "type": "array",
@@ -341,14 +363,20 @@
     },
     "is_admin": {
       "type": "boolean",
-      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
       "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"], "web": ["web/src/lib/server/stats.ts"]},
       "x-fallback": {"web": "false"}
     },
     "admin_source": {
       "type": "string",
       "description": "Where admin rights came from: NONE, DISCORD, ...; V2 set NONE on older documents.",
-      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]},
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
       "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
     },
     "leaderboard": {
@@ -415,7 +443,10 @@
     "discord_link_generation": {
       "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
       "description": "Highest discord_linked_at ever written, so a relink in the same millisecond still moves forward.",
-      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"]},
+      "x-written-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
       "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"]}
     },
     "online": {

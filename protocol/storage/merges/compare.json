@@ -1,0 +1,12 @@
+{
+  "description": "How the plugin's and the bot's tests compare a merge's result with after/. See README.md.",
+  "stamped": {
+    "players": ["updated_at"],
+    "player_totals": ["rebuild.queued_at"]
+  },
+  "not_compared": {
+    "moderation_audit": "Each implementation appends one MERGE entry in its own audit format.",
+    "rating_standings": "The plugin moves standings in the merge; the bot asks a game server to, which runs the same plugin code.",
+    "rating_matches": "Moved with rating_standings."
+  }
+}

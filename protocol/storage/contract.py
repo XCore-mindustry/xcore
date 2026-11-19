@@ -20,6 +20,8 @@ REPO = ROOT.parents[1]
 SCHEMAS = ROOT / "schemas"
 FIXTURES = ROOT / "fixtures"
 MIGRATIONS = ROOT / "migrations"
+MERGES = ROOT / "merges"
+HEXED_RANKS = ROOT / "hexed-ranks.v1.json"
 INVENTORY = ROOT / "INVENTORY.md"
 COMPONENTS = ("plugin", "bot", "web")
 # A stored document can have any of these shapes; "invalid" fixtures must be rejected.
@@ -61,20 +63,40 @@ def validator(collection: str):
 
 def fixtures(collection: str, *kinds: str) -> list[Path]:
     """Fixture files of a collection. Kinds are valid, legacy and invalid, plus before and
-    after for the documents each migration was given and produced."""
+    after for the documents each migration and each account merge case was given and produced."""
     paths: list[Path] = []
     for kind in kinds:
         if kind in ("before", "after"):
             paths += sorted(MIGRATIONS.glob(f"V*/{kind}/{collection}/*.json"))
+            paths += sorted(MERGES.glob(f"*/{kind}/{collection}/*.json"))
         else:
             paths += sorted((FIXTURES / collection / kind).glob("*.json"))
     return paths
 
 
 def stored(collection: str) -> list[Path]:
-    """Every shape a reader can meet: current and legacy documents, and both sides of each
-    migration, because a server on the previous jar keeps writing the old shape until it restarts."""
+    """Every shape a reader can meet: current and legacy documents, both sides of each migration,
+    because a server on the previous jar keeps writing the old shape until it restarts, and both
+    sides of each account merge case."""
     return fixtures(collection, *STORED_KINDS, "before", "after")
+
+
+def merge_cases() -> list[Path]:
+    """The account merge cases in merges/, each a directory with case.json, before/ and after/."""
+    return sorted(path.parent for path in MERGES.glob("*/case.json"))
+
+
+def merge_side(case: Path, side: str) -> dict[str, list[Path]]:
+    """Collection name to the fixture files of one side (before or after) of a merge case."""
+    root = case / side
+    if not root.is_dir():
+        return {}
+    return {d.name: sorted(d.glob("*.json")) for d in sorted(root.iterdir()) if d.is_dir()}
+
+
+def hexed_rank_points() -> list[int]:
+    """Points needed for each Hexed rank; players.hexed_rank is an index into this list."""
+    return list(load(HEXED_RANKS)["points"])
 
 
 def fields(collection: str, component: str, role: str = "x-read-by") -> set[str]:

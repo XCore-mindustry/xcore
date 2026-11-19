@@ -16,6 +16,11 @@ jar from `java/`, and the generators read only `spec/`, so a change here needs n
 - `fixtures/<collection>/invalid/` — shapes the schema must reject.
 - `migrations/V<n>/before/<collection>/`, `migrations/V<n>/after/<collection>/` — what a plugin
   migration was given and what it produced.
+- `merges/<case>/before/<collection>/`, `merges/<case>/after/<collection>/` — what an account
+  merge was given and must leave behind, with the request in `case.json`. Both the plugin's and the
+  bot's merge run every case; [merges/README.md](merges/README.md) says what a merge does.
+- `hexed-ranks.v1.json` — the Hexed points of each rank, which `players.hexed_rank` is derived from.
+  The plugin and the bot both read it at run time instead of keeping their own copy.
 - `collections.json` — shared collections without a schema yet, and collections only one
   component uses.
 - `contract.py` — loads the above and generates INVENTORY.md; `test_contract.py` checks them.
@@ -40,9 +45,9 @@ the field. The components' contract tests check the actual reads and writes.
 
 | Component | Test | Checks |
 |---|---|---|
-| protocol | `test_contract.py` (`uv run pytest storage` in `protocol/`) | schemas are valid; stored fixtures pass and invalid ones fail; named files mention their fields; INVENTORY.md is current |
-| plugin | `plugins/xcore/src/test/java/org/xcore/plugin/database/storage/` | the codec and the repositories write documents that pass the schema; every stored shape decodes with the fields the plugin reads intact; migrations turn their before fixtures into their after fixtures, and a new one that changes a shared collection brings fixtures |
-| bot | `services/discord-bot/tests/test_storage_contract.py` | the stores write documents that pass the schema; every stored shape goes through the readers, which use only fields the schema says the bot reads |
+| protocol | `test_contract.py` (`uv run pytest storage` in `protocol/`) | schemas are valid; stored fixtures pass and invalid ones fail; named files mention their fields; INVENTORY.md is current; merge cases are well formed |
+| plugin | `plugins/xcore/src/test/java/org/xcore/plugin/database/storage/` | the codec and the repositories write documents that pass the schema; every stored shape decodes with the fields the plugin reads intact; migrations turn their before fixtures into their after fixtures, and a new one that changes a shared collection brings fixtures; the console merge turns each merge case's before into its after |
+| bot | `services/discord-bot/tests/test_storage_contract.py`, `test_merge_contract.py` | the stores write documents that pass the schema; every stored shape goes through the readers, which use only fields the schema says the bot reads; the Discord merge turns each merge case's before into its after |
 | web | `web/tests/storage-contract.test.ts` | every stored players shape goes through the site's readers, which use only fields the schema says the site reads |
 
 CI runs all of them when anything under `protocol/storage/` changes.
@@ -61,6 +66,11 @@ CI runs all of them when anything under `protocol/storage/` changes.
    sides, and both must pass the current schema: while servers can still write the `before` shape,
    the schema has to accept it.
 4. Migrations up to V11 predate this contract and need no fixtures; V7 has some as an example.
+
+## Changing what a merge does
+
+Change [merges/README.md](merges/README.md) and the `after` side of the cases it affects, then both
+merges. A change to one merge alone fails the other's tests.
 
 ## Adding a collection
 

@@ -20,6 +20,7 @@ import org.xcore.plugin.config.TomlXcoreConfig;
 import org.xcore.plugin.database.repository.BanDataRepository;
 import org.xcore.plugin.database.repository.GameDataRepository;
 import org.xcore.plugin.database.repository.MuteDataRepository;
+import org.xcore.plugin.database.repository.PunishmentTransfer;
 import org.xcore.plugin.database.repository.PlayerDataRepository;
 import org.xcore.plugin.gamemode.hexed.HexedRanks;
 import org.xcore.plugin.model.*;
@@ -408,23 +409,10 @@ class AccountMergeServiceTest {
         when(findService.playerData("10")).thenReturn(source);
         when(findService.playerData("20")).thenReturn(target);
 
-        BanData activeBan = BanData.builder()
-                .uuid("uuid-source")
-                .adminName("Admin")
-                .reason("Griefing")
-                .expireDate(Instant.now().plusSeconds(3600))
-                .build();
-        when(banDataRepository.find("uuid-source", null)).thenReturn(activeBan);
-        when(banDataRepository.find("uuid-target", null)).thenReturn(null);
-
-        MuteData activeMute = MuteData.builder()
-                .uuid("uuid-source")
-                .adminName("Mod")
-                .reason("Spam")
-                .expireDate(Instant.now().plusSeconds(1800))
-                .build();
-        when(muteDataRepository.findByUuid("uuid-source")).thenReturn(activeMute);
-        when(muteDataRepository.findByUuid("uuid-target")).thenReturn(null);
+        // What a copy looks like is the shared merge cases' business (StorageMergeContractIntegrationTest).
+        var transfer = new PunishmentTransfer("uuid-source", 10, "uuid-target", 20, "CleanTarget");
+        when(banDataRepository.transferForMerge(isNull(), eq(transfer))).thenReturn(true);
+        when(muteDataRepository.transferForMerge(isNull(), eq(transfer))).thenReturn(true);
 
         var request = new AccountMergeService.MergeRequest("10", "20", "Merge banned user", null);
         var result = service.merge(request);
@@ -432,9 +420,6 @@ class AccountMergeServiceTest {
         assertThat(result.success()).isTrue();
         assertThat(result.banTransferred()).isTrue();
         assertThat(result.muteTransferred()).isTrue();
-
-        verify(banDataRepository).save(argThat(b -> b.uuid.equals("uuid-target") && b.reason.contains("Griefing")));
-        verify(muteDataRepository).save(argThat(m -> m.uuid.equals("uuid-target") && m.reason.contains("Spam")));
     }
 
     @Test

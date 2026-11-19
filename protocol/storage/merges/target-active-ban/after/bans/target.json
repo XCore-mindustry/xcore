@@ -1,0 +1,13 @@
+{
+  "_id": {"$oid": "6650a1b2c3d4e5f60b000002"},
+  "ban_id": 5,
+  "case_number": 2200,
+  "uuid": "uuid-target",
+  "ip": "203.0.113.20",
+  "pid": 20,
+  "name": "[red]Main",
+  "admin_name": "Discord Mod",
+  "admin_discord_id": "300000000000000002",
+  "reason": "spam",
+  "expire_date": {"$date": "2999-01-01T00:00:00Z"}
+}

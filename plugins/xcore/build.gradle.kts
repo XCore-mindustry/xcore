@@ -211,6 +211,11 @@ tasks.named<MindustryExec>("runServer") {
     }
 }
 
+// The Hexed rank thresholds live in the storage contract, which the Discord bot bundles too.
+tasks.processResources {
+    from(rootProject.layout.projectDirectory.file("protocol/storage/hexed-ranks.v1.json")) { into("xcore/storage") }
+}
+
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
 

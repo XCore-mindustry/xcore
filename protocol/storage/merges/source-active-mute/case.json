@@ -1,0 +1,4 @@
+{
+  "description": "The source's active mute follows the player with its case.",
+  "request": {"source_pid": 10, "target_pid": 20, "keep_pid": "target"}
+}

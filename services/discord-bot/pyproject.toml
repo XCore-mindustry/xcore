@@ -69,3 +69,7 @@ max-complexity = 10
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel.force-include]
+# The Hexed rank thresholds of the storage contract, which the plugin bundles too (hexed_ranks.py).
+"../../protocol/storage/hexed-ranks.v1.json" = "xcore_discord_bot/hexed-ranks.v1.json"

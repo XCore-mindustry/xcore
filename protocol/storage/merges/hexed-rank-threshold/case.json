@@ -1,0 +1,4 @@
+{
+  "description": "16 + 9 Hexed points reach exactly the 25 points of rank 4 (hexed-ranks.v1.json), from ranks 2 and 1.",
+  "request": {"source_pid": 10, "target_pid": 20, "keep_pid": "target"}
+}

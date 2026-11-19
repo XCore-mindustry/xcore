@@ -1,0 +1,8 @@
+{
+  "_id": "uuid-target",
+  "status": "ready",
+  "schema_version": 1,
+  "revision": {"$numberLong": "2"},
+  "rebuild": {"dirty": false},
+  "redirect_uuid": "uuid-source"
+}

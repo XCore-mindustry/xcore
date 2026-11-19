@@ -1,6 +1,7 @@
 package org.xcore.plugin.database.repository;
 
 import arc.util.Log;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.FindOneAndUpdateOptions;
 import com.mongodb.client.model.ReplaceOptions;
@@ -9,6 +10,7 @@ import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import org.jspecify.annotations.Nullable;
 import org.xcore.plugin.config.TomlSecretsConfig;
 import org.xcore.plugin.database.MongoAsync;
 import org.xcore.plugin.database.MongoUtils;
@@ -30,6 +32,7 @@ import static com.mongodb.client.model.Filters.gt;
 import static com.mongodb.client.model.Filters.ne;
 import static com.mongodb.client.model.Filters.or;
 import static com.mongodb.client.model.Updates.set;
+import static com.mongodb.client.model.Updates.unset;
 
 @Singleton
 public class BanDataRepository extends DataRepository<BanData> {
@@ -71,6 +74,20 @@ public class BanDataRepository extends DataRepository<BanData> {
             throw new IllegalStateException("Ban ID counter must be positive");
         }
         return value;
+    }
+
+    /**
+     * The account merge's copy of a ban (see {@link #transferPunishment}). The copy gets the next ban
+     * number and takes the IP with it: the original keeps banning the old uuid, and lifting the copy
+     * lifts the IP as well. Returns whether a ban was copied.
+     */
+    public boolean transferForMerge(@Nullable ClientSession session, PunishmentTransfer transfer) {
+        var source = transferPunishment(session, transfer, copy -> copy.put("ban_id", nextBanId(session)));
+        if (source == null) return false;
+        var raw = collection.withDocumentClass(Document.class);
+        if (session == null) raw.updateOne(eq("_id", source.get("_id")), unset("ip"));
+        else raw.updateOne(session, eq("_id", source.get("_id")), unset("ip"));
+        return true;
     }
 
     public BanData findByBanId(int banId) {

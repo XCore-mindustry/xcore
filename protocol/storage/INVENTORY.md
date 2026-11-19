@@ -30,21 +30,21 @@ Used by one component only: `account_operation_receipts` (plugin), `admins` (plu
 
 One ban per document. A ban matches a player by uuid or by ip; unbanning deletes the document.
 
-- **plugin**: [`V7__AssignBanIds.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V7__AssignBanIds.java), [`BanDataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java), [`BanData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java), [`ModelData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java), [`Punishment.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java)
+- **plugin**: [`V7__AssignBanIds.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V7__AssignBanIds.java), [`BanDataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java), [`DataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/DataRepository.java), [`BanData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java), [`ModelData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java), [`Punishment.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java)
 - **bot**: [`account_merge_store.py`](../../services/discord-bot/src/xcore_discord_bot/account_merge_store.py), [`appeals.py`](../../services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py), [`punishment_store.py`](../../services/discord-bot/src/xcore_discord_bot/punishment_store.py), [`store_mappers.py`](../../services/discord-bot/src/xcore_discord_bot/store_mappers.py)
 
 | Field | Type | Written by | Read by | Fallback when missing |
 |---|---|---|---|---|
 | `_id` | objectId | **plugin** `BanDataRepository.java`<br>**bot** `punishment_store.py` | **plugin** `BanDataRepository.java`<br>**bot** `punishment_store.py` |  |
-| `ban_id` | positiveInt32 | **plugin** `BanData.java`, `V7__AssignBanIds.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `BanData.java`<br>**bot** `store_mappers.py`, `appeals.py` | **bot** None when missing or 0; appeals reject a ban_id that is not a positive int |
-| `uuid` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `punishment_store.py`, `appeals.py` | **bot** None when blank |
+| `ban_id` | positiveInt32 | **plugin** `BanData.java`, `V7__AssignBanIds.java`, `BanDataRepository.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `BanData.java`<br>**bot** `store_mappers.py`, `appeals.py` | **bot** None when missing or 0; appeals reject a ban_id that is not a positive int |
+| `uuid` | string | **plugin** `Punishment.java`, `DataRepository.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `punishment_store.py`, `appeals.py` | **bot** None when blank |
 | `ip` | string \| null | **plugin** `BanData.java`, `BanDataRepository.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `BanData.java`<br>**bot** `store_mappers.py`, `punishment_store.py`, `appeals.py` | **bot** None when blank |
-| `pid` | int32 \| null | **plugin** `Punishment.java`, `V7__AssignBanIds.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `appeals.py` | **plugin** looked up from players by uuid on save and on lazy ban_id assignment; **bot** None when missing or the sentinel |
+| `pid` | int32 \| null | **plugin** `Punishment.java`, `V7__AssignBanIds.java`, `DataRepository.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `appeals.py` | **plugin** looked up from players by uuid on save and on lazy ban_id assignment; **bot** None when missing or the sentinel |
 | `case_number` | int32 \| null | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py` | **bot** None when missing or 0 |
-| `name` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `punishment_store.py`, `appeals.py` | **plugin** "Unknown"; **bot** "Unknown" when missing or blank; "" in the appeal flow |
+| `name` | string | **plugin** `Punishment.java`, `DataRepository.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `punishment_store.py`, `appeals.py` | **plugin** "Unknown"; **bot** "Unknown" when missing or blank; "" in the appeal flow |
 | `admin_name` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `appeals.py` | **plugin** "Unknown"; **bot** "Unknown" when missing or blank |
 | `admin_discord_id` | string \| null | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `appeals.py` | **plugin** ""; **bot** None when missing or blank |
-| `reason` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `appeals.py` | **plugin** "Not Specified"; **bot** "Not Specified" when missing or blank |
+| `reason` | string | **plugin** `Punishment.java`, `DataRepository.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `appeals.py` | **plugin** "Not Specified"; **bot** "Not Specified" when missing or blank |
 | `expire_date` | date \| null | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `punishment_store.py`, `appeals.py` | **plugin** permanent when missing or null; **bot** permanent when missing or null; list_bans re-reads the page with expire_date as a long when a date is out of Python's range |
 | `created_at` | int64 | **plugin** `ModelData.java` | **plugin** `ModelData.java` |  |
 | `updated_at` | int64 | **plugin** `ModelData.java` | **plugin** `ModelData.java` |  |
@@ -56,7 +56,7 @@ One ban per document. A ban matches a player by uuid or by ip; unbanning deletes
 Disagreements and constraints:
 
 - `ban_id`: Must be a 32-bit int: the unique index on ban_id only covers {$type: 'int'}, so an int64 copy would escape it.
-- `ip`: No IP has three shapes: the plugin omits the field (its codec skips nulls) and releases an IP with {$set: null}, the bot writes null, and the bot's account merge removes it with $unset. Every reader treats all three alike.
+- `ip`: No IP has three shapes: the plugin omits the field (its codec skips nulls) and releases an IP with {$set: null}, the bot writes null, and both account merges remove it from the original of a copied ban with $unset. Every reader treats all three alike.
 - `admin_discord_id`: The plugin writes "" for no moderator id, the bot writes null. The bot normalises both to None; the plugin passes the raw value on.
 - `expire_date`: A permanent ban from the plugin has no expire_date (its codec skips nulls); one from the bot has expire_date: null. Every reader treats both as permanent.
 
@@ -82,19 +82,19 @@ Disagreements and constraints:
 
 At most one mute per player uuid; both writers replace the document by uuid and unmuting deletes it.
 
-- **plugin**: [`MuteDataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/MuteDataRepository.java), [`ModelData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java), [`Punishment.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java), [`AccountMergeService.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/service/AccountMergeService.java), [`ModerationService.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/service/moderation/ModerationService.java)
+- **plugin**: [`DataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/DataRepository.java), [`MuteDataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/MuteDataRepository.java), [`ModelData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java), [`Punishment.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java), [`ModerationService.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/service/moderation/ModerationService.java)
 - **bot**: [`account_merge_store.py`](../../services/discord-bot/src/xcore_discord_bot/account_merge_store.py), [`appeals.py`](../../services/discord-bot/src/xcore_discord_bot/cases/flows/appeals.py), [`mongo_store.py`](../../services/discord-bot/src/xcore_discord_bot/mongo_store.py), [`punishment_store.py`](../../services/discord-bot/src/xcore_discord_bot/punishment_store.py), [`staff_actions.py`](../../services/discord-bot/src/xcore_discord_bot/staff_actions.py), [`store_mappers.py`](../../services/discord-bot/src/xcore_discord_bot/store_mappers.py)
 
 | Field | Type | Written by | Read by | Fallback when missing |
 |---|---|---|---|---|
 | `_id` | objectId | **plugin** `MuteDataRepository.java`<br>**bot** `punishment_store.py` | **plugin** `MuteDataRepository.java` |  |
-| `uuid` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `mongo_store.py` | **bot** MuteDoc requires it: find_mute raises on a mute without uuid |
-| `pid` | int32 \| null | **plugin** `Punishment.java`, `ModerationService.java`, `AccountMergeService.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `staff_actions.py`, `appeals.py` | **bot** None when missing or the sentinel: the logs leave the PID out, the appeal subject takes the PID of the player with the mute's uuid |
-| `case_number` | int32 \| null | **plugin** `Punishment.java`, `AccountMergeService.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py` | **bot** None when missing or 0 |
-| `name` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `mongo_store.py` | **plugin** "Unknown"; **bot** MuteDoc requires it; "Unknown" when blank |
+| `uuid` | string | **plugin** `Punishment.java`, `DataRepository.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `mongo_store.py` | **bot** MuteDoc requires it: find_mute raises on a mute without uuid |
+| `pid` | int32 \| null | **plugin** `Punishment.java`, `ModerationService.java`, `DataRepository.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `staff_actions.py`, `appeals.py` | **bot** None when missing or the sentinel: the logs leave the PID out, the appeal subject takes the PID of the player with the mute's uuid |
+| `case_number` | int32 \| null | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py` | **bot** None when missing or 0 |
+| `name` | string | **plugin** `Punishment.java`, `DataRepository.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `mongo_store.py` | **plugin** "Unknown"; **bot** MuteDoc requires it; "Unknown" when blank |
 | `admin_name` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `mongo_store.py` | **plugin** "Unknown"; **bot** MuteDoc requires it; "Unknown" when blank |
 | `admin_discord_id` | string \| null | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py` | **plugin** ""; **bot** None when missing or blank |
-| `reason` | string | **plugin** `Punishment.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `mongo_store.py`, `account_merge_store.py` | **plugin** "Not Specified"; **bot** MuteDoc requires it; "Not Specified" when blank |
+| `reason` | string | **plugin** `Punishment.java`, `DataRepository.java`<br>**bot** `punishment_store.py`, `account_merge_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `mongo_store.py`, `account_merge_store.py` | **plugin** "Not Specified"; **bot** MuteDoc requires it; "Not Specified" when blank |
 | `expire_date` | date | **plugin** `Punishment.java`<br>**bot** `punishment_store.py` | **plugin** `Punishment.java`<br>**bot** `store_mappers.py`, `mongo_store.py`, `punishment_store.py` |  |
 | `created_at` | int64 | **plugin** `ModelData.java` | **plugin** `ModelData.java` |  |
 | `updated_at` | int64 | **plugin** `ModelData.java` | **plugin** `ModelData.java` |  |
@@ -122,37 +122,37 @@ One document per Mindustry UUID. The plugin saves a player with {$set: <every fi
 | `_id` | objectId | **plugin** `PlayerDataRepository.java` | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` |  |
 | `uuid` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `BanDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`, `rating_store.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** None when blank; **web** "" |
 | `pid` | int32 | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `BanDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`, `rating_store.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** -2147483648 when missing; **web** 0 when missing (safeInt); search and leaderboards skip the sentinel |
-| `username` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `mongo_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
-| `can_change_username` | boolean | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` |  |
+| `username` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `mongo_store.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
+| `can_change_username` | boolean | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
 | `identity_display_mode` | "PID" \| "USERNAME" \| "BOTH" \| "NONE" | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` | **plugin** BOTH |
 | `last_ip` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py` | **bot** None when blank |
 | `nickname` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`, `rating_store.py`<br>**web** `stats.ts`, `accounts.ts` | **plugin** "Unknown"; **bot** "Unknown" when missing or blank; **web** "Unknown" when missing |
 | `custom_nickname` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py` | **bot** None when blank |
 | `description` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
-| `password_hash` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java` |  |
-| `device_token_hashes` | array of string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
-| `device_tokens` | map to int64 | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
+| `password_hash` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
+| `device_token_hashes` | array of string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
+| `device_tokens` | map to int64 | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
 | `local_language` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py` | **plugin** "auto"; **bot** None when blank |
 | `translator_language` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py` | **plugin** "off"; **bot** None when blank |
 | `show_global_chat` | boolean | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` |  |
 | `show_discord_relay` | boolean | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` |  |
-| `legacy_pvp_rating` | int32 | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` |  |
+| `legacy_pvp_rating` | int32 | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
 | `hexed_rank` | int32 | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`<br>**web** `stats.ts` | **plugin** the first rank when out of range; **bot** 0; **web** sort key only |
 | `hexed_points` | int32 | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** 0; **web** 0 |
 | `total_play_time` | int32 | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** 0; **web** 0 |
-| `event_votes` | map to boolean | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java` |  |
-| `map_votes` | map to boolean | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java` |  |
+| `event_votes` | map to boolean | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
+| `map_votes` | map to boolean | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
 | `blocked_private_uuids` | array of string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py` |  |
 | `unlocked_badges` | array of string | **plugin** `PlayerData.java`<br>**bot** `mongo_store.py`, `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** () when not a list; **web** [] when not an array |
 | `active_badge` | string | **plugin** `PlayerData.java`<br>**bot** `mongo_store.py`, `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
 | `badge_symbol_color_mode` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` | **plugin** "default" |
-| `is_admin` | boolean | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**web** `stats.ts` | **web** false |
-| `admin_source` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` |  |
+| `is_admin` | boolean | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**web** `stats.ts` | **web** false |
+| `admin_source` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
 | `leaderboard` | boolean | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py` | **bot** true |
 | `discord_id` | string | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`<br>**web** `stats.ts`, `accounts.ts` | **plugin** ""; link filters match "" or missing; **bot** None when blank; **web** falsy means unlinked |
 | `discord_username` | string | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py` | **bot** None when blank |
 | `discord_linked_at` | integer | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `accounts.ts` | **plugin** 0; unlink matches 0 or missing; **bot** None when missing; **web** 0 |
-| `discord_link_generation` | int64 | **plugin** `PlayerDataRepository.java` | **plugin** `PlayerDataRepository.java` |  |
+| `discord_link_generation` | int64 | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerDataRepository.java` |  |
 | `online` | boolean | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** false; **web** false |
 | `online_since` | int64 | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py` |  |
 | `online_server` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** None when blank; **web** ignored unless online |
@@ -180,7 +180,7 @@ No schema yet.
 - **web**: [`player-totals.ts`](../../web/src/lib/server/player-totals.ts), [`stats.ts`](../../web/src/lib/server/stats.ts)
 
 - Materialized per-player stats, keyed by uuid. Every reader follows redirect_uuid after merges.
-- The bot's account merge writes the same invalidation as the plugin (revision, rebuild.dirty, rebuild.queued_at, status, schema_version) but $inc's revision by an int32 1 where the plugin uses an int64.
+- The bot's account merge writes the same invalidation as the plugin (revision, rebuild.dirty, rebuild.queued_at, status, schema_version); protocol/storage/merges holds the cases both run.
 - V10 stamps rules_version so a server still on the old jar does not claim these players; neither the plugin's invalidation nor the bot's merge sets rules_version on a new document, so those stay claimable by old jars.
 - The plugin (PlayerTotalsView) and the bot check status before schema_version, the website the other way round: a pending document with an unknown schema_version is 'pending' in game and in Discord and an error on the site.
 

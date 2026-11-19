@@ -1,0 +1,11 @@
+{
+  "_id": {"$oid": "6650a1b2c3d4e5f60d000001"},
+  "case_number": 2301,
+  "uuid": "uuid-source",
+  "pid": 10,
+  "name": "[blue]Alt",
+  "admin_name": "Discord Mod",
+  "admin_discord_id": null,
+  "reason": "insults",
+  "expire_date": {"$date": "2999-01-01T00:00:00Z"}
+}

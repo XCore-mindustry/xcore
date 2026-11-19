@@ -13,6 +13,7 @@ import com.networknt.schema.ValidationMessage;
 import org.bson.BsonDocument;
 import org.bson.BsonDocumentReader;
 import org.bson.BsonDocumentWriter;
+import org.bson.BsonValue;
 import org.bson.codecs.DecoderContext;
 import org.bson.codecs.EncoderContext;
 import org.bson.codecs.configuration.CodecRegistries;
@@ -69,21 +70,27 @@ final class StorageContract {
         return fields;
     }
 
-    /** Every shape a reader can meet: current and legacy documents, and both sides of each migration. */
+    /** Every shape a reader can meet: current and legacy documents, and both sides of each migration and merge case. */
     static List<Path> stored(String collection) {
         var paths = new ArrayList<Path>();
         paths.addAll(files(ROOT.resolve("fixtures/" + collection + "/valid")));
         paths.addAll(files(ROOT.resolve("fixtures/" + collection + "/legacy")));
-        if (!Files.isDirectory(ROOT.resolve("migrations"))) return paths;
-        try (var migrations = Files.list(ROOT.resolve("migrations"))) {
-            for (var migration : migrations.sorted().toList()) {
-                paths.addAll(files(migration.resolve("before/" + collection)));
-                paths.addAll(files(migration.resolve("after/" + collection)));
+        for (var root : List.of("migrations", "merges")) {
+            for (var dir : dirs(ROOT.resolve(root))) {
+                paths.addAll(files(dir.resolve("before/" + collection)));
+                paths.addAll(files(dir.resolve("after/" + collection)));
             }
+        }
+        return paths;
+    }
+
+    static List<Path> dirs(Path dir) {
+        if (!Files.isDirectory(dir)) return List.of();
+        try (var dirs = Files.list(dir)) {
+            return dirs.filter(Files::isDirectory).sorted().toList();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return paths;
     }
 
     static List<Path> files(Path dir) {
@@ -93,6 +100,27 @@ final class StorageContract {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /** Numbers by value, whatever their width; arrays as sets of members, as the plugin keeps them in sets. */
+    static boolean same(BsonValue expected, BsonValue actual) {
+        if (actual == null) return false;
+        if (expected.isNumber() && actual.isNumber()) {
+            return expected.asNumber().decimal128Value().equals(actual.asNumber().decimal128Value());
+        }
+        if (expected.isArray() && actual.isArray()) {
+            var left = expected.asArray().getValues();
+            var right = actual.asArray().getValues();
+            return left.stream().allMatch(v -> right.stream().anyMatch(w -> same(v, w)))
+                    && right.stream().allMatch(w -> left.stream().anyMatch(v -> same(v, w)));
+        }
+        if (expected.isDocument() && actual.isDocument()) {
+            var left = expected.asDocument();
+            var right = actual.asDocument();
+            return left.keySet().equals(right.keySet())
+                    && left.keySet().stream().allMatch(k -> same(left.get(k), right.get(k)));
+        }
+        return expected.equals(actual);
     }
 
     static BsonDocument read(Path path) {

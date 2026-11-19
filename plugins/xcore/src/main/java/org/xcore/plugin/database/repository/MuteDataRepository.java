@@ -1,10 +1,12 @@
 package org.xcore.plugin.database.repository;
 
 import arc.util.Log;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.ReplaceOptions;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import org.jspecify.annotations.Nullable;
 import org.xcore.plugin.config.TomlSecretsConfig;
 import org.xcore.plugin.database.MongoAsync;
 import org.xcore.plugin.database.ReactiveMongoStore;
@@ -25,6 +27,11 @@ public class MuteDataRepository extends DataRepository<MuteData> {
 
     public MuteDataRepository(MongoDatabase database, TomlSecretsConfig secretsConfig) {
         this(database, null, secretsConfig);
+    }
+
+    /** The account merge's copy of a mute (see {@link #transferPunishment}). Returns whether a mute was copied. */
+    public boolean transferForMerge(@Nullable ClientSession session, PunishmentTransfer transfer) {
+        return transferPunishment(session, transfer, copy -> {}) != null;
     }
 
     public MuteData findByUuid(String uuid) {
