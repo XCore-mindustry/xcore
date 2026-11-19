@@ -23,9 +23,13 @@ Moderation is where this costs the most. `bans`, `mutes`, the `ban_id` sequence 
   both. The plugin's model now carries them, and a contract test checks that replacing any stored
   ban or mute keeps every field.
 - **Two implementations of one operation.** An account merge exists in the plugin
-  (`AccountMergeService`) and in the bot (`account_merge_store.py`). They copy a ban differently: the
-  plugin gives the copy the target's IP, the bot keeps the source's IP on the copy and removes it
-  from the original. The bot also recomputes Hexed ranks from its own copy of the thresholds.
+  (`AccountMergeService`) and in the bot (`account_merge_store.py`). They had drifted apart: they
+  copied bans with different IPs, disagreed on which mutes follow the player, and the bot merged the
+  source's device tokens and left it its password, username and admin rights. The Hexed rank
+  thresholds also had a copy in each. `protocol/storage/merges` now defines what a merge does, with
+  before and after cases that both implementations' tests run, and the thresholds live in
+  `protocol/storage/hexed-ranks.v1.json`, read by both. The two still differ only around the
+  merge: the bot refuses online accounts and moves ratings over RPC afterwards.
 - **A shared sequence.** Both components allocate ban numbers from `counters.ban_id`. The unique
   index on `bans.ban_id` only covers 32-bit ints, so a writer that ever stores an int64 escapes it.
 - **Several plugin versions at once.** Servers take a new jar when they restart, so for days old
@@ -100,7 +104,8 @@ overwrite, give that collection a `schema_version` and a guarded write, as V10 d
   does today (about ten seconds at worst before it reports "unknown").
 - **The bot's account merge moves too.** Its merge writes `players`, `bans`, `mutes`,
   `player_totals` and `games_v2` in one transaction. It has to become an RPC to the plugin's
-  `AccountMergeService`, and the two merges must be reconciled first (IP handling, Hexed ranks).
+  `AccountMergeService`. The two merges are reconciled (`protocol/storage/merges`); the RPC still has
+  to carry `keep_pid`, which the console merge does not offer.
 - **Receipts and idempotency.** Each operation needs a receipt so a retried request is not applied
   twice, as `account_operation_receipts` does for linking.
 
@@ -114,7 +119,8 @@ overwrite, give that collection a `schema_version` and a guarded write, as V10 d
    not support the RPC, it writes directly as today. Once a request is sent, it never falls back
    to a direct write: if the answer is lost, it retries with the same idempotency key until the
    receipt settles the outcome, because the server may already have applied the change.
-4. Move the account merge.
+4. Move the account merge. The cases in `protocol/storage/merges` say what it must keep doing;
+   the plugin's merge needs `keep_pid=source` before the bot can call it.
 5. Remove the direct writes once every server has restarted onto a jar with the handlers. Only then
    remove `bot` from `x-written-by` of each field, when no path in the bot (fallback or merge)
    still writes it.
@@ -142,7 +148,8 @@ only need read models.
 ### Costs
 - Discord moderation depends on a live game server.
 - New protocol messages, a release, and a transition with two code paths in the bot.
-- Moving the account merge is the largest piece and needs the two merges reconciled first.
+- Moving the account merge is the largest piece. The two merges are reconciled, but the plugin's
+  has to learn `keep_pid=source` first.
 
 ## Acceptance Criteria For This Decision
 - The moderation RPCs are specified in `protocol/spec` with fixtures and compatibility tests.
