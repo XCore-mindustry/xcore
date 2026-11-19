@@ -1,7 +1,6 @@
 package org.xcore.plugin.database.storage;
 
 import org.bson.BsonDocument;
-import org.bson.BsonValue;
 import org.junit.jupiter.api.Test;
 import org.xcore.plugin.model.BanData;
 import org.xcore.plugin.model.ModelData;
@@ -83,7 +82,7 @@ class StorageModelContractTest {
             for (var field : read) {
                 var value = stored.get(field);
                 if (value == null || value.isNull()) continue;
-                assertThat(same(value, again.get(field)))
+                assertThat(StorageContract.same(value, again.get(field)))
                         .as("%s: %s is %s in the fixture but %s once the plugin decodes it", path.getFileName(), field, value,
                                 again.get(field))
                         .isTrue();
@@ -98,7 +97,7 @@ class StorageModelContractTest {
             for (var field : stored.keySet()) {
                 // _id stays with the document; a null is left out, which every reader takes the same way.
                 if (field.equals("_id") || stored.get(field).isNull()) continue;
-                assertThat(same(stored.get(field), again.get(field)))
+                assertThat(StorageContract.same(stored.get(field), again.get(field)))
                         .as("%s: the plugin's %s drops %s", path.getFileName(), type.getSimpleName(), field)
                         .isTrue();
             }
@@ -113,27 +112,6 @@ class StorageModelContractTest {
         assertThat(StorageContract.pluginFields(collection, "x-written-by"))
                 .as("the schema names the plugin as a writer of every field it writes")
                 .containsAll(document.keySet());
-    }
-
-    /** Numbers by value, whatever their width; arrays as sets of members, as the plugin keeps them in sets. */
-    private static boolean same(BsonValue expected, BsonValue actual) {
-        if (actual == null) return false;
-        if (expected.isNumber() && actual.isNumber()) {
-            return expected.asNumber().decimal128Value().equals(actual.asNumber().decimal128Value());
-        }
-        if (expected.isArray() && actual.isArray()) {
-            var left = expected.asArray().getValues();
-            var right = actual.asArray().getValues();
-            return left.stream().allMatch(v -> right.stream().anyMatch(w -> same(v, w)))
-                    && right.stream().allMatch(w -> left.stream().anyMatch(v -> same(v, w)));
-        }
-        if (expected.isDocument() && actual.isDocument()) {
-            var left = expected.asDocument();
-            var right = actual.asDocument();
-            return left.keySet().equals(right.keySet())
-                    && left.keySet().stream().allMatch(k -> same(left.get(k), right.get(k)));
-        }
-        return expected.equals(actual);
     }
 
     private static <B extends org.xcore.plugin.model.Punishment.PunishmentBuilder<?, ?>> B punishment(B builder) {

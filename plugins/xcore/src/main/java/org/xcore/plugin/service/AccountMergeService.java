@@ -19,6 +19,7 @@ import org.xcore.plugin.database.repository.BanDataRepository;
 import org.xcore.plugin.database.repository.GameDataRepository;
 import org.xcore.plugin.database.repository.MuteDataRepository;
 import org.xcore.plugin.database.repository.PlayerDataRepository;
+import org.xcore.plugin.database.repository.PunishmentTransfer;
 import org.xcore.plugin.gamemode.hexed.HexedRanks;
 import org.xcore.plugin.model.*;
 import org.xcore.plugin.rating.ladder.LadderService;
@@ -279,7 +280,7 @@ public class AccountMergeService {
         target.totalPlayTime += source.totalPlayTime;
         target.legacyPvpRating = Math.max(target.legacyPvpRating, source.legacyPvpRating);
         target.hexedPoints += source.hexedPoints;
-        target.hexedRank = computeHexedRank(target.hexedPoints).ordinal();
+        target.hexedRank = HexedRanks.HexedRank.of(target.hexedPoints).ordinal();
 
         if (source.unlockedBadges != null) {
             if (target.unlockedBadges == null) target.unlockedBadges = new HashSet<>();
@@ -312,13 +313,14 @@ public class AccountMergeService {
         // Credentials and grants are not merged. The target keeps its own password, device
         // tokens and admin status; inheriting the source's would hand staff access to an
         // account that never earned it.
+        // Where both voted, the surviving account's vote stands, as its other fields do.
         if (source.mapVotes != null) {
             if (target.mapVotes == null) target.mapVotes = new HashMap<>();
-            target.mapVotes.putAll(source.mapVotes);
+            source.mapVotes.forEach(target.mapVotes::putIfAbsent);
         }
         if (source.eventVotes != null) {
             if (target.eventVotes == null) target.eventVotes = new HashMap<>();
-            target.eventVotes.putAll(source.eventVotes);
+            source.eventVotes.forEach(target.eventVotes::putIfAbsent);
         }
         if (source.blockedPrivateUuids != null) {
             if (target.blockedPrivateUuids == null) target.blockedPrivateUuids = new HashSet<>();
@@ -387,71 +389,11 @@ public class AccountMergeService {
         // Without a transaction a refusal after the first write would leave a half-merged account.
         gameDataRepository.checkMerge(session, oldSourceUuid, targetWorking.uuid);
 
-        // 1. Transfer active punishments
-        boolean banTransferred = false;
-        boolean muteTransferred = false;
-
-        BanData sourceBan = (session != null)
-                ? banDataRepository.find(session, oldSourceUuid, null)
-                : banDataRepository.find(oldSourceUuid, null);
-
-        if (sourceBan != null && !sourceBan.expired()) {
-            BanData targetBan = (session != null)
-                    ? banDataRepository.find(session, targetWorking.uuid, null)
-                    : banDataRepository.find(targetWorking.uuid, null);
-
-            if (targetBan == null || targetBan.expired()) {
-                BanData newBan = BanData.builder()
-                        .uuid(targetWorking.uuid)
-                        .ip(targetWorking.ip)
-                        .name(targetWorking.nickname)
-                        .adminName(sourceBan.adminName)
-                        .adminDiscordId(sourceBan.adminDiscordId)
-                        .reason("[Merged from #" + sourceBefore.pid + "] " + sourceBan.reason)
-                        .expireDate(sourceBan.expireDate)
-                        .build();
-
-                boolean saved = (session != null)
-                        ? banDataRepository.save(session, newBan)
-                        : banDataRepository.save(newBan);
-                if (!saved) {
-                    throw new IllegalStateException("Failed to persist transferred ban for target account");
-                }
-                banTransferred = true;
-            }
-        }
-
-        MuteData sourceMute = (session != null)
-                ? muteDataRepository.findByUuid(session, oldSourceUuid)
-                : muteDataRepository.findByUuid(oldSourceUuid);
-
-        if (sourceMute != null && !sourceMute.expired()) {
-            MuteData targetMute = (session != null)
-                    ? muteDataRepository.findByUuid(session, targetWorking.uuid)
-                    : muteDataRepository.findByUuid(targetWorking.uuid);
-
-            if (targetMute == null || targetMute.expired()) {
-                // Still the mute its case is about, now on the surviving account and under its PID.
-                MuteData newMute = MuteData.builder()
-                        .uuid(targetWorking.uuid)
-                        .pid(PlayerPids.orNull(targetWorking.pid))
-                        .caseNumber(sourceMute.caseNumber)
-                        .name(targetWorking.nickname)
-                        .adminName(sourceMute.adminName)
-                        .adminDiscordId(sourceMute.adminDiscordId)
-                        .reason("[Merged from #" + sourceBefore.pid + "] " + sourceMute.reason)
-                        .expireDate(sourceMute.expireDate)
-                        .build();
-
-                boolean saved = (session != null)
-                        ? muteDataRepository.save(session, newMute)
-                        : muteDataRepository.save(newMute);
-                if (!saved) {
-                    throw new IllegalStateException("Failed to persist transferred mute for target account");
-                }
-                muteTransferred = true;
-            }
-        }
+        // 1. Transfer active punishments, as protocol/storage/merges/README.md defines it
+        var transfer = new PunishmentTransfer(oldSourceUuid, sourceBefore.pid, targetWorking.uuid,
+                PlayerPids.orNull(targetWorking.pid), targetWorking.nickname);
+        boolean banTransferred = banDataRepository.transferForMerge(session, transfer);
+        boolean muteTransferred = muteDataRepository.transferForMerge(session, transfer);
 
         // 2. Persist PlayerData
         // Bindings were refreshed before the transaction; a later change still aborts the merge.
@@ -589,21 +531,20 @@ public class AccountMergeService {
         });
     }
 
-    private HexedRanks.HexedRank computeHexedRank(int points) {
-        var current = HexedRanks.HexedRank.newbie;
-        while (current.hasNext() && current.checkNext(points)) {
-            current = current.next;
-        }
-        return current;
-    }
-
     private PlayerData clonePlayerData(PlayerData original) {
         if (original == null) return null;
         PlayerData copy = new PlayerData(original.uuid, original.exists);
         copy.id = original.id;
+        // The merge saves the copy over the stored document, so these must not fall back to "now".
+        copy.createdModelTime = original.createdModelTime;
+        copy.editModelTime = original.editModelTime;
+        copy.deleteModelTime = original.deleteModelTime;
+        copy.isVisible = original.isVisible;
+        copy.versionModel = original.versionModel;
         copy.pid = original.pid;
         copy.username = original.username;
         copy.canChangeUsername = original.canChangeUsername;
+        copy.identityDisplayMode = original.identityDisplayMode;
         copy.ip = original.ip;
         copy.nickname = original.nickname;
         copy.customNickname = original.customNickname;
@@ -620,6 +561,9 @@ public class AccountMergeService {
         copy.admin = original.admin;
         copy.adminSource = original.adminSource;
         copy.leaderboard = original.leaderboard;
+        copy.online = original.online;
+        copy.onlineSince = original.onlineSince;
+        copy.onlineServer = original.onlineServer;
         copy.discordId = original.discordId;
         copy.discordUsername = original.discordUsername;
         copy.discordLinkedAt = original.discordLinkedAt;

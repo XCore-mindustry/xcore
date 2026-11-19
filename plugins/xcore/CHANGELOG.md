@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- `merge-player` and `merge-account` follow the account merge defined in `protocol/storage/merges`, which the Discord bot's merge follows too and which both test against the same cases:
+  - A ban copied to the surviving account keeps the source ban's IP, case number and timestamps, and the original gives up its IP. Before, the copy took the target's last IP, lost its case, and both bans kept an IP, so lifting the copy left the original's IP ban in place.
+  - A copied mute keeps every field of the original, its timestamps included. Before, it was written as a new document.
+  - Where both accounts voted on the same map or event, the surviving account's vote stands. Before, the closed account's vote replaced it.
+- The Hexed rank thresholds are read from `protocol/storage/hexed-ranks.v1.json`, bundled into the jar. The Discord bot reads the same file; the values are unchanged.
+
+### Fixed
+- A merge no longer resets the `created_at` and `deleted_at` of both accounts to the time of the merge, nor their name display mode and online state.
+
 ## [5.9.0] - 2026-11-15
 
 ### Added

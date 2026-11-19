@@ -13,6 +13,7 @@ import com.networknt.schema.ValidationMessage;
 import org.bson.BsonDocument;
 import org.bson.BsonDocumentReader;
 import org.bson.BsonDocumentWriter;
+import org.bson.BsonValue;
 import org.bson.codecs.DecoderContext;
 import org.bson.codecs.EncoderContext;
 import org.bson.codecs.configuration.CodecRegistries;
@@ -99,6 +100,27 @@ final class StorageContract {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /** Numbers by value, whatever their width; arrays as sets of members, as the plugin keeps them in sets. */
+    static boolean same(BsonValue expected, BsonValue actual) {
+        if (actual == null) return false;
+        if (expected.isNumber() && actual.isNumber()) {
+            return expected.asNumber().decimal128Value().equals(actual.asNumber().decimal128Value());
+        }
+        if (expected.isArray() && actual.isArray()) {
+            var left = expected.asArray().getValues();
+            var right = actual.asArray().getValues();
+            return left.stream().allMatch(v -> right.stream().anyMatch(w -> same(v, w)))
+                    && right.stream().allMatch(w -> left.stream().anyMatch(v -> same(v, w)));
+        }
+        if (expected.isDocument() && actual.isDocument()) {
+            var left = expected.asDocument();
+            var right = actual.asDocument();
+            return left.keySet().equals(right.keySet())
+                    && left.keySet().stream().allMatch(k -> same(left.get(k), right.get(k)));
+        }
+        return expected.equals(actual);
     }
 
     static BsonDocument read(Path path) {

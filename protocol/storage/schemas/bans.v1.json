@@ -28,7 +28,8 @@
       "x-written-by": {
         "plugin": [
           "plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java",
-          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V7__AssignBanIds.java"
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V7__AssignBanIds.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java"
         ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
@@ -45,7 +46,10 @@
       "type": "string",
       "description": "Missing when the plugin banned an IP alone.",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/DataRepository.java"
+        ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
           "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
@@ -64,7 +68,7 @@
     "ip": {
       "type": ["string", "null"],
       "description": "null once an IP was released from the ban; missing when the plugin wrote no IP or after an account merge.",
-      "x-disagreement": "No IP has three shapes: the plugin omits the field (its codec skips nulls) and releases an IP with {$set: null}, the bot writes null, and the bot's account merge removes it with $unset. Every reader treats all three alike.",
+      "x-disagreement": "No IP has three shapes: the plugin omits the field (its codec skips nulls) and releases an IP with {$set: null}, the bot writes null, and both account merges remove it from the original of a copied ban with $unset. Every reader treats all three alike.",
       "x-written-by": {
         "plugin": [
           "plugins/xcore/src/main/java/org/xcore/plugin/model/BanData.java",
@@ -91,7 +95,8 @@
       "x-written-by": {
         "plugin": [
           "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java",
-          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V7__AssignBanIds.java"
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V7__AssignBanIds.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/DataRepository.java"
         ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
@@ -106,7 +111,7 @@
     },
     "case_number": {
       "oneOf": [{"$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32"}, {"type": "null"}],
-      "description": "The Discord case the ban came from.",
+      "description": "The Discord case the ban came from. An account merge keeps it on the copy.",
       "x-written-by": {
         "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
         "bot": ["services/discord-bot/src/xcore_discord_bot/punishment_store.py"]
@@ -120,7 +125,10 @@
     "name": {
       "type": "string",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/DataRepository.java"
+        ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
           "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
@@ -165,7 +173,10 @@
     "reason": {
       "type": "string",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/Punishment.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/DataRepository.java"
+        ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/punishment_store.py",
           "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"
