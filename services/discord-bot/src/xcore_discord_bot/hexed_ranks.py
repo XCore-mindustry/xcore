@@ -29,5 +29,7 @@ POINTS: tuple[int, ...] = _load()
 
 
 def rank_for(points: int) -> int:
-    """The highest rank the points reach."""
-    return max(rank for rank, needed in enumerate(POINTS) if points >= needed)
+    """The highest rank the points reach; below the first threshold, the first rank, as in the plugin."""
+    return max(
+        (rank for rank, needed in enumerate(POINTS) if points >= needed), default=0
+    )
