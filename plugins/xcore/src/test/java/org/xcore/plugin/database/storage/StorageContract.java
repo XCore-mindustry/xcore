@@ -69,21 +69,27 @@ final class StorageContract {
         return fields;
     }
 
-    /** Every shape a reader can meet: current and legacy documents, and both sides of each migration. */
+    /** Every shape a reader can meet: current and legacy documents, and both sides of each migration and merge case. */
     static List<Path> stored(String collection) {
         var paths = new ArrayList<Path>();
         paths.addAll(files(ROOT.resolve("fixtures/" + collection + "/valid")));
         paths.addAll(files(ROOT.resolve("fixtures/" + collection + "/legacy")));
-        if (!Files.isDirectory(ROOT.resolve("migrations"))) return paths;
-        try (var migrations = Files.list(ROOT.resolve("migrations"))) {
-            for (var migration : migrations.sorted().toList()) {
-                paths.addAll(files(migration.resolve("before/" + collection)));
-                paths.addAll(files(migration.resolve("after/" + collection)));
+        for (var root : List.of("migrations", "merges")) {
+            for (var dir : dirs(ROOT.resolve(root))) {
+                paths.addAll(files(dir.resolve("before/" + collection)));
+                paths.addAll(files(dir.resolve("after/" + collection)));
             }
+        }
+        return paths;
+    }
+
+    static List<Path> dirs(Path dir) {
+        if (!Files.isDirectory(dir)) return List.of();
+        try (var dirs = Files.list(dir)) {
+            return dirs.filter(Files::isDirectory).sorted().toList();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return paths;
     }
 
     static List<Path> files(Path dir) {

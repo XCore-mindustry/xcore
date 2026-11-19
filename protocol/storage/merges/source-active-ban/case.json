@@ -1,0 +1,4 @@
+{
+  "description": "The source's active ban follows the player: the copy keeps the IP, the case and the expiry and gets the next ban_id; the original keeps banning the old uuid but gives up its IP, so lifting the copy lifts the IP too.",
+  "request": {"source_pid": 10, "target_pid": 20, "keep_pid": "target"}
+}

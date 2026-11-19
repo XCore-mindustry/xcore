@@ -224,7 +224,7 @@
     },
     "hexed_rank": {
       "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int32",
-      "description": "Index into the plugin's HexedRanks.",
+      "description": "The rank hexed_points reaches: an index into hexed-ranks.v1.json. An account merge recomputes it from the summed points.",
       "x-disagreement": "The bot's account merge recomputes the rank from hexed_points with its own copy of the thresholds (0, 3, 10, 20, 25, 30); the plugin's HexedRanks holds the original.",
       "x-written-by": {
         "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],

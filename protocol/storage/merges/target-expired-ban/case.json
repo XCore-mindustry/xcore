@@ -1,0 +1,4 @@
+{
+  "description": "The target's ban has expired, so the source's active ban follows the player. The copy takes the place of the expired ban (one ban per uuid, as a join check reads the first match).",
+  "request": {"source_pid": 10, "target_pid": 20, "keep_pid": "target"}
+}

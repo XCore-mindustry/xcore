@@ -1,0 +1,16 @@
+{
+  "_id": {"$oid": "6650a1b2c3d4e5f60d000002"},
+  "created_at": 1715000000000,
+  "updated_at": 1715000000000,
+  "deleted_at": 1715000000000,
+  "is_visible": true,
+  "visible": true,
+  "version": {"$numberLong": "1"},
+  "uuid": "uuid-target",
+  "name": "[red]Main",
+  "admin_name": "Moderator",
+  "admin_discord_id": "",
+  "reason": "caps",
+  "expire_date": {"$date": "2999-01-01T00:00:00Z"},
+  "pid": 20
+}

@@ -1,0 +1,8 @@
+{
+  "_id": "uuid-source",
+  "revision": {"$numberLong": "1"},
+  "rebuild": {"dirty": true, "queued_at": {"$numberLong": "1763500000000"}},
+  "status": "pending",
+  "schema_version": 1,
+  "redirect_uuid": "uuid-target"
+}

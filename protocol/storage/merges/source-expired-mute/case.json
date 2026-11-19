@@ -1,0 +1,4 @@
+{
+  "description": "An expired mute restricts nobody, so it does not follow the player.",
+  "request": {"source_pid": 10, "target_pid": 20, "keep_pid": "target"}
+}

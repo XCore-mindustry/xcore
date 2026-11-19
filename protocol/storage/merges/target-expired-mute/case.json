@@ -1,0 +1,4 @@
+{
+  "description": "The target's mute has expired, so the source's active mute follows the player and takes its place (one mute per uuid).",
+  "request": {"source_pid": 10, "target_pid": 20, "keep_pid": "target"}
+}

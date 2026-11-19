@@ -27,16 +27,18 @@ function jsonFiles(dir: string): string[] {
   return existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith(".json")).sort().map(f => join(dir, f)) : [];
 }
 
-/** Every shape a reader can meet: current and legacy documents, and both sides of each migration. */
+/** Every shape a reader can meet: current and legacy documents, and both sides of each migration and merge case. */
 function stored(collection: string): Document[] {
-  const migrations = join(STORAGE, "migrations");
+  const sides = (root: string) =>
+    (existsSync(root) ? readdirSync(root).sort() : []).flatMap(m => [
+      ...jsonFiles(join(root, m, "before", collection)),
+      ...jsonFiles(join(root, m, "after", collection)),
+    ]);
   const paths = [
     ...jsonFiles(join(STORAGE, "fixtures", collection, "valid")),
     ...jsonFiles(join(STORAGE, "fixtures", collection, "legacy")),
-    ...(existsSync(migrations) ? readdirSync(migrations).sort() : []).flatMap(m => [
-      ...jsonFiles(join(migrations, m, "before", collection)),
-      ...jsonFiles(join(migrations, m, "after", collection)),
-    ]),
+    ...sides(join(STORAGE, "migrations")),
+    ...sides(join(STORAGE, "merges")),
   ];
   // Relaxed, as the driver hands documents to the site: numbers as numbers, dates as Date.
   return paths.map(path => BSON.EJSON.parse(readFileSync(path, "utf8"), { relaxed: true }) as Document);

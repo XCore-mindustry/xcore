@@ -1,0 +1,4 @@
+{
+  "description": "A ban on the source's IP alone names no account: the merge leaves it as it is.",
+  "request": {"source_pid": 10, "target_pid": 20, "keep_pid": "target"}
+}

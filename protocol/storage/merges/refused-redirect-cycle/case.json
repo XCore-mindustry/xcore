@@ -1,0 +1,5 @@
+{
+  "description": "The target's statistics already redirect to the source (it was merged into the source before). Merging this way round would make readers loop, so the merge is refused and nothing changes.",
+  "request": {"source_pid": 10, "target_pid": 20, "keep_pid": "target"},
+  "refused": true
+}

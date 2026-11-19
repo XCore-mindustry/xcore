@@ -1,0 +1,4 @@
+{
+  "description": "Neither account is banned or muted. Stats add up, the target keeps its own values and fills the blanks from the source, the Discord link moves as a whole, credentials and admin rights stay with the target, and the closed account keeps nothing it could sign in with.",
+  "request": {"source_pid": 10, "target_pid": 20, "keep_pid": "target"}
+}

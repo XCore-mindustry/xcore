@@ -1,0 +1,4 @@
+{
+  "description": "The target is banned already: its own ban stands, nothing is copied, and the source's ban keeps its IP.",
+  "request": {"source_pid": 10, "target_pid": 20, "keep_pid": "target"}
+}
