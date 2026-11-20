@@ -22,6 +22,7 @@ import org.xcore.plugin.database.repository.PlayerDataRepository;
 import org.xcore.plugin.database.repository.PunishmentTransfer;
 import org.xcore.plugin.gamemode.hexed.HexedRanks;
 import org.xcore.plugin.model.*;
+import org.xcore.plugin.permission.grant.GrantStore;
 import org.xcore.plugin.rating.ladder.LadderService;
 import org.xcore.plugin.service.moderation.AuditService;
 import org.xcore.plugin.session.Session;
@@ -80,6 +81,7 @@ public class AccountMergeService {
     private final GameDataRepository gameDataRepository;
     private final BanDataRepository banDataRepository;
     private final MuteDataRepository muteDataRepository;
+    private final GrantStore grantStore;
     private final AuditService auditService;
     private final SessionService sessionService;
     private final PlayerDisplayService playerDisplayService;
@@ -96,6 +98,7 @@ public class AccountMergeService {
             GameDataRepository gameDataRepository,
             BanDataRepository banDataRepository,
             MuteDataRepository muteDataRepository,
+            GrantStore grantStore,
             AuditService auditService,
             SessionService sessionService,
             PlayerDisplayService playerDisplayService,
@@ -110,6 +113,7 @@ public class AccountMergeService {
         this.gameDataRepository = gameDataRepository;
         this.banDataRepository = banDataRepository;
         this.muteDataRepository = muteDataRepository;
+        this.grantStore = grantStore;
         this.auditService = auditService;
         this.sessionService = sessionService;
         this.playerDisplayService = playerDisplayService;
@@ -125,6 +129,7 @@ public class AccountMergeService {
             GameDataRepository gameDataRepository,
             BanDataRepository banDataRepository,
             MuteDataRepository muteDataRepository,
+            GrantStore grantStore,
             AuditService auditService,
             SessionService sessionService,
             PlayerDisplayService playerDisplayService,
@@ -134,7 +139,7 @@ public class AccountMergeService {
             LadderService ladderService,
             TomlXcoreConfig config
     ) {
-        this(null, playerDataRepository, gameDataRepository, banDataRepository, muteDataRepository, auditService, sessionService, playerDisplayService, networkService, findService, topMenuCacheService, ladderService, config);
+        this(null, playerDataRepository, gameDataRepository, banDataRepository, muteDataRepository, grantStore, auditService, sessionService, playerDisplayService, networkService, findService, topMenuCacheService, ladderService, config);
     }
 
     public CompletableFuture<MergeResult> mergeAsync(MergeRequest request) {
@@ -311,8 +316,8 @@ public class AccountMergeService {
         }
 
         // Credentials and grants are not merged. The target keeps its own password, device
-        // tokens and admin status; inheriting the source's would hand staff access to an
-        // account that never earned it.
+        // tokens, admin status and grants; inheriting the source's would hand staff access to
+        // an account that never earned it. The source's grants are emptied in the transaction.
         // Where both voted, the surviving account's vote stands, as its other fields do.
         if (source.mapVotes != null) {
             if (target.mapVotes == null) target.mapVotes = new HashMap<>();
@@ -395,22 +400,26 @@ public class AccountMergeService {
         boolean banTransferred = banDataRepository.transferForMerge(session, transfer);
         boolean muteTransferred = muteDataRepository.transferForMerge(session, transfer);
 
-        // 2. Persist PlayerData
+        // 2. The old uuid belongs to nobody now: grants left on it in permission_grants would go to
+        // whoever connects with it next, and set its password on the first /login.
+        boolean grantsRevoked = grantStore.revokeAll(session, oldSourceUuid);
+
+        // 3. Persist PlayerData
         // Bindings were refreshed before the transaction; a later change still aborts the merge.
         if (!playerDataRepository.saveMergedPlayer(session, sourceBefore, sourceWorking)
                 || !playerDataRepository.saveMergedPlayer(session, targetBefore, targetWorking)) {
             throw new IllegalStateException("Player data changed during merge (Discord link or unlink?); retry the merge.");
         }
 
-        // 3. Reassign matches in games_v2
+        // 4. Reassign matches in games_v2
         long gamesTransferred = (session != null)
                 ? gameDataRepository.reassignPlayerMatches(session, oldSourceUuid, targetWorking.uuid)
                 : gameDataRepository.reassignPlayerMatches(oldSourceUuid, targetWorking.uuid);
 
-        // 4. Fold ladder standings of every ladder and season into the target account
+        // 5. Fold ladder standings of every ladder and season into the target account
         int standingsMerged = ladderService.mergePlayer(session, oldSourceUuid, targetWorking.uuid);
 
-        // 5. Record AuditRecord within same transaction boundary
+        // 6. Record AuditRecord within same transaction boundary
         Map<String, String> auditDetails = new HashMap<>();
         auditDetails.put("source_pid", String.valueOf(sourceBefore.pid));
         auditDetails.put("source_uuid", oldSourceUuid);
@@ -424,6 +433,7 @@ public class AccountMergeService {
         auditDetails.put("standings_merged", String.valueOf(standingsMerged));
         auditDetails.put("ban_transferred", String.valueOf(banTransferred));
         auditDetails.put("mute_transferred", String.valueOf(muteTransferred));
+        auditDetails.put("grants_revoked", String.valueOf(grantsRevoked));
         auditDetails.put("atomic_transaction", String.valueOf(session != null));
 
         AuditAppendCommand appendCommand = AuditAppendCommand.builder()

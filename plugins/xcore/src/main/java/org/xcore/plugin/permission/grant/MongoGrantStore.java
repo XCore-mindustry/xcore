@@ -24,6 +24,7 @@ import java.util.Optional;
 
 import static com.mongodb.client.model.Filters.and;
 import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.exists;
 import static com.mongodb.client.model.Filters.in;
 import static com.mongodb.client.model.Filters.lte;
 
@@ -125,6 +126,14 @@ public class MongoGrantStore implements GrantStore {
                 ? collection.findOneAndUpdate(session, unchanged, update, after)
                 : collection.findOneAndUpdate(unchanged, update, after);
         return raw == null ? Optional.empty() : Optional.of(document(raw));
+    }
+
+    @Override
+    public boolean revokeAll(@Nullable ClientSession session, String uuid) {
+        Bson held = and(eq("_id", uuid), exists(GRANTS + ".0"));
+        Bson empty = new Document("$set", new Document(GRANTS, List.of())).append("$inc", new Document(REVISION, 1L));
+        var result = session != null ? collection.updateOne(session, held, empty) : collection.updateOne(held, empty);
+        return result.getModifiedCount() > 0;
     }
 
     @Override

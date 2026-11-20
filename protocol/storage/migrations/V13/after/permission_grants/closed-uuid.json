@@ -1,0 +1,10 @@
+{
+  "_id": "merged:uuid-synced",
+  "revision": {
+    "$numberLong": "2"
+  },
+  "grants": [],
+  "credentialsEpoch": {
+    "$numberLong": "0"
+  }
+}

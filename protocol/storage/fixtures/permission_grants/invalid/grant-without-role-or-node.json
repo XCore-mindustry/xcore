@@ -1,0 +1,3 @@
+{"_id": "uuid-bad", "revision": {"$numberLong": "1"}, "grants": [
+  {"id": "g-1", "server": null, "expiresAt": null, "source": null, "by": "console", "at": null, "reason": null}
+]}

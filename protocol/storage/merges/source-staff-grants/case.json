@@ -1,0 +1,4 @@
+{
+  "description": "Both accounts are staff. The closed account's grants are emptied, so nobody who connects with its old uuid inherits them; the target keeps its own grants and gets none from the source.",
+  "request": {"source_pid": 10, "target_pid": 20, "keep_pid": "target"}
+}

@@ -21,6 +21,7 @@
     "uuid": {
       "type": "string",
       "description": "The Mindustry UUID. A closed account after a merge has \"merged:\" + its old uuid.",
+      "x-note": "A closed account (merged:) holds no credentials: username and password_hash \"\", can_change_username and is_admin false, admin_source \"NONE\", no device tokens, no Discord link (protocol/storage/merges/README.md). V12 cleared what Discord merges before 5.10.0 left on such accounts.",
       "x-written-by": {
         "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
@@ -28,7 +29,8 @@
       "x-read-by": {
         "plugin": [
           "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
-          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java"
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
         ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
@@ -54,7 +56,8 @@
       "x-read-by": {
         "plugin": [
           "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
-          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java"
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
         ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/store_mappers.py",
@@ -70,7 +73,10 @@
       "type": "string",
       "description": "Login name; \"\" when none. Unique, case-insensitively, among non-empty values.",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
+        ],
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
       "x-read-by": {
@@ -87,7 +93,10 @@
     "can_change_username": {
       "type": "boolean",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
+        ],
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
       "x-read-by": {
@@ -159,7 +168,10 @@
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
       "x-read-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
+        ],
         "bot": ["services/discord-bot/src/xcore_discord_bot/store_mappers.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"],
         "web": ["web/src/lib/server/stats.ts"]
       },
@@ -171,7 +183,8 @@
       "x-written-by": {
         "plugin": [
           "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
-          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
         ],
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
@@ -181,7 +194,10 @@
       "type": "array",
       "items": {"type": "string"},
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
+        ],
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
       "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
@@ -191,7 +207,10 @@
       "additionalProperties": {"$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64"},
       "description": "Token hash to expiry in epoch milliseconds.",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
+        ],
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
       "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
@@ -364,7 +383,10 @@
     "is_admin": {
       "type": "boolean",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
+        ],
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
       "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"], "web": ["web/src/lib/server/stats.ts"]},
@@ -374,7 +396,10 @@
       "type": "string",
       "description": "Where admin rights came from: NONE, DISCORD, ...; V2 set NONE on older documents.",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
+        ],
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
       "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java"]}
@@ -393,7 +418,10 @@
       "type": "string",
       "description": "\"\" when unlinked; missing on a player that was never linked, because ordinary saves leave discord_* to the link operations.",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
+        ],
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
       "x-read-by": {
@@ -413,7 +441,10 @@
     "discord_username": {
       "type": "string",
       "x-written-by": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
+        ],
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
       "x-read-by": {

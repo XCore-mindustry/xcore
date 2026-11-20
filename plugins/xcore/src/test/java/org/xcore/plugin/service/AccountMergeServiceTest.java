@@ -23,6 +23,7 @@ import org.xcore.plugin.database.repository.MuteDataRepository;
 import org.xcore.plugin.database.repository.PunishmentTransfer;
 import org.xcore.plugin.database.repository.PlayerDataRepository;
 import org.xcore.plugin.gamemode.hexed.HexedRanks;
+import org.xcore.plugin.permission.grant.InMemoryGrantStore;
 import org.xcore.plugin.model.*;
 import org.xcore.plugin.rating.ladder.LadderService;
 import org.xcore.plugin.service.moderation.AuditService;
@@ -84,6 +85,7 @@ class AccountMergeServiceTest {
                 gameDataRepository,
                 banDataRepository,
                 muteDataRepository,
+                new InMemoryGrantStore(),
                 auditService,
                 sessionService,
                 playerDisplayService,
@@ -142,7 +144,7 @@ class AccountMergeServiceTest {
         targetSession.data = target;
         onlineSessions.update(targetSession);
         var onlineService = new AccountMergeService(playerDataRepository, gameDataRepository,
-                banDataRepository, muteDataRepository, auditService, onlineSessions, playerDisplayService,
+                banDataRepository, muteDataRepository, new InMemoryGrantStore(), auditService, onlineSessions, playerDisplayService,
                 networkService, new FindService(onlineSessions, null), topMenuCacheService, ladderService, config);
         when(playerDataRepository.saveMergedPlayer(isNull(), any(PlayerData.class), any(PlayerData.class)))
                 .thenAnswer(invocation -> {
@@ -444,6 +446,7 @@ class AccountMergeServiceTest {
                 gameDataRepository,
                 banDataRepository,
                 muteDataRepository,
+                new InMemoryGrantStore(),
                 auditService,
                 sessionService,
                 playerDisplayService,
@@ -498,6 +501,7 @@ class AccountMergeServiceTest {
                 gameDataRepository,
                 banDataRepository,
                 muteDataRepository,
+                new InMemoryGrantStore(),
                 auditService,
                 sessionService,
                 playerDisplayService,
@@ -563,6 +567,7 @@ class AccountMergeServiceTest {
                 gameDataRepository,
                 banDataRepository,
                 muteDataRepository,
+                new InMemoryGrantStore(),
                 auditService,
                 sessionService,
                 playerDisplayService,

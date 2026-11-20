@@ -15,6 +15,7 @@ component check it. See [README.md](README.md) for how to change a shared docume
 | `maps` | — | plugin | plugin, web |
 | `moderation_audit` | — | plugin, bot | plugin, bot |
 | `mutes` | [mutes.v1](schemas/mutes.v1.json) | plugin, bot | plugin, bot |
+| `permission_grants` | [permission_grants.v1](schemas/permission_grants.v1.json) | plugin, bot | plugin, bot |
 | `player_totals` | — | plugin, bot | plugin, bot, web |
 | `players` | [players.v1](schemas/players.v1.json) | plugin, bot | plugin, bot, web |
 | `rating_matches` | — | plugin | plugin, web |
@@ -24,7 +25,7 @@ component check it. See [README.md](README.md) for how to change a shared docume
 | `settings` | — | plugin | plugin, bot, web |
 | `staff_activity` | — | plugin | bot |
 
-Used by one component only: `account_operation_receipts` (plugin), `admins` (plugin (legacy, read by V1)), `case_panels` (bot), `case_report_limits` (bot), `cases` (bot), `discord_season_posts` (bot), `discord_user_prefs` (bot), `events` (plugin), `map_entities` (plugin), `map_upload_history` (plugin), `map_uploads` (plugin), `permission_grants` (plugin), `private_messages` (plugin), `rating_merge_pending` (bot), `web_account_intents` (web (its own database)).
+Used by one component only: `account_operation_receipts` (plugin), `admins` (plugin (legacy, read by V1)), `case_panels` (bot), `case_report_limits` (bot), `cases` (bot), `discord_season_posts` (bot), `discord_user_prefs` (bot), `events` (plugin), `map_entities` (plugin), `map_upload_history` (plugin), `map_uploads` (plugin), `private_messages` (plugin), `rating_merge_pending` (bot), `web_account_intents` (web (its own database)).
 
 ## `bans`
 
@@ -109,29 +110,43 @@ Disagreements and constraints:
 - `admin_discord_id`: The plugin writes "" for no moderator id, the bot writes null.
 - `expire_date`: The plugin's model allows a mute without expiry (Punishment.expireDate may be null, and its codec would then omit the field), but no command creates one today. The bot's MuteDoc requires a date, so such a mute would make find_mute raise.
 
+## `permission_grants`
+
+The staff grants of one player, keyed by uuid. The plugin owns it; an account merge on either side empties the closed account's grants (see merges/README.md).
+
+- **plugin**: [`V13__RevokeClosedAccountGrants.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V13__RevokeClosedAccountGrants.java), [`MongoGrantStore.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/permission/grant/MongoGrantStore.java), [`AccountMergeService.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/service/AccountMergeService.java)
+- **bot**: [`account_merge_store.py`](../../services/discord-bot/src/xcore_discord_bot/account_merge_store.py)
+
+| Field | Type | Written by | Read by | Fallback when missing |
+|---|---|---|---|---|
+| `_id` | string | **plugin** `MongoGrantStore.java`, `AccountMergeService.java`, `V13__RevokeClosedAccountGrants.java`<br>**bot** `account_merge_store.py` | **plugin** `MongoGrantStore.java` |  |
+| `revision` | int64 | **plugin** `MongoGrantStore.java`, `V13__RevokeClosedAccountGrants.java`<br>**bot** `account_merge_store.py` | **plugin** `MongoGrantStore.java` | **plugin** 0 |
+| `grants` | array of grant | **plugin** `MongoGrantStore.java`, `V13__RevokeClosedAccountGrants.java`<br>**bot** `account_merge_store.py` | **plugin** `MongoGrantStore.java`<br>**bot** `account_merge_store.py` | **plugin** no grants |
+| `credentialsEpoch` | int64 | **plugin** `MongoGrantStore.java` | **plugin** `MongoGrantStore.java` | **plugin** 0 |
+
 ## `players`
 
 One document per Mindustry UUID. The plugin saves a player with {$set: <every field it models>} rather than replacing the document, so fields written by others or by older versions survive its saves. Those saves leave out every discord_* field: only the link operations and the account merges write them. Any field can be missing on a document an older plugin created.
 
-- **plugin**: [`V1__InitModernDatabase.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V1__InitModernDatabase.java), [`BanDataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java), [`PlayerDataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java), [`ModelData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java), [`PlayerData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java)
+- **plugin**: [`V12__ClearClosedAccountCredentials.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java), [`V1__InitModernDatabase.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V1__InitModernDatabase.java), [`BanDataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/BanDataRepository.java), [`PlayerDataRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/PlayerDataRepository.java), [`ModelData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/ModelData.java), [`PlayerData.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/model/PlayerData.java)
 - **bot**: [`account_merge_store.py`](../../services/discord-bot/src/xcore_discord_bot/account_merge_store.py), [`mongo_store.py`](../../services/discord-bot/src/xcore_discord_bot/mongo_store.py), [`rating_store.py`](../../services/discord-bot/src/xcore_discord_bot/rating_store.py), [`store_mappers.py`](../../services/discord-bot/src/xcore_discord_bot/store_mappers.py)
 - **web**: [`accounts.ts`](../../web/src/lib/server/accounts.ts), [`stats.ts`](../../web/src/lib/server/stats.ts)
 
 | Field | Type | Written by | Read by | Fallback when missing |
 |---|---|---|---|---|
 | `_id` | objectId | **plugin** `PlayerDataRepository.java` | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` |  |
-| `uuid` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `BanDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`, `rating_store.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** None when blank; **web** "" |
-| `pid` | int32 | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `BanDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`, `rating_store.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** -2147483648 when missing; **web** 0 when missing (safeInt); search and leaderboards skip the sentinel |
-| `username` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `mongo_store.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
-| `can_change_username` | boolean | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
+| `uuid` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `BanDataRepository.java`, `V12__ClearClosedAccountCredentials.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`, `rating_store.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** None when blank; **web** "" |
+| `pid` | int32 | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `BanDataRepository.java`, `V12__ClearClosedAccountCredentials.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`, `rating_store.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** -2147483648 when missing; **web** 0 when missing (safeInt); search and leaderboards skip the sentinel |
+| `username` | string | **plugin** `PlayerData.java`, `V12__ClearClosedAccountCredentials.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `mongo_store.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
+| `can_change_username` | boolean | **plugin** `PlayerData.java`, `V12__ClearClosedAccountCredentials.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` |  |
 | `identity_display_mode` | "PID" \| "USERNAME" \| "BOTH" \| "NONE" | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` | **plugin** BOTH |
 | `last_ip` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py` | **bot** None when blank |
 | `nickname` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`, `rating_store.py`<br>**web** `stats.ts`, `accounts.ts` | **plugin** "Unknown"; **bot** "Unknown" when missing or blank; **web** "Unknown" when missing |
 | `custom_nickname` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py` | **bot** None when blank |
-| `description` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
-| `password_hash` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
-| `device_token_hashes` | array of string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
-| `device_tokens` | map to int64 | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
+| `description` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `V12__ClearClosedAccountCredentials.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
+| `password_hash` | string | **plugin** `PlayerData.java`, `PlayerDataRepository.java`, `V12__ClearClosedAccountCredentials.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
+| `device_token_hashes` | array of string | **plugin** `PlayerData.java`, `V12__ClearClosedAccountCredentials.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
+| `device_tokens` | map to int64 | **plugin** `PlayerData.java`, `V12__ClearClosedAccountCredentials.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
 | `local_language` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py` | **plugin** "auto"; **bot** None when blank |
 | `translator_language` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py` | **plugin** "off"; **bot** None when blank |
 | `show_global_chat` | boolean | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` |  |
@@ -146,11 +161,11 @@ One document per Mindustry UUID. The plugin saves a player with {$set: <every fi
 | `unlocked_badges` | array of string | **plugin** `PlayerData.java`<br>**bot** `mongo_store.py`, `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts` | **bot** () when not a list; **web** [] when not an array |
 | `active_badge` | string | **plugin** `PlayerData.java`<br>**bot** `mongo_store.py`, `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`<br>**web** `stats.ts` | **bot** None when blank; **web** null when empty |
 | `badge_symbol_color_mode` | string | **plugin** `PlayerData.java` | **plugin** `PlayerData.java` | **plugin** "default" |
-| `is_admin` | boolean | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**web** `stats.ts` | **web** false |
-| `admin_source` | string | **plugin** `PlayerData.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
+| `is_admin` | boolean | **plugin** `PlayerData.java`, `V12__ClearClosedAccountCredentials.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**web** `stats.ts` | **web** false |
+| `admin_source` | string | **plugin** `PlayerData.java`, `V12__ClearClosedAccountCredentials.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java` |  |
 | `leaderboard` | boolean | **plugin** `PlayerData.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py` | **bot** true |
-| `discord_id` | string | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`<br>**web** `stats.ts`, `accounts.ts` | **plugin** ""; link filters match "" or missing; **bot** None when blank; **web** falsy means unlinked |
-| `discord_username` | string | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py` | **bot** None when blank |
+| `discord_id` | string | **plugin** `PlayerDataRepository.java`, `V12__ClearClosedAccountCredentials.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`, `mongo_store.py`<br>**web** `stats.ts`, `accounts.ts` | **plugin** ""; link filters match "" or missing; **bot** None when blank; **web** falsy means unlinked |
+| `discord_username` | string | **plugin** `PlayerDataRepository.java`, `V12__ClearClosedAccountCredentials.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py` | **bot** None when blank |
 | `discord_linked_at` | integer | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerData.java`, `PlayerDataRepository.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `accounts.ts` | **plugin** 0; unlink matches 0 or missing; **bot** None when missing; **web** 0 |
 | `discord_link_generation` | int64 | **plugin** `PlayerDataRepository.java`<br>**bot** `account_merge_store.py` | **plugin** `PlayerDataRepository.java` |  |
 | `online` | boolean | **plugin** `PlayerData.java`, `PlayerDataRepository.java` | **plugin** `PlayerData.java`<br>**bot** `store_mappers.py`, `account_merge_store.py`<br>**web** `stats.ts`, `accounts.ts` | **bot** false; **web** false |
@@ -167,6 +182,7 @@ One document per Mindustry UUID. The plugin saves a player with {$set: <every fi
 
 Disagreements and constraints:
 
+- `uuid`: A closed account (merged:) holds no credentials: username and password_hash "", can_change_username and is_admin false, admin_source "NONE", no device tokens, no Discord link (protocol/storage/merges/README.md). V12 cleared what Discord merges before 5.10.0 left on such accounts.
 - `hexed_rank`: The bot's account merge recomputes the rank from hexed_points with its own copy of the thresholds (0, 3, 10, 20, 25, 30); the plugin's HexedRanks holds the original.
 - `discord_linked_at`: The plugin writes an int64 kept monotonic through discord_link_generation; the bot's account merge writes a plain int (0 is stored as int32) and does not advance discord_link_generation. Every reader compares numerically, so the width is harmless.
 - `created_model_time`: The website falls back to created_model_time when created_at is missing. No writer has used that name: before V1 the field was createdModelTime, and V1 renamed it to created_at.
@@ -175,7 +191,7 @@ Disagreements and constraints:
 
 No schema yet.
 
-- **plugin**: [`V10__SeparateTowerDefenceAndRvsbStats.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V10__SeparateTowerDefenceAndRvsbStats.java), [`PlayerTotalsStore.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/service/stats/PlayerTotalsStore.java)
+- **plugin**: [`V10__SeparateTowerDefenceAndRvsbStats.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V10__SeparateTowerDefenceAndRvsbStats.java), [`V12__ClearClosedAccountCredentials.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java), [`PlayerTotalsStore.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/service/stats/PlayerTotalsStore.java)
 - **bot**: [`account_merge_store.py`](../../services/discord-bot/src/xcore_discord_bot/account_merge_store.py), [`game_stats.py`](../../services/discord-bot/src/xcore_discord_bot/game_stats.py)
 - **web**: [`player-totals.ts`](../../web/src/lib/server/player-totals.ts), [`stats.ts`](../../web/src/lib/server/stats.ts)
 
@@ -198,7 +214,7 @@ No schema yet.
 
 No schema yet.
 
-- **plugin**: [`V11__NormalizeAuditActors.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V11__NormalizeAuditActors.java), [`AuditRecordRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/AuditRecordRepository.java)
+- **plugin**: [`V11__NormalizeAuditActors.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V11__NormalizeAuditActors.java), [`V12__ClearClosedAccountCredentials.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java), [`AuditRecordRepository.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/repository/AuditRecordRepository.java)
 - **bot**: [`audit_store.py`](../../services/discord-bot/src/xcore_discord_bot/audit_store.py), [`reports.py`](../../services/discord-bot/src/xcore_discord_bot/cases/flows/reports.py), [`store.py`](../../services/discord-bot/src/xcore_discord_bot/cases/store.py), [`staff_activity.py`](../../services/discord-bot/src/xcore_discord_bot/staff_activity.py)
 
 - V11 renamed actor._id to actor.id; a server on a jar older than V11 still writes actor._id until it restarts.

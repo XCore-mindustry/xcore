@@ -1,0 +1,8 @@
+{
+  "_id": "uuid-redirected",
+  "revision": {"$numberLong": "1"},
+  "rebuild": {"dirty": false},
+  "status": "ready",
+  "schema_version": 1,
+  "redirect_uuid": "uuid-swapped"
+}

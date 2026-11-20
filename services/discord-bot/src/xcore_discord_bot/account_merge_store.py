@@ -376,6 +376,17 @@ class AccountMergeStore:
                     db, session, plan, collection
                 )
 
+        grants_revoked = False
+        if plan.source_uuid:
+            # No account holds the old uuid now: grants left on it would go to whoever connects
+            # with it next, and the first /login would set its password.
+            revoked = await db["permission_grants"].update_one(
+                {"_id": plan.source_uuid, "grants.0": {"$exists": True}},
+                {"$set": {"grants": []}, "$inc": {"revision": Int64(1)}},
+                session=session,
+            )
+            grants_revoked = revoked.modified_count > 0
+
         audit_id = await self._audit.append_moderation_audit(
             action="MERGE",
             target_uuid=plan.target_uuid,
@@ -397,6 +408,7 @@ class AccountMergeStore:
                     "games_transferred": games_transferred,
                     "ban_transferred": punishment_transfers["bans"],
                     "mute_transferred": punishment_transfers["mutes"],
+                    "grants_revoked": grants_revoked,
                     "discord_link_moved": plan.discord_link_moved,
                     "discord_link_conflict": plan.discord_link_conflict,
                 }
