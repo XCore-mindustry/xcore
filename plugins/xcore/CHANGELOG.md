@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- An account merge, from the console or from Discord, empties the closed account's staff grants. They stayed in `permission_grants` under its old uuid, which no account holds after the merge: whoever connected with that uuid next got them, and since the new account had no password, the first `/login` set one and logged in as staff. The surviving account keeps its own grants and gets none from the closed one; a Discord role grant comes back through the role sync when the Discord link moved with the merge. The MERGE audit entry records `grants_revoked`.
+- Migration V13 empties the grants earlier merges left for closed accounts, on their old uuid or on the `merged:` uuid itself, and logs each uuid with the grants it held and any account that now uses it.
 - Migration V12 clears what Discord merges before 5.10.0 left on closed accounts (uuid `merged:…`): username, password hash, device tokens, the admin flag and its source, the right to change the username, and any Discord id and name left on them. Their usernames stop being taken and stop resolving to the dead account in name lookups (`@name` in commands, the bot's `/stats` and autocomplete). A freed username goes to the account it was merged into when that account has none and both the closed account's "Merged into PID #…" description and its MERGE audit entry or statistics redirect name it; otherwise it stays unassigned. The server log lists what was cleared, where each name went, and the live accounts that still hold device tokens copied by such a merge. A server on 5.10.0 or older does not start against a database at V12.
 
 ## [5.10.0] - 2026-11-19

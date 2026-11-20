@@ -38,6 +38,15 @@ public interface GrantStore {
      */
     Optional<GrantDocument> bumpCredentialsEpoch(@Nullable ClientSession session, GrantDocument current);
 
+    /**
+     * Empties the grants of an account an account merge closes, whatever the revision: the
+     * revision grows by one, the credentials epoch stays. Nothing is written when there are none.
+     *
+     * @param session the transaction to join, or null to write on its own
+     * @return whether there were grants to empty
+     */
+    boolean revokeAll(@Nullable ClientSession session, String uuid);
+
     /** The players who still carry a grant that ran out before {@code now}. */
     List<String> findUuidsWithExpiredGrants(Instant now);
 }

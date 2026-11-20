@@ -25,6 +25,7 @@ import org.xcore.plugin.database.repository.GameDataRepository;
 import org.xcore.plugin.database.repository.MuteDataRepository;
 import org.xcore.plugin.database.repository.PlayerDataRepository;
 import org.xcore.plugin.localization.TranslatorLanguagesProvider;
+import org.xcore.plugin.permission.grant.MongoGrantStore;
 import org.xcore.plugin.rating.ladder.LadderService;
 import org.xcore.plugin.service.AccountMergeService;
 import org.xcore.plugin.service.FindService;
@@ -140,7 +141,7 @@ class StorageMergeContractIntegrationTest {
         when(sessions.getOrLoadFromDb(anyInt())).thenAnswer(call -> players.findByPid(call.getArgument(0)));
         var find = new FindService(sessions, mock(TranslatorLanguagesProvider.class));
         return new AccountMergeService(client, players, games, new BanDataRepository(database, secrets),
-                new MuteDataRepository(database, secrets), mock(AuditService.class), sessions,
+                new MuteDataRepository(database, secrets), new MongoGrantStore(database, secrets), mock(AuditService.class), sessions,
                 mock(PlayerDisplayService.class), mock(NetworkService.class), find, mock(TopMenuCacheService.class),
                 mock(LadderService.class), config);
     }

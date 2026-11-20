@@ -17,6 +17,7 @@ import org.xcore.plugin.database.repository.BanDataRepository;
 import org.xcore.plugin.database.repository.GameDataRepository;
 import org.xcore.plugin.database.repository.MuteDataRepository;
 import org.xcore.plugin.database.repository.PlayerDataRepository;
+import org.xcore.plugin.permission.grant.InMemoryGrantStore;
 import org.xcore.plugin.model.AuditAction;
 import org.xcore.plugin.model.AuditActor;
 import org.xcore.plugin.model.AuditActorType;
@@ -144,7 +145,7 @@ class MutePersistenceIntegrationTest {
         var config = new TomlXcoreConfig();
         config.server.name = "test-server";
         return new AccountMergeService(players, mock(GameDataRepository.class), mock(BanDataRepository.class), mutes,
-                mock(AuditService.class), sessions, mock(PlayerDisplayService.class), mock(NetworkService.class), find,
+                new InMemoryGrantStore(), mock(AuditService.class), sessions, mock(PlayerDisplayService.class), mock(NetworkService.class), find,
                 mock(TopMenuCacheService.class), mock(LadderService.class), config);
     }
 

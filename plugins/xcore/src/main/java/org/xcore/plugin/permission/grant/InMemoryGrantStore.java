@@ -72,6 +72,17 @@ public final class InMemoryGrantStore implements GrantStore {
     }
 
     @Override
+    public synchronized boolean revokeAll(@Nullable ClientSession session, String uuid) {
+        checkAvailable();
+        GrantDocument current = find(uuid);
+        if (current.grants().isEmpty()) {
+            return false;
+        }
+        documents.put(uuid, new GrantDocument(uuid, current.revision() + 1, List.of(), current.credentialsEpoch()));
+        return true;
+    }
+
+    @Override
     public synchronized List<String> findUuidsWithExpiredGrants(Instant now) {
         checkAvailable();
         return documents.values().stream()
