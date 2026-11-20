@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Migration V12 clears what Discord merges before 5.10.0 left on closed accounts (uuid `merged:…`): username, password hash, device tokens, the admin flag and its source, the right to change the username, and any Discord id and name left on them. Their usernames stop being taken and stop resolving to the dead account in name lookups (`@name` in commands, the bot's `/stats` and autocomplete). A freed username goes to the account it was merged into when that account has none and both the closed account's "Merged into PID #…" description and its MERGE audit entry or statistics redirect name it; otherwise it stays unassigned. The server log lists what was cleared, where each name went, and the live accounts that still hold device tokens copied by such a merge. A server on 5.10.0 or older does not start against a database at V12.
+
 ## [5.10.0] - 2026-11-19
 
 ### Changed

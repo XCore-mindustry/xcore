@@ -9,7 +9,10 @@
         "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
       },
       "readers": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/service/stats/PlayerTotalsStore.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/service/stats/PlayerTotalsStore.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
+        ],
         "bot": ["services/discord-bot/src/xcore_discord_bot/game_stats.py", "services/discord-bot/src/xcore_discord_bot/account_merge_store.py"],
         "web": ["web/src/lib/server/player-totals.ts", "web/src/lib/server/stats.ts"]
       },
@@ -50,7 +53,10 @@
         "bot": ["services/discord-bot/src/xcore_discord_bot/audit_store.py"]
       },
       "readers": {
-        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/database/repository/AuditRecordRepository.java"],
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/repository/AuditRecordRepository.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V12__ClearClosedAccountCredentials.java"
+        ],
         "bot": [
           "services/discord-bot/src/xcore_discord_bot/audit_store.py",
           "services/discord-bot/src/xcore_discord_bot/staff_activity.py",
