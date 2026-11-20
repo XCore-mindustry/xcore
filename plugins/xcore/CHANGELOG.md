@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.11.0] - 2026-11-20
+
 ### Fixed
 - An account merge, from the console or from Discord, empties the closed account's staff grants. They stayed in `permission_grants` under its old uuid, which no account holds after the merge: whoever connected with that uuid next got them, and since the new account had no password, the first `/login` set one and logged in as staff. The surviving account keeps its own grants and gets none from the closed one; a Discord role grant comes back through the role sync when the Discord link moved with the merge. The MERGE audit entry records `grants_revoked`.
 - Migration V13 empties the grants earlier merges left for closed accounts, on their old uuid or on the `merged:` uuid itself, and logs each uuid with the grants it held and any account that now uses it.
