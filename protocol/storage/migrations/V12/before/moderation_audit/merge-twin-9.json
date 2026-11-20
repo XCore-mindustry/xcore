@@ -1,0 +1,7 @@
+{
+  "_id": {"$oid": "6650a1b2c3d4e5f612a00009"},
+  "action": "MERGE",
+  "target": {"uuid": "uuid-crowded", "pid": 111},
+  "details": {"extra": {"merge": {"source_uuid": "uuid-twin-9", "surviving_pid": 111}}},
+  "occurred_at": {"$date": "2026-10-01T00:00:00Z"}
+}

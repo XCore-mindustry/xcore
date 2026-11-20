@@ -66,6 +66,7 @@ CI runs all of them when anything under `protocol/storage/` changes.
    sides, and both must pass the current schema: while servers can still write the `before` shape,
    the schema has to accept it.
 4. Migrations up to V11 predate this contract and need no fixtures; V7 has some as an example.
+   V12 is the first that had to bring them.
 
 ## Changing what a merge does
 

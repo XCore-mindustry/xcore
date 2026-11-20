@@ -34,6 +34,9 @@ The *surviving PID* is the target's. Staff on Discord may keep the source's inst
 
 ### `players`, the source (the account that is closed)
 
+Closed accounts from Discord merges before 5.10.0 kept their credentials; migration V12 brought
+their credentials into this shape (it leaves `discord_linked_at` alone).
+
 | Fields | After the merge |
 |---|---|
 | `uuid` | `merged:` + its uuid |
