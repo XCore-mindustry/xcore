@@ -1,0 +1,23 @@
+{
+  "_id": "uuid-live-staff",
+  "revision": {
+    "$numberLong": "7"
+  },
+  "grants": [
+    {
+      "id": "g-4",
+      "role": "admin",
+      "server": null,
+      "expiresAt": null,
+      "source": "discord:1061673250691752057",
+      "by": "system:discord-sync",
+      "at": {
+        "$date": "2026-10-23T15:59:51.204Z"
+      },
+      "reason": "Discord role sync"
+    }
+  ],
+  "credentialsEpoch": {
+    "$numberLong": "2"
+  }
+}

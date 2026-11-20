@@ -157,7 +157,6 @@
     "map_entities": "plugin",
     "map_uploads": "plugin",
     "map_upload_history": "plugin",
-    "permission_grants": "plugin",
     "private_messages": "plugin"
   }
 }

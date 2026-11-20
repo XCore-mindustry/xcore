@@ -1,0 +1,7 @@
+{
+  "_id": "uuid-target",
+  "status": "ready",
+  "schema_version": 1,
+  "revision": {"$numberLong": "4"},
+  "rebuild": {"dirty": true, "queued_at": {"$numberLong": "1763500000000"}}
+}

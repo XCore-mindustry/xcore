@@ -1,0 +1,11 @@
+{
+  "_id": "uuid-source",
+  "revision": {"$numberLong": "3"},
+  "grants": [
+    {"id": "g-source-1", "role": "admin", "server": null, "expiresAt": null, "source": "discord:1061673250691752057",
+     "by": "system:discord-sync", "at": {"$date": "2026-10-23T15:59:51.204Z"}, "reason": "Discord role sync"},
+    {"id": "g-source-2", "node": "command.ban", "allow": true, "server": "pvp", "expiresAt": null,
+     "source": null, "by": "console", "at": {"$date": "2026-10-24T03:41:31.798Z"}, "reason": "manual"}
+  ],
+  "credentialsEpoch": {"$numberLong": "1"}
+}

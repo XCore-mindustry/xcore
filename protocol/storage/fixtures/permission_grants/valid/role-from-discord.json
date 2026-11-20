@@ -1,0 +1,11 @@
+{
+  "_id": "uuid-staff",
+  "revision": {"$numberLong": "5"},
+  "grants": [
+    {"id": "g-f6fc9870", "role": "admin", "server": null, "expiresAt": null, "source": "discord:1061673250691752057",
+     "by": "system:discord-sync", "at": {"$date": "2026-10-23T15:59:51.204Z"}, "reason": "Discord role sync"},
+    {"id": "g-26b5fea6", "node": "map.vote.skip", "allow": false, "server": "pvp", "expiresAt": {"$date": "2026-12-01T00:00:00Z"},
+     "source": null, "by": "console", "at": {"$date": "2026-10-24T03:41:31.798Z"}, "reason": "manual"}
+  ],
+  "credentialsEpoch": {"$numberLong": "1"}
+}

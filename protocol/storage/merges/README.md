@@ -84,6 +84,20 @@ surviving account's uuid and the banned IP, so it is found in each of these thre
   document gets `status: "pending"` and `schema_version: 1`. The source's gets `redirect_uuid` set to
   the target's uuid.
 
+### `permission_grants`
+
+- The source's document, if it holds any grants, is emptied: `grants` becomes `[]` and `revision`
+  is incremented by an int64 1. Its `credentialsEpoch` stays. A document that is already empty, or
+  missing, is left alone.
+- The target's document is unchanged. No grant moves to it: grants from a Discord role come back
+  through the bot's role sync if the Discord link moved with the merge, and a manual grant has to
+  be given again.
+
+The grants are keyed by the source's old uuid, which no account holds after the merge. Left in
+place, they would go to whoever connects with that uuid next, and an account with grants but no
+password takes the first password typed into `/login`. Migration V13 emptied the grants that merges
+before 5.11.0 left behind.
+
 ### Not part of the shared result
 
 These are listed in `compare.json`:

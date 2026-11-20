@@ -1,0 +1,10 @@
+{
+  "_id": "uuid-plain",
+  "revision": {
+    "$numberLong": "2"
+  },
+  "grants": [],
+  "credentialsEpoch": {
+    "$numberLong": "0"
+  }
+}

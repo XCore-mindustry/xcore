@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xcore:storage:permission_grants:v1",
+  "title": "permission_grants",
+  "description": "The staff grants of one player, keyed by uuid. The plugin owns it; an account merge on either side empties the closed account's grants (see merges/README.md).",
+  "x-collection": "permission_grants",
+  "x-owner": "plugin",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["_id", "revision", "grants"],
+  "properties": {
+    "_id": {
+      "type": "string",
+      "description": "The player's uuid. Nothing ties it to a players document: grants left on a uuid nobody holds go to whoever connects with it next.",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/permission/grant/MongoGrantStore.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/service/AccountMergeService.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V13__RevokeClosedAccountGrants.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/permission/grant/MongoGrantStore.java"]}
+    },
+    "revision": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "description": "Grows by one with every write; the plugin replaces the grants only at the revision it read them at.",
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/permission/grant/MongoGrantStore.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V13__RevokeClosedAccountGrants.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/permission/grant/MongoGrantStore.java"]},
+      "x-fallback": {"plugin": "0"}
+    },
+    "grants": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/grant"},
+      "x-written-by": {
+        "plugin": [
+          "plugins/xcore/src/main/java/org/xcore/plugin/permission/grant/MongoGrantStore.java",
+          "plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V13__RevokeClosedAccountGrants.java"
+        ],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-read-by": {
+        "plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/permission/grant/MongoGrantStore.java"],
+        "bot": ["services/discord-bot/src/xcore_discord_bot/account_merge_store.py"]
+      },
+      "x-fallback": {"plugin": "no grants"}
+    },
+    "credentialsEpoch": {
+      "$ref": "urn:xcore:storage:bson-types:v1#/$defs/int64",
+      "description": "Grows by one with every staff password reset; a server ends the staff login of a connection that saw a lower one.",
+      "x-written-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/permission/grant/MongoGrantStore.java"]},
+      "x-read-by": {"plugin": ["plugins/xcore/src/main/java/org/xcore/plugin/permission/grant/MongoGrantStore.java"]},
+      "x-fallback": {"plugin": "0"}
+    }
+  },
+  "$defs": {
+    "grant": {
+      "description": "A role, or one permission node allowed or denied.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "server", "expiresAt", "source", "by", "at", "reason"],
+      "oneOf": [{"required": ["role"]}, {"required": ["node", "allow"]}],
+      "properties": {
+        "id": {"type": "string"},
+        "role": {"type": "string"},
+        "node": {"type": "string"},
+        "allow": {"type": "boolean"},
+        "server": {"type": ["string", "null"], "description": "null on every server."},
+        "expiresAt": {"oneOf": [{"$ref": "urn:xcore:storage:bson-types:v1#/$defs/date"}, {"type": "null"}]},
+        "source": {"type": ["string", "null"], "description": "discord:<role id> for grants the bot's role sync keeps; it re-adds them on its next pass."},
+        "by": {"type": ["string", "null"]},
+        "at": {"oneOf": [{"$ref": "urn:xcore:storage:bson-types:v1#/$defs/date"}, {"type": "null"}]},
+        "reason": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

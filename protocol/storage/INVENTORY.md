@@ -15,6 +15,7 @@ component check it. See [README.md](README.md) for how to change a shared docume
 | `maps` | — | plugin | plugin, web |
 | `moderation_audit` | — | plugin, bot | plugin, bot |
 | `mutes` | [mutes.v1](schemas/mutes.v1.json) | plugin, bot | plugin, bot |
+| `permission_grants` | [permission_grants.v1](schemas/permission_grants.v1.json) | plugin, bot | plugin, bot |
 | `player_totals` | — | plugin, bot | plugin, bot, web |
 | `players` | [players.v1](schemas/players.v1.json) | plugin, bot | plugin, bot, web |
 | `rating_matches` | — | plugin | plugin, web |
@@ -24,7 +25,7 @@ component check it. See [README.md](README.md) for how to change a shared docume
 | `settings` | — | plugin | plugin, bot, web |
 | `staff_activity` | — | plugin | bot |
 
-Used by one component only: `account_operation_receipts` (plugin), `admins` (plugin (legacy, read by V1)), `case_panels` (bot), `case_report_limits` (bot), `cases` (bot), `discord_season_posts` (bot), `discord_user_prefs` (bot), `events` (plugin), `map_entities` (plugin), `map_upload_history` (plugin), `map_uploads` (plugin), `permission_grants` (plugin), `private_messages` (plugin), `rating_merge_pending` (bot), `web_account_intents` (web (its own database)).
+Used by one component only: `account_operation_receipts` (plugin), `admins` (plugin (legacy, read by V1)), `case_panels` (bot), `case_report_limits` (bot), `cases` (bot), `discord_season_posts` (bot), `discord_user_prefs` (bot), `events` (plugin), `map_entities` (plugin), `map_upload_history` (plugin), `map_uploads` (plugin), `private_messages` (plugin), `rating_merge_pending` (bot), `web_account_intents` (web (its own database)).
 
 ## `bans`
 
@@ -108,6 +109,20 @@ Disagreements and constraints:
 - `case_number`: Nothing reads it back today: the case flows pass the number of the case they are working on.
 - `admin_discord_id`: The plugin writes "" for no moderator id, the bot writes null.
 - `expire_date`: The plugin's model allows a mute without expiry (Punishment.expireDate may be null, and its codec would then omit the field), but no command creates one today. The bot's MuteDoc requires a date, so such a mute would make find_mute raise.
+
+## `permission_grants`
+
+The staff grants of one player, keyed by uuid. The plugin owns it; an account merge on either side empties the closed account's grants (see merges/README.md).
+
+- **plugin**: [`V13__RevokeClosedAccountGrants.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/database/migration/V13__RevokeClosedAccountGrants.java), [`MongoGrantStore.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/permission/grant/MongoGrantStore.java), [`AccountMergeService.java`](../../plugins/xcore/src/main/java/org/xcore/plugin/service/AccountMergeService.java)
+- **bot**: [`account_merge_store.py`](../../services/discord-bot/src/xcore_discord_bot/account_merge_store.py)
+
+| Field | Type | Written by | Read by | Fallback when missing |
+|---|---|---|---|---|
+| `_id` | string | **plugin** `MongoGrantStore.java`, `AccountMergeService.java`, `V13__RevokeClosedAccountGrants.java`<br>**bot** `account_merge_store.py` | **plugin** `MongoGrantStore.java` |  |
+| `revision` | int64 | **plugin** `MongoGrantStore.java`, `V13__RevokeClosedAccountGrants.java`<br>**bot** `account_merge_store.py` | **plugin** `MongoGrantStore.java` | **plugin** 0 |
+| `grants` | array of grant | **plugin** `MongoGrantStore.java`, `V13__RevokeClosedAccountGrants.java`<br>**bot** `account_merge_store.py` | **plugin** `MongoGrantStore.java`<br>**bot** `account_merge_store.py` | **plugin** no grants |
+| `credentialsEpoch` | int64 | **plugin** `MongoGrantStore.java` | **plugin** `MongoGrantStore.java` | **plugin** 0 |
 
 ## `players`
 

@@ -1,0 +1,6 @@
+{
+  "_id": "uuid-source",
+  "revision": {"$numberLong": "4"},
+  "grants": [],
+  "credentialsEpoch": {"$numberLong": "1"}
+}

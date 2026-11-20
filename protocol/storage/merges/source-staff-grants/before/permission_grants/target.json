@@ -1,0 +1,9 @@
+{
+  "_id": "uuid-target",
+  "revision": {"$numberLong": "1"},
+  "grants": [
+    {"id": "g-target-1", "role": "moderator", "server": null, "expiresAt": null, "source": "discord:1061673250691752058",
+     "by": "system:discord-sync", "at": {"$date": "2026-10-23T15:59:51.204Z"}, "reason": "Discord role sync"}
+  ],
+  "credentialsEpoch": {"$numberLong": "0"}
+}
