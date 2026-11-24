@@ -8,17 +8,18 @@ import jakarta.inject.Provider;
 import jakarta.inject.Singleton;
 import mindustry.core.GameState;
 import mindustry.game.EventType.GameOverEvent;
+import mindustry.game.Team;
 import mindustry.gen.Call;
 import mindustry.gen.Groups;
 import mindustry.maps.Map;
 import mindustry.net.Packets;
 import mindustry.server.ServerControl;
-import org.xcore.plugin.config.TomlXcoreConfig;
-import org.xcore.plugin.database.repository.EventDataRepository;
+import org.xcore.plugin.concurrent.Async;
 import org.xcore.plugin.database.repository.MapDataRepository;
 import org.xcore.plugin.model.MapData;
 import org.xcore.plugin.service.GameDataService;
 import org.xcore.plugin.service.MapService;
+import org.xcore.plugin.service.MatchStartService;
 import org.xcore.plugin.ui.menu.MapMenu;
 import static mindustry.Vars.*;
 
@@ -28,8 +29,8 @@ public class MapVoteHandler {
     private final MapDataRepository mapDataRepository;
     private final Provider<MapMenu> mapMenu;
     private final GameDataService gameDataService;
-    private final EventDataRepository eventDataRepository;
-    private final TomlXcoreConfig config;
+    private final MatchStartService matchStarts;
+    private final Async async;
     private final MapService mapService;
 
 
@@ -37,14 +38,14 @@ public class MapVoteHandler {
     public MapVoteHandler(MapDataRepository mapDataRepository,
                           Provider<MapMenu> mapMenu,
                           GameDataService gameDataService,
-                          EventDataRepository eventDataRepository,
-                          TomlXcoreConfig config,
+                          MatchStartService matchStarts,
+                          Async async,
                           MapService mapService) {
         this.mapDataRepository = mapDataRepository;
         this.mapMenu = mapMenu;
         this.gameDataService = gameDataService;
-        this.eventDataRepository = eventDataRepository;
-        this.config = config;
+        this.matchStarts = matchStarts;
+        this.async = async;
         this.mapService = mapService;
     }
 
@@ -66,14 +67,10 @@ public class MapVoteHandler {
                 state.gameOver = true;
                 Call.updateGameOver(event.winner);
 
-                MapData mapData = mapDataRepository.findOrCreate(state.map.plainName(), state.map.file.name(), state.map.author(), state.rules.mode().name());
-                MapData nextMapData = mapDataRepository.findOrCreate(nextMap.plainName(), nextMap.file.name(), nextMap.author(), state.rules.mode().name());
-
-                mapMenu.get().showGameOverMenu(mapData, nextMapData, event.winner, nextMap);
-
-
-                gameDataService.startNewGame(nextMapData, state.rules.modeName, "event".equals(config.server.name) ? eventDataRepository.findActive().orElse(null) : null);
-                Groups.player.each(gameDataService::addPlayer);
+                String mode = state.rules.mode().name();
+                showGameOverMenu(state.map, nextMap, event.winner, mode);
+                // The next match starts now; its map record is filled in when the lookup returns.
+                matchStarts.start(nextMap, state.rules.modeName, mode);
 
                 ServerControl.instance.play(() -> {
                     String nextMapName = nextMap.plainName();
@@ -100,5 +97,22 @@ public class MapVoteHandler {
                 net.closeServer();
             }
         };
+    }
+
+    /** Looks both map records up off the game thread, then shows the menu if the round is still over. */
+    private void showGameOverMenu(Map current, Map next, Team winner, String mode) {
+        String currentName = current.plainName(), currentFile = current.file.name(), currentAuthor = current.author();
+        String nextName = next.plainName(), nextFile = next.file.name(), nextAuthor = next.author();
+        async.supply(() -> new MapData[]{
+                mapDataRepository.findOrCreate(currentName, currentFile, currentAuthor, mode),
+                mapDataRepository.findOrCreate(nextName, nextFile, nextAuthor, mode)
+        }).thenMain((records, error) -> {
+            if (error != null) {
+                PLog.err("Cannot look up the maps for the game-over menu", error);
+                return;
+            }
+            if (state.map != current || !state.gameOver) return;
+            mapMenu.get().showGameOverMenu(records[0], records[1], winner, next);
+        });
     }
 }

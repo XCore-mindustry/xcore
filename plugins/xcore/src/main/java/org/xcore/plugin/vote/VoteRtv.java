@@ -1,12 +1,14 @@
 package org.xcore.plugin.vote;
 
 import arc.Core;
+import arc.util.Log;
 import io.avaje.inject.AssistFactory;
 import io.avaje.inject.Assisted;
 import jakarta.inject.Inject;
 import mindustry.game.Gamemode;
 import mindustry.gen.Player;
 import mindustry.maps.Map;
+import org.xcore.plugin.concurrent.Async;
 import org.xcore.plugin.config.TomlSecretsConfig;
 import org.xcore.plugin.event.RoundScope;
 import org.xcore.plugin.service.GameStateService;
@@ -14,10 +16,10 @@ import org.xcore.plugin.database.repository.MapDataRepository;
 import org.xcore.plugin.model.MapData;
 import org.xcore.plugin.model.enums.FinishReason;
 import org.xcore.plugin.service.GameDataService;
+import org.xcore.plugin.service.MatchStartService;
 import org.xcore.plugin.session.SessionService;
 
 import static com.ospx.flubundle.Bundle.args;
-import mindustry.gen.Groups;
 
 import static mindustry.Vars.state;
 import static mindustry.Vars.world;
@@ -32,6 +34,8 @@ public class VoteRtv extends VoteSession {
     private final SessionService sessionService;
     private final GameStateService gameStateService;
     private final GameDataService gameDataService;
+    private final MatchStartService matchStarts;
+    private final Async async;
     private final RoundScope roundScope;
     private final org.xcore.plugin.service.map.MapVoteObserverService mapVoteObserverService;
 
@@ -46,6 +50,8 @@ public class VoteRtv extends VoteSession {
             VoteService voteService,
             GameStateService gameStateService,
             GameDataService gameDataService,
+            MatchStartService matchStarts,
+            Async async,
             RoundScope roundScope,
             org.xcore.plugin.service.map.MapVoteObserverService mapVoteObserverService) {
         super(secretsConfig, voteService);
@@ -56,21 +62,10 @@ public class VoteRtv extends VoteSession {
         this.sessionService = sessionService;
         this.gameStateService = gameStateService;
         this.gameDataService = gameDataService;
+        this.matchStarts = matchStarts;
+        this.async = async;
         this.roundScope = roundScope;
         this.mapVoteObserverService = mapVoteObserverService;
-    }
-
-    public VoteRtv(
-            Map target,
-            boolean isManualSelection,
-            MapDataRepository mapDataRepository,
-            TomlSecretsConfig secretsConfig,
-            SessionService sessionService,
-            VoteService voteService,
-            GameStateService gameStateService,
-            GameDataService gameDataService,
-            RoundScope roundScope) {
-        this(target, isManualSelection, mapDataRepository, secretsConfig, sessionService, voteService, gameStateService, gameDataService, roundScope, null);
     }
 
     @Override
@@ -114,26 +109,19 @@ public class VoteRtv extends VoteSession {
                 "mapName", target.name(),
                 "mapLoadDelay", secretsConfig.maps.voting.switchDelaySeconds));
 
-        if (state.map != null && !state.isMenu()) {
-            String currentMapName = state.map.plainName();
-            String currentMapFileName = state.map.file.name();
-            String currentAuthor = state.map.author();
-            String currentMode = state.rules.mode().name();
-
-            MapData currentMapStats = mapDataRepository.findOrCreate(currentMapName, currentMapFileName, currentAuthor, currentMode);
-            currentMapStats.onSkip();
-            mapDataRepository.markSkip(currentMapStats.id);
-        }
-
-        if (isManualSelection) {
-            String targetMapName = target.plainName();
-            String targetMapFileName = state.map.file.name();
-            String targetAuthor = target.author();
-            String targetMode = state.rules.mode().name();
-
-            MapData targetMapStats = mapDataRepository.findOrCreate(targetMapName, targetMapFileName, targetAuthor, targetMode);
-            targetMapStats.popularity += 2.0;
-            mapDataRepository.bumpPopularity(targetMapStats.id, 2.0);
+        String mode = state.rules.mode().name();
+        MapKey skipped = state.map != null && !state.isMenu() ? MapKey.of(state.map) : null;
+        MapKey chosen = isManualSelection ? MapKey.of(target) : null;
+        if (skipped != null || chosen != null) {
+            // Write-behind: nothing on the game thread waits for these counters. One task, so a
+            // record is not created twice when the chosen map is the one being skipped.
+            async.supply(() -> {
+                if (skipped != null) mapDataRepository.markSkip(skipped.record(mapDataRepository, mode).id);
+                if (chosen != null) mapDataRepository.bumpPopularity(chosen.record(mapDataRepository, mode).id, 2.0);
+                return null;
+            }).thenMain((ignored, error) -> {
+                if (error != null) Log.err("Cannot record the skip and popularity of an RTV", error);
+            });
         }
 
         // Round-scoped: if the world changes during the delay, this switch is no longer wanted.
@@ -141,13 +129,11 @@ public class VoteRtv extends VoteSession {
                     gameDataService.finishGame(null, FinishReason.RTV);
                     gameStateService.reloadWorld(() ->
                                     world.loadMap(target, target.applyRules(Gamemode.valueOf(Core.settings.getString("lastServerMode")))),
+                            // A match the PlayEvent already started is the same one; start it only when none runs.
                             () -> {
-                                gameDataService.startNewGame(
-                                        mapDataRepository.findOrCreate(target.plainName(), target.file.name(), target.author(), state.rules.mode().name()),
-                                        state.rules.modeName,
-                                        null
-                                );
-                                Groups.player.each(gameDataService::addPlayer);
+                                if (gameDataService.getCurrent() == null) {
+                                    matchStarts.start(target, state.rules.modeName, state.rules.mode().name());
+                                }
                             });
                 });
     }
@@ -163,6 +149,17 @@ public class VoteRtv extends VoteSession {
         if (mapVoteObserverService != null) {
             String mapId = target.file != null ? target.file.name() : target.plainName();
             mapVoteObserverService.notifyVoteEnded(mapId);
+        }
+    }
+
+    /** The identity of a map record, read on the game thread. */
+    private record MapKey(String name, String file, String author) {
+        static MapKey of(Map map) {
+            return new MapKey(map.plainName(), map.file == null ? null : map.file.name(), map.author());
+        }
+
+        MapData record(MapDataRepository maps, String mode) {
+            return maps.findOrCreate(name, file, author, mode);
         }
     }
 
