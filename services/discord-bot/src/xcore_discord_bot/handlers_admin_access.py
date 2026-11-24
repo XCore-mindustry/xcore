@@ -194,7 +194,9 @@ async def cmd_reset_password(
         )
         return
     await interaction.followup.send(
-        f"Password reset for `{code_span(player.nickname, 'Unknown')}`"
+        f"Password reset for `{code_span(player.nickname, 'Unknown')}`. "
+        f"To set a new one they need a setup code: run `perm user #{player.pid} enroll` "
+        "in the console of the server they are online on."
         if changed
         else "Password reset did not update any row"
     )

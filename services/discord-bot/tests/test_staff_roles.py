@@ -346,7 +346,10 @@ async def test_password_command_uses_rpc(settings):
 
     assert len(game.sent(RESET)) == 1
     assert (await db["players"].find_one({"pid": 1}))["password_hash"] == "hash"
-    interaction.followup.send.assert_awaited_once_with("Password reset for `p`")
+    interaction.followup.send.assert_awaited_once_with(
+        "Password reset for `p`"
+        ". To set a new one they need a setup code: run `perm user #1 enroll` in the console of the server they are online on."
+    )
 
 
 async def test_reset_password_generated_wire_payload(settings):

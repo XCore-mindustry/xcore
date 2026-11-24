@@ -379,7 +379,7 @@ class AccountMergeStore:
         grants_revoked = False
         if plan.source_uuid:
             # No account holds the old uuid now: grants left on it would go to whoever connects
-            # with it next, and the first /login would set its password.
+            # with it next.
             revoked = await db["permission_grants"].update_one(
                 {"_id": plan.source_uuid, "grants.0": {"$exists": True}},
                 {"$set": {"grants": []}, "$inc": {"revision": Int64(1)}},

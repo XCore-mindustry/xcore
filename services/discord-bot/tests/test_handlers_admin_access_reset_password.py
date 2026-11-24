@@ -67,7 +67,12 @@ async def test_cmd_reset_password_asks_the_game_server() -> None:
     [request] = game.sent(RESET)
     assert (request["server"], request["playerUuid"]) == ("mini-pvp", "uuid-7")
     assert interaction.response.deferred
-    assert interaction.followup.sent == ["Password reset for `Target`"]
+    assert interaction.followup.sent == [
+        (
+            "Password reset for `Target`"
+            ". To set a new one they need a setup code: run `perm user #7 enroll` in the console of the server they are online on."
+        )
+    ]
 
 
 @pytest.mark.asyncio
