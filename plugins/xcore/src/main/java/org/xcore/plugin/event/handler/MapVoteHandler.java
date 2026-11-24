@@ -21,6 +21,8 @@ import org.xcore.plugin.service.GameDataService;
 import org.xcore.plugin.service.MapService;
 import org.xcore.plugin.service.MatchStartService;
 import org.xcore.plugin.ui.menu.MapMenu;
+import java.util.concurrent.CompletableFuture;
+
 import static mindustry.Vars.*;
 
 @Singleton
@@ -68,9 +70,10 @@ public class MapVoteHandler {
                 Call.updateGameOver(event.winner);
 
                 String mode = state.rules.mode().name();
-                showGameOverMenu(state.map, nextMap, event.winner, mode);
-                // The next match starts now; its map record is filled in when the lookup returns.
-                matchStarts.start(nextMap, state.rules.modeName, mode);
+                // The next match starts now; its map record is filled in when the lookup returns,
+                // and the menu takes that same record instead of looking it up again.
+                CompletableFuture<MapData> nextRecord = matchStarts.start(nextMap, state.rules.modeName, mode);
+                showGameOverMenu(state.map, nextMap, nextRecord, event.winner, mode);
 
                 ServerControl.instance.play(() -> {
                     String nextMapName = nextMap.plainName();
@@ -99,14 +102,11 @@ public class MapVoteHandler {
         };
     }
 
-    /** Looks both map records up off the game thread, then shows the menu if the round is still over. */
-    private void showGameOverMenu(Map current, Map next, Team winner, String mode) {
-        String currentName = current.plainName(), currentFile = current.file.name(), currentAuthor = current.author();
-        String nextName = next.plainName(), nextFile = next.file.name(), nextAuthor = next.author();
-        async.supply(() -> new MapData[]{
-                mapDataRepository.findOrCreate(currentName, currentFile, currentAuthor, mode),
-                mapDataRepository.findOrCreate(nextName, nextFile, nextAuthor, mode)
-        }).thenMain((records, error) -> {
+    /** Looks the current map's record up off the game thread, then shows the menu if the round is still over. */
+    private void showGameOverMenu(Map current, Map next, CompletableFuture<MapData> nextRecord, Team winner, String mode) {
+        String name = current.plainName(), file = current.file.name(), author = current.author();
+        var currentRecord = async.supply(() -> mapDataRepository.findOrCreate(name, file, author, mode)).future();
+        async.onMain(currentRecord.thenCombine(nextRecord, (a, b) -> new MapData[]{a, b}), (records, error) -> {
             if (error != null) {
                 PLog.err("Cannot look up the maps for the game-over menu", error);
                 return;

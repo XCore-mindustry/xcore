@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - An RTV vote for a chosen map adds its popularity to that map. It looked the map record up by the current map's file, so the +2 went to the map being skipped.
-- The end of a round no longer waits for MongoDB on the game thread. The game-over menu looks both map records up on a storage thread and opens when they arrive, and the next match starts at once and gets its map record (and on the event server its event) when the lookup answers, retried while the match runs. A successful RTV records the skip and the popularity behind the game, and the match on the new map starts the same way. Before, a slow database stalled every player at that moment.
+- The game-over menu and the start of the next match no longer wait for MongoDB on the game thread. The next match starts at once and gets its map record (and on the event server its event) when the lookup answers, retried while the match runs; the menu opens once that record and the current map's are in, using the same record rather than looking it up again. A successful RTV records the skip and the popularity behind the game, and the match on the new map starts the same way. Picking the next map still reads the active event on the game thread on the event server.
 
 ## [5.11.0] - 2026-11-20
 

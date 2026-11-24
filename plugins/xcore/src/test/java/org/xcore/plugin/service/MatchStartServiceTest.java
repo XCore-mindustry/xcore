@@ -23,6 +23,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +49,40 @@ class MatchStartServiceTest {
         answerStorage();
         assertThat(game.map).isEqualTo(record.id);
         verify(events, never()).findActive();
+    }
+
+    @Test
+    @WithHeadlessWorld
+    void startHandsOutTheRecordItLookedUpOnce(HeadlessWorld world) {
+        var games = new GameDataService(config("survival"), mock(GameDataRepository.class));
+        MapData record = record();
+        when(maps.findOrCreate("Arena", "arena.msav", "Author", "survival")).thenReturn(record);
+
+        var handedOut = service(games, "survival").start(map("Arena"), "survival", "survival");
+        assertThat(handedOut).isNotDone();
+        answerStorage();
+
+        assertThat(handedOut).isCompletedWithValue(record);
+        assertThat(games.getCurrent().map).isEqualTo(record.id);
+        verify(maps, times(1)).findOrCreate("Arena", "arena.msav", "Author", "survival");
+    }
+
+    @Test
+    @WithHeadlessWorld
+    void withoutARecordedMatchTheRecordIsStillLookedUp(HeadlessWorld world) {
+        var config = config("survival");
+        config.statistics.enabled = true;
+        config.statistics.historyOwner = "external";
+        var games = new GameDataService(config, mock(GameDataRepository.class));
+        MapData record = record();
+        when(maps.findOrCreate("Arena", "arena.msav", "Author", "survival")).thenReturn(record);
+
+        var handedOut = new MatchStartService(new Async(storage.executor(), Runnable::run), maps, events, games, config)
+                .start(map("Arena"), "survival", "survival");
+        answerStorage();
+
+        assertThat(games.getCurrent()).isNull();
+        assertThat(handedOut).isCompletedWithValue(record);
     }
 
     @Test
