@@ -13,6 +13,7 @@ import org.xcore.plugin.concurrent.MainThreadDispatcher;
 import org.xcore.plugin.concurrent.StorageExecutor;
 import org.xcore.plugin.localization.Localization;
 import org.xcore.plugin.model.PlayerData;
+import org.xcore.plugin.permission.StaffEnrollments;
 import org.xcore.plugin.service.AdminAuthService;
 import org.xcore.plugin.service.PlayerDisplayService;
 import org.xcore.plugin.session.Session;
@@ -39,6 +40,7 @@ public class AuthController implements CloudClientController {
     private final PlayerDisplayService playerDisplayService;
     private final StorageExecutor storageExecutor;
     private final MainThreadDispatcher mainThread;
+    private final StaffEnrollments enrollments;
 
     private final Set<String> inFlightLogins = ConcurrentHashMap.newKeySet();
     private final Map<String, BruteForceTracker> bruteForceMap = new ConcurrentHashMap<>();
@@ -80,20 +82,23 @@ public class AuthController implements CloudClientController {
     public AuthController(AdminAuthService adminAuthService,
                           SessionService sessionService,
                           PlayerDisplayService playerDisplayService,
-                          StorageExecutor storageExecutor) {
-        this(adminAuthService, sessionService, playerDisplayService, storageExecutor, MainThreadDispatcher.mindustry());
+                          StorageExecutor storageExecutor,
+                          StaffEnrollments enrollments) {
+        this(adminAuthService, sessionService, playerDisplayService, storageExecutor, MainThreadDispatcher.mindustry(), enrollments);
     }
 
     AuthController(AdminAuthService adminAuthService,
                    SessionService sessionService,
                    PlayerDisplayService playerDisplayService,
                    StorageExecutor storageExecutor,
-                   MainThreadDispatcher mainThread) {
+                   MainThreadDispatcher mainThread,
+                   StaffEnrollments enrollments) {
         this.adminAuthService = adminAuthService;
         this.sessionService = sessionService;
         this.playerDisplayService = playerDisplayService;
         this.storageExecutor = storageExecutor;
         this.mainThread = mainThread;
+        this.enrollments = enrollments;
     }
 
     @Command("login <password>")
@@ -137,6 +142,13 @@ public class AuthController implements CloudClientController {
         if (!adminAuthService.mayLogInAsStaff(data)) {
             inFlightLogins.remove(uuid);
             local.send("commands-login-request-approval-discord", args());
+            return;
+        }
+
+        // A uuid proves nothing, so /login never sets the first password; /staff-setup does.
+        if (!AdminAuthService.hasPassword(data)) {
+            inFlightLogins.remove(uuid);
+            local.send("commands-login-setup-required", args());
             return;
         }
 
@@ -220,6 +232,95 @@ public class AuthController implements CloudClientController {
             PLog.err("Failed to dispatch auth task for @: @", player.plainName(), t.getMessage());
             local.send("error-processing-request", args());
         }
+    }
+
+    /**
+     * Sets the first staff password of an account with a code from {@code perm user <player> enroll}.
+     * The code works only on the connection it was sent to; see {@link StaffEnrollments}.
+     */
+    @Command("staff-setup <code> <password>")
+    public void staffSetup(XCoreSender sender,
+                           @Argument("code") String code,
+                           @Argument("password") String password) {
+        Session session = resolveSession(sender, sessionService);
+        if (session == null || session.player == null) return;
+        Player player = session.player;
+        String uuid = player.uuid();
+        Localization local = session.locale();
+
+        if (!inFlightLogins.add(uuid)) {
+            local.send("commands-login-already-processing", args());
+            return;
+        }
+        long now = System.currentTimeMillis();
+        evictExpiredTrackers(now);
+        BruteForceTracker tracker = bruteForceMap.computeIfAbsent(uuid, k -> new BruteForceTracker());
+        String refusal = staffSetupRefusal(session, player, code, password, tracker, now);
+        if (refusal != null) {
+            inFlightLogins.remove(uuid);
+            local.send(refusal, args());
+            return;
+        }
+
+        local.send("commands-login-verifying", args());
+        // As in /login: BCrypt runs on a storage thread against a detached copy.
+        PlayerData snapshot = PlayerData.builder().uuid(session.data.uuid).password(session.data.password).build();
+        try {
+            storageExecutor.supply(() -> adminAuthService.createPassword(snapshot, password))
+                    .whenComplete((result, error) -> mainThread.execute(() -> {
+                        try {
+                            if (!Async.isPlayerOnline(player)) return;
+                            if (error != null) {
+                                PLog.err("Error setting the staff password of @: @", player.plainName(), error.getMessage());
+                                local.send("error-processing-request", args());
+                                return;
+                            }
+                            // The role, the password or the code may have changed while hashing; the
+                            // code is spent here, once, and only if it is still this connection's.
+                            if (!adminAuthService.mayLogInAsStaff(session.data)) {
+                                local.send("commands-login-request-approval-discord", args());
+                                return;
+                            }
+                            if (AdminAuthService.hasPassword(session.data)) {
+                                local.send("commands-staff-setup-has-password", args());
+                                return;
+                            }
+                            if (!enrollments.consume(player, code)) {
+                                local.send("commands-staff-setup-invalid-code", args());
+                                return;
+                            }
+                            tracker.reset();
+                            bruteForceMap.remove(uuid);
+                            session.data.password = snapshot.password;
+                            storageExecutor.supply(() -> sessionService.persistData(session.data));
+                            adminAuthService.grantAdmin(player, session);
+                            local.send(result.messageKey(), args());
+                        } finally {
+                            inFlightLogins.remove(uuid);
+                        }
+                    }));
+        } catch (Throwable t) {
+            inFlightLogins.remove(uuid);
+            PLog.err("Failed to dispatch staff setup for @: @", player.plainName(), t.getMessage());
+            local.send("error-processing-request", args());
+        }
+    }
+
+    /** Why {@code /staff-setup} cannot go ahead, as a message key, or null when it can. */
+    private String staffSetupRefusal(Session session, Player player, String code, String password,
+                                     BruteForceTracker tracker, long now) {
+        if (tracker.isLockedOut(now)) return "commands-login-rate-limited";
+        if (session.data == null) return "error-processing-request";
+        if (password == null || password.length() < AdminAuthService.MIN_PASSWORD_LENGTH) {
+            return "error-admin-password-too-short";
+        }
+        if (!adminAuthService.mayLogInAsStaff(session.data)) return "commands-login-request-approval-discord";
+        if (AdminAuthService.hasPassword(session.data)) return "commands-staff-setup-has-password";
+        if (!enrollments.matches(player, code)) {
+            tracker.recordFailure(now);
+            return "commands-staff-setup-invalid-code";
+        }
+        return null;
     }
 
     @Command("logout")

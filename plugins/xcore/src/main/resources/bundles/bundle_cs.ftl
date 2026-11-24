@@ -244,6 +244,15 @@ commands-login-admin-password-created =
     [green]Admin heslo vytvořeno.
     [red]Nezapomeň své heslo! Pokud ho zapomeneš, budeš muset požádat hlavního administrátora o reset.
 commands-login-request-approval-discord = [accent]Žádná z vašich rolí na tomto serveru neumožňuje přihlášení jako staff. Požádejte vedení o roli a zkuste to znovu.
+commands-login-setup-required =
+    [accent]Your account has a staff role but no password yet.
+    [lightgray]Ask an administrator to send you a setup code while you are online here, then run [accent]/staff-setup <code> <password>[].
+commands-staff-setup-description = Set your first staff password with the code an administrator sent you.
+commands-staff-setup-invite =
+    [green]Staff setup code: [accent]{ $code }[]
+    [lightgray]Within [accent]{ $minutes }[] min, without reconnecting, run [accent]/staff-setup { $code } <password>[]. Do not share the code.
+commands-staff-setup-invalid-code = [scarlet]⚠ This setup code is wrong, expired, or was sent to another connection. Ask for a new one.
+commands-staff-setup-has-password = [lightgray]Your account already has a staff password. Use [accent]/login[].
 commands-login-verifying = [lightgray]Ověřování hesla správce...
 commands-login-already-processing = [scarlet]⚠ Požadavek na přihlášení již probíhá. Počkejte prosím.
 commands-login-rate-limited = [scarlet]⚠ Příliš mnoho neúspěšných pokusů o přihlášení. Zkuste to prosím později.

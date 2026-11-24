@@ -401,7 +401,7 @@ public class AccountMergeService {
         boolean muteTransferred = muteDataRepository.transferForMerge(session, transfer);
 
         // 2. The old uuid belongs to nobody now: grants left on it in permission_grants would go to
-        // whoever connects with it next, and set its password on the first /login.
+        // whoever connects with it next.
         boolean grantsRevoked = grantStore.revokeAll(session, oldSourceUuid);
 
         // 3. Persist PlayerData

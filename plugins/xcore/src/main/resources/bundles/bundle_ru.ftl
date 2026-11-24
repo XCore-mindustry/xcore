@@ -247,6 +247,15 @@ commands-login-admin-password-created =
     [green]Пароль админа создан
     [red]Не забудьте свой пароль! Если Вы его забудете, Вам придется обратиться к главному администратору с просьбой сбросить его.
 commands-login-request-approval-discord = [accent]Ни одна из ваших ролей на этом сервере не даёт вход как стафф. Попросите роль у администрации и попробуйте снова.
+commands-login-setup-required =
+    [accent]У вашего аккаунта есть роль стаффа, но ещё нет пароля.
+    [lightgray]Попросите администратора прислать код настройки, пока вы на этом сервере, затем введите [accent]/staff-setup <код> <пароль>[].
+commands-staff-setup-description = Задать первый пароль стаффа по коду, который прислал администратор.
+commands-staff-setup-invite =
+    [green]Код настройки стаффа: [accent]{ $code }[]
+    [lightgray]В течение [accent]{ $minutes }[] мин., не переподключаясь, введите [accent]/staff-setup { $code } <пароль>[]. Никому не сообщайте код.
+commands-staff-setup-invalid-code = [scarlet]⚠ Код неверный, истёк или был выдан другому подключению. Попросите новый.
+commands-staff-setup-has-password = [lightgray]У вашего аккаунта уже есть пароль стаффа. Используйте [accent]/login[].
 commands-login-verifying = [lightgray]Проверка пароля администратора...
 commands-login-already-processing = [scarlet]⚠ Запрос на вход уже обрабатывается. Подождите.
 commands-login-rate-limited = [scarlet]⚠ Слишком много неудачных попыток входа. Подождите перед повторной попыткой.

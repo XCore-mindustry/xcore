@@ -405,7 +405,7 @@ public class PlayerDataRepository extends DataRepository<PlayerData> {
                 .into(new ArrayList<>());
     }
 
-    /** Forgets the password and every remembered device, so that the next login sets a new password. */
+    /** Forgets the password and every remembered device; a new password then needs a staff setup code. */
     public boolean clearCredentials(String uuid) {
         return updateByUuid(uuid, Updates.combine(
                 Updates.set("password_hash", ""),

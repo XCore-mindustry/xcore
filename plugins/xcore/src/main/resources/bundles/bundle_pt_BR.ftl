@@ -247,6 +247,15 @@ commands-login-admin-password-created =
     [green]Senha de admin criada.
     [red]Não se esqueça da sua senha! Se esquecê-la, você precisará pedir a um administrador geral para redefini-la.
 commands-login-request-approval-discord = [accent]Nenhum dos seus cargos neste servidor permite o login como staff. Peça um cargo à equipe e tente novamente.
+commands-login-setup-required =
+    [accent]Your account has a staff role but no password yet.
+    [lightgray]Ask an administrator to send you a setup code while you are online here, then run [accent]/staff-setup <code> <password>[].
+commands-staff-setup-description = Set your first staff password with the code an administrator sent you.
+commands-staff-setup-invite =
+    [green]Staff setup code: [accent]{ $code }[]
+    [lightgray]Within [accent]{ $minutes }[] min, without reconnecting, run [accent]/staff-setup { $code } <password>[]. Do not share the code.
+commands-staff-setup-invalid-code = [scarlet]⚠ This setup code is wrong, expired, or was sent to another connection. Ask for a new one.
+commands-staff-setup-has-password = [lightgray]Your account already has a staff password. Use [accent]/login[].
 commands-login-verifying = [lightgray]Verificando senha de administrador...
 commands-login-already-processing = [scarlet]⚠ Uma solicitação de login já está sendo processada. Aguarde.
 commands-login-rate-limited = [scarlet]⚠ Muitas tentativas de login falhas. Aguarde antes de tentar novamente.

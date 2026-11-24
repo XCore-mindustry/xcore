@@ -165,8 +165,11 @@ class SecurityTransportHandlerTest {
         assertThat(main.world.has(onMain, PermissionNodes.MODERATION_MUTE)).isFalse();
         assertThat(pvp.world.staff.mayLogIn(onPvp)).as("the other server heard of it").isTrue();
 
-        // The first login sets the password.
-        assertThat(main.auth.authenticate(onMain.player, "first-password").status()).isEqualTo(AuthResultStatus.PASSWORD_CREATED);
+        // The uuid alone sets no password; /staff-setup does, with a code from the console.
+        assertThat(main.auth.authenticate(onMain.player, "first-password").status()).isEqualTo(AuthResultStatus.SETUP_REQUIRED);
+        assertThat(main.world.has(onMain, PermissionNodes.MODERATION_MUTE)).isFalse();
+        main.auth.createPassword(onMain.data, "first-password");
+        assertThat(main.auth.authenticate(onMain.player, "first-password").status()).isEqualTo(AuthResultStatus.SUCCESS);
         assertThat(stored.get(MODERATOR).password).isNotEmpty();
         assertThat(main.world.has(onMain, PermissionNodes.MODERATION_MUTE)).isTrue();
         assertThat(main.world.has(onMain, PermissionNodes.MODERATION_KICK)).isTrue();
@@ -207,7 +210,7 @@ class SecurityTransportHandlerTest {
         main.world.grants.addRole(stored.get(MODERATOR), "moderator", null, null, "r", Actor.LOCAL_CONSOLE);
         Session old = join(main, MODERATOR);
         PlayerData credentials = PlayerData.builder().uuid(MODERATOR).password("").build();
-        var verification = main.auth.checkPassword(credentials, "some-password");
+        var verification = main.auth.createPassword(credentials, "some-password");
 
         main.world.leave(MODERATOR);
         Session fresh = join(main, MODERATOR);
@@ -292,6 +295,7 @@ class SecurityTransportHandlerTest {
     void resetPassword() {
         main.world.grants.addRole(stored.get(MODERATOR), "moderator", null, null, "r", Actor.LOCAL_CONSOLE);
         Session session = join(main, MODERATOR);
+        main.auth.createPassword(session.data, "first-password");
         main.auth.authenticate(session.player, "first-password");
         assertThat(main.world.has(session, PermissionNodes.MODERATION_MUTE)).isTrue();
         int auditedBefore = main.world.audited.size();

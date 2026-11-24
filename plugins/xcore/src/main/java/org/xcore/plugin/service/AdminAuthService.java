@@ -143,43 +143,35 @@ public class AdminAuthService {
     public record PasswordVerificationResult(boolean success, boolean created, String messageKey) {}
 
     /**
-     * Performs password hashing or verification (CPU-intensive BCrypt operation) and saves updated
-     * password data. This method contains NO Mindustry main-thread mutations and is safe to run
-     * on a background executor.
+     * The BCrypt half of a login on its own: verifies {@code password} against
+     * {@code credentials.password}. An account without a password fails here: its first
+     * password is set only through {@link #createPassword}, after a staff setup code.
+     * <p>
+     * It touches neither the repository nor game state, so it can run on a storage thread
+     * against a detached copy that carries nothing but the uuid and the password.
      */
-    public PasswordVerificationResult verifyOrSetPassword(PlayerData data, String password) {
-        PasswordVerificationResult result = checkPassword(data, password);
-        if (result.created()) {
-            adminDataRepository.save(data);
+    public PasswordVerificationResult checkPassword(PlayerData credentials, String password) {
+        if (!hasPassword(credentials)) {
+            return new PasswordVerificationResult(false, false, "commands-login-setup-required");
         }
-        return result;
+        if (credentials.verifyPassword(password)) {
+            return new PasswordVerificationResult(true, false, "commands-login-success");
+        }
+        return new PasswordVerificationResult(false, false, "error-wrong-admin-password");
     }
 
     /**
-     * The BCrypt half of a login on its own: verifies {@code password} against
-     * {@code credentials.password}, or hashes it into that field when there is none yet.
-     * <p>
-     * It touches neither the repository nor game state, so it can run on a storage thread
-     * against a detached copy that carries nothing but the uuid and the password. Saving such
-     * a copy would replace the stored player with it; the caller stores the new hash through
-     * the live record instead.
+     * Hashes the first password into {@code credentials}, a detached copy as for
+     * {@link #checkPassword}. Only {@code /staff-setup} calls this, once its code checked out.
      */
-    public PasswordVerificationResult checkPassword(PlayerData credentials, String password) {
-        boolean created = false;
-        if (credentials.password == null || credentials.password.isEmpty()) {
-            credentials.hashPassword(password);
-            created = true;
-        }
+    public PasswordVerificationResult createPassword(PlayerData credentials, String password) {
+        credentials.hashPassword(password);
+        return new PasswordVerificationResult(true, true, "commands-login-admin-password-created");
+    }
 
-        if (credentials.verifyPassword(password)) {
-            return new PasswordVerificationResult(
-                true,
-                created,
-                created ? "commands-login-admin-password-created" : "commands-login-success"
-            );
-        } else {
-            return new PasswordVerificationResult(false, false, "error-wrong-admin-password");
-        }
+    /** Whether the account has a staff password; without one it needs a setup code. */
+    public static boolean hasPassword(PlayerData data) {
+        return data != null && data.password != null && !data.password.isEmpty();
     }
 
     /** Whether the player's grants on this server let them log in as staff. */
@@ -236,6 +228,11 @@ public class AdminAuthService {
         // Only a player whose grants allow a staff login may authenticate or set a password.
         if (!mayLogInAsStaff(session.data)) {
             return new AuthResult(AuthResultStatus.DISCORD_APPROVAL_REQUIRED, "commands-login-request-approval-discord");
+        }
+
+        // A uuid proves nothing, so the first password needs a setup code (StaffEnrollments).
+        if (!hasPassword(session.data)) {
+            return new AuthResult(AuthResultStatus.SETUP_REQUIRED, "commands-login-setup-required");
         }
 
         return null;
@@ -315,7 +312,7 @@ public class AdminAuthService {
         Session session = sessionService.get(player.uuid());
         PlayerData data = session.data;
 
-        PasswordVerificationResult verification = verifyOrSetPassword(data, password);
+        PasswordVerificationResult verification = checkPassword(data, password);
 
         if (verification.success()) {
             rateLimits.remove(player.uuid());

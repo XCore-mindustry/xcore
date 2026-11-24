@@ -11,12 +11,14 @@ import org.xcore.plugin.concurrent.MainThreadDispatcher;
 import org.xcore.plugin.concurrent.StorageExecutor;
 import org.xcore.plugin.localization.Localization;
 import org.xcore.plugin.model.PlayerData;
+import org.xcore.plugin.permission.StaffEnrollments;
 import org.xcore.plugin.service.AdminAuthService;
 import org.xcore.plugin.service.AdminAuthService.PasswordVerificationResult;
 import org.xcore.plugin.service.PlayerDisplayService;
 import org.xcore.plugin.session.Session;
 import org.xcore.plugin.session.SessionService;
 
+import java.time.Clock;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -37,6 +39,7 @@ class AuthControllerTest {
     private PlayerDisplayService playerDisplayService;
     private StorageExecutor storageExecutor;
     private AuthController controller;
+    private StaffEnrollments enrollments;
 
     @BeforeEach
     void setUp() {
@@ -49,12 +52,14 @@ class AuthControllerTest {
         // Synchronous main-thread dispatcher for immediate continuation in tests
         MainThreadDispatcher synchronousMainThread = Runnable::run;
 
+        enrollments = new StaffEnrollments(Clock.systemUTC());
         controller = new AuthController(
                 adminAuthService,
                 sessionService,
                 playerDisplayService,
                 storageExecutor,
-                synchronousMainThread
+                synchronousMainThread,
+                enrollments
         );
     }
 
@@ -148,14 +153,15 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("losing the last staff role while the password is checked refuses the login and keeps no new password")
-    void login_staffRoleRemovedMeanwhile() {
+    @DisplayName("losing the last staff role while the first password is hashed refuses the setup and keeps no password")
+    void staffSetup_staffRoleRemovedMeanwhile() {
         var ctx = createContext("uuid-demoted", true);
         when(adminAuthService.mayLogInAsStaff(ctx.data())).thenReturn(true, false);
-        when(adminAuthService.checkPassword(argThat(sameIdentityAs(ctx.data())), eq("newPassword123")))
+        when(adminAuthService.createPassword(argThat(sameIdentityAs(ctx.data())), eq("newPassword123")))
                 .thenReturn(new PasswordVerificationResult(true, true, "commands-login-admin-password-created"));
+        String code = enrollments.issue(ctx.player());
 
-        controller.login(ctx.sender(), "newPassword123");
+        controller.staffSetup(ctx.sender(), code, "newPassword123");
 
         org.testcontainers.shaded.org.awaitility.Awaitility.await()
                 .atMost(2, TimeUnit.SECONDS)
@@ -164,35 +170,87 @@ class AuthControllerTest {
                     assertThat(controller.isInFlight("uuid-demoted")).isFalse();
                 });
         verify(adminAuthService, never()).grantAdmin(any(), any());
-        verify(ctx.local(), never()).send(eq("commands-login-admin-password-created"), any());
         verify(sessionService, never()).persistData(any());
         assertThat(ctx.data().password).isNullOrEmpty();
+        assertThat(enrollments.pending(ctx.player())).as("the code is not spent").isTrue();
     }
 
     @Test
-    @DisplayName("first-time login creates password and sends password-created key")
-    void login_firstTimePasswordCreated() {
+    @DisplayName("/login on a staff account without a password sends the player to /staff-setup and hashes nothing")
+    void login_withoutPasswordNeedsSetup() {
         var ctx = createContext("uuid-create", true);
         when(adminAuthService.mayLogInAsStaff(ctx.data())).thenReturn(true);
-        when(adminAuthService.checkPassword(argThat(sameIdentityAs(ctx.data())), eq("newPassword123")))
-                .thenReturn(new PasswordVerificationResult(true, true, "commands-login-admin-password-created"));
 
         controller.login(ctx.sender(), "newPassword123");
 
+        verify(ctx.local()).send(eq("commands-login-setup-required"), any());
+        verify(adminAuthService, never()).checkPassword(any(), anyString());
+        verify(adminAuthService, never()).grantAdmin(any(), any());
+        assertThat(controller.isInFlight("uuid-create")).isFalse();
+        assertThat(controller.getFailedAttempts("uuid-create")).isZero();
+    }
+
+    @Test
+    @DisplayName("/staff-setup with the code sent to this connection sets the password once and logs in")
+    void staffSetup_setsThePasswordOnce() throws InterruptedException {
+        var ctx = createContext("uuid-setup", true);
+        when(adminAuthService.mayLogInAsStaff(ctx.data())).thenReturn(true);
+        CountDownLatch persisted = new CountDownLatch(1);
+        when(sessionService.persistData(any())).thenAnswer(invocation -> {
+            persisted.countDown();
+            return true;
+        });
+        when(adminAuthService.createPassword(any(), eq("newPassword123"))).thenAnswer(invocation -> {
+            // The storage stage writes only the copy it was handed.
+            ((PlayerData) invocation.getArgument(0)).password = "new-bcrypt-hash";
+            return new PasswordVerificationResult(true, true, "commands-login-admin-password-created");
+        });
+        String code = enrollments.issue(ctx.player());
+
+        controller.staffSetup(ctx.sender(), code.toLowerCase(), "newPassword123");
+
+        assertThat(persisted.await(2, TimeUnit.SECONDS)).isTrue();
         org.testcontainers.shaded.org.awaitility.Awaitility.await()
                 .atMost(2, TimeUnit.SECONDS)
                 .untilAsserted(() -> {
-                    verify(ctx.local()).send(eq("commands-login-verifying"), any());
                     verify(adminAuthService).grantAdmin(ctx.player(), ctx.session());
                     verify(ctx.local()).send(eq("commands-login-admin-password-created"), any());
-                    assertThat(controller.isInFlight("uuid-create")).isFalse();
+                    assertThat(controller.isInFlight("uuid-setup")).isFalse();
                 });
+        assertThat(ctx.data().password).isEqualTo("new-bcrypt-hash");
+        assertThat(enrollments.pending(ctx.player())).as("the code is spent").isFalse();
+
+        controller.staffSetup(ctx.sender(), code, "otherPassword123");
+        verify(ctx.local()).send(eq("commands-staff-setup-has-password"), any());
+    }
+
+    @Test
+    @DisplayName("/staff-setup with a wrong code, or a code sent to another connection, sets nothing")
+    void staffSetup_wrongCodeOrConnection() {
+        var ctx = createContext("uuid-forged", true);
+        when(adminAuthService.mayLogInAsStaff(ctx.data())).thenReturn(true);
+        String code = enrollments.issue(ctx.player());
+
+        controller.staffSetup(ctx.sender(), "WRONGCODE2", "newPassword123");
+        verify(ctx.local()).send(eq("commands-staff-setup-invalid-code"), any());
+        assertThat(controller.getFailedAttempts("uuid-forged")).isEqualTo(1);
+
+        // A forged client with the same uuid is another connection.
+        NetConnection forged = mock(NetConnection.class);
+        when(forged.isConnected()).thenReturn(true);
+        ctx.player().con = forged;
+        controller.staffSetup(ctx.sender(), code, "newPassword123");
+
+        verify(ctx.local(), times(2)).send(eq("commands-staff-setup-invalid-code"), any());
+        verify(adminAuthService, never()).createPassword(any(), anyString());
+        assertThat(ctx.data().password).isNullOrEmpty();
     }
 
     @Test
     @DisplayName("wrong password increments failure counter, does not grant admin, and sends error")
     void login_wrongPassword() {
         var ctx = createContext("uuid-wrong", true);
+        ctx.data().password = "stored-hash";
         when(adminAuthService.mayLogInAsStaff(ctx.data())).thenReturn(true);
         when(adminAuthService.checkPassword(argThat(sameIdentityAs(ctx.data())), eq("wrongPassword123")))
                 .thenReturn(new PasswordVerificationResult(false, false, "error-wrong-admin-password"));
@@ -214,6 +272,7 @@ class AuthControllerTest {
     @DisplayName("concurrent login submissions for same player are rejected with in-flight message")
     void login_concurrentSubmissions_rejectsSecond() throws Exception {
         var ctx = createContext("uuid-concurrent", true);
+        ctx.data().password = "stored-hash";
         when(adminAuthService.mayLogInAsStaff(ctx.data())).thenReturn(true);
 
         CountDownLatch holdBackground = new CountDownLatch(1);
@@ -247,6 +306,7 @@ class AuthControllerTest {
     @DisplayName("anti-brute-force gate locks out after N failures and skips BCrypt entirely")
     void login_bruteForceLockout() {
         var ctx = createContext("uuid-brute", true);
+        ctx.data().password = "stored-hash";
         when(adminAuthService.mayLogInAsStaff(ctx.data())).thenReturn(true);
         when(adminAuthService.checkPassword(argThat(sameIdentityAs(ctx.data())), eq("badPassword1")))
                 .thenReturn(new PasswordVerificationResult(false, false, "error-wrong-admin-password"));
@@ -276,6 +336,7 @@ class AuthControllerTest {
     @DisplayName("player disconnect while verifying does not grant admin or touch player")
     void login_disconnectedPlayer_doesNotGrantAdmin() throws Exception {
         var ctx = createContext("uuid-disconnect", true);
+        ctx.data().password = "stored-hash";
         when(adminAuthService.mayLogInAsStaff(ctx.data())).thenReturn(true);
 
         CountDownLatch holdBackground = new CountDownLatch(1);
@@ -339,6 +400,7 @@ class AuthControllerTest {
         // swapped while the hash is being computed the new password is written to an object
         // nothing reads any more.
         TestContext context = createContext("uuid-1", true);
+        context.data().password = "stored-hash";
         when(adminAuthService.mayLogInAsStaff(any())).thenReturn(true);
 
         AtomicReference<PlayerData> passedToStorage = new AtomicReference<>();
@@ -359,30 +421,6 @@ class AuthControllerTest {
         assertThat(passedToStorage.get().getUuid()).isEqualTo("uuid-1");
     }
 
-    @Test
-    @DisplayName("a newly created password is copied onto the live session")
-    void login_appliesANewlyCreatedPasswordToTheLiveSession() throws InterruptedException {
-        TestContext context = createContext("uuid-1", true);
-        when(adminAuthService.mayLogInAsStaff(any())).thenReturn(true);
-
-        CountDownLatch applied = new CountDownLatch(1);
-        when(sessionService.persistData(any())).thenAnswer(invocation -> {
-            applied.countDown();
-            return true;
-        });
-        when(adminAuthService.checkPassword(any(), anyString())).thenAnswer(invocation -> {
-            // The storage stage is only allowed to write the copy it was handed, so the new
-            // hash has to be applied to the live session afterwards or the grant would
-            // outlive a password that was never recorded against this session.
-            ((PlayerData) invocation.getArgument(0)).password = "new-bcrypt-hash";
-            return new PasswordVerificationResult(true, true, "commands-login-admin-password-created");
-        });
-
-        controller.login(context.sender(), "hunter2hunter2");
-
-        assertThat(applied.await(2, TimeUnit.SECONDS)).isTrue();
-        assertThat(context.data().password).isEqualTo("new-bcrypt-hash");
-    }
     /**
      * The login path hands the storage stage a detached copy of the session data, carrying
      * the identity and password hash it needs and nothing else. Stubs match on that content

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **The first staff password needs a one-time code.** `/login` no longer sets the password of an account that has staff grants and none yet: a uuid proves nothing, so whoever presented that account's uuid first could make it theirs. The console runs `perm user <player> enroll` for an online player it has identified. The player then gets a private 10-character code, which works only on their current connection (same USID, no reconnect), for 10 minutes and once, and sets the password with `/staff-setup <code> <password>`. Five wrong codes withdraw it, and the code is never logged.
+  - **Staff who have a role but have never set a password**, and everyone whose password was reset (from the console or with the bot's `/admin reset-password`), need a code before their next login. Existing passwords and remembered devices work as before.
+  - `/login` without a password answers with how to get a code; the admin mod gets the new status `SETUP_REQUIRED`.
+
 ### Fixed
 - An RTV vote for a chosen map adds its popularity to that map. It looked the map record up by the current map's file, so the +2 went to the map being skipped.
 - The end of a round no longer waits for MongoDB on the game thread. The game-over menu looks both map records up on a storage thread and opens when they arrive, and the next match starts at once and gets its map record (and on the event server its event) when the lookup answers, retried while the match runs. A successful RTV records the skip and the popularity behind the game, and the match on the new map starts the same way. Before, a slow database stalled every player at that moment.
