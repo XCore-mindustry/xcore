@@ -22,7 +22,9 @@ import org.xcore.plugin.permission.Actor;
 import org.xcore.plugin.permission.PermissionNode;
 import org.xcore.plugin.permission.PermissionNodes;
 import org.xcore.plugin.permission.PermissionSessions;
+import org.xcore.plugin.permission.StaffAccess;
 import org.xcore.plugin.permission.StaffCredentials;
+import org.xcore.plugin.permission.StaffEnrollments;
 import org.xcore.plugin.permission.grant.Grant;
 import org.xcore.plugin.permission.grant.GrantDocument;
 import org.xcore.plugin.permission.grant.PermissionGrants;
@@ -33,6 +35,7 @@ import org.xcore.plugin.permission.role.PermissionModel;
 import org.xcore.plugin.permission.role.PermissionRoles;
 import org.xcore.plugin.permission.role.PermissionSet;
 import org.xcore.plugin.permission.role.RoleDefinition;
+import org.xcore.plugin.service.AdminAuthService;
 import org.xcore.plugin.service.TimeService;
 import org.xcore.plugin.session.Session;
 import org.xcore.plugin.session.SessionService;
@@ -46,6 +49,8 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
+
+import static com.ospx.flubundle.Bundle.args;
 /**
  * Console management of roles and grants. Storage work runs off the server thread.
  * <p>
@@ -65,6 +70,8 @@ public class PermissionController implements CloudServerController {
     private final SessionService sessions;
     private final TimeService time;
     private final Async async;
+    private final StaffEnrollments enrollments;
+    private final StaffAccess staffAccess;
 
     @Inject
     public PermissionController(PermissionRoles roles,
@@ -75,7 +82,9 @@ public class PermissionController implements CloudServerController {
                                 PlayerDataRepository players,
                                 SessionService sessions,
                                 TimeService time,
-                                Async async) {
+                                Async async,
+                                StaffEnrollments enrollments,
+                                StaffAccess staffAccess) {
         this.roles = roles;
         this.grants = grants;
         this.permissionSessions = permissionSessions;
@@ -85,6 +94,8 @@ public class PermissionController implements CloudServerController {
         this.sessions = sessions;
         this.time = time;
         this.async = async;
+        this.enrollments = enrollments;
+        this.staffAccess = staffAccess;
     }
 
     @DenySelectors
@@ -176,17 +187,49 @@ public class PermissionController implements CloudServerController {
     @DenySelectors
     @Permission(PermissionNodes.PERMISSIONS_MANAGE)
     @Command("perm user <player> reset-password")
-    @CommandDescription("Forgets a staff password and every remembered device; the next /login sets a new password.")
+    @CommandDescription("Forgets a staff password and every remembered device; enroll the player again to set a new one.")
     public void resetPassword(XCoreSender sender,
                               @Argument(value = "player", description = "Player #ID, UUID, @username or nickname") String player) {
         Actor actor = sender.actor();
         run(() -> {
             PlayerData target = resolve(player);
             if (credentials.resetPassword(target, actor)) {
-                PLog.info("The password of @ is reset; their next /login sets a new one.", describe(target));
+                PLog.info("The password of @ is reset. Enroll them while they are online: perm user @ enroll", describe(target), "#" + target.pid);
             } else {
                 PLog.info("@ has no password to reset.", describe(target));
             }
+        });
+    }
+
+    @DenySelectors
+    @Permission(PermissionNodes.PERMISSIONS_MANAGE)
+    @Command("perm user <player> enroll")
+    @CommandDescription("Sends an online staff member without a password a one-time code for /staff-setup, valid on their current connection only.")
+    public void enroll(XCoreSender sender,
+                       @Argument(value = "player", description = "Player #ID, UUID, @username or nickname") String player) {
+        run(() -> {
+            PlayerData target = resolve(player);
+            async.main(() -> {
+                Session session = sessions.get(target.uuid);
+                if (session == null || session.player == null || session.player.con == null) {
+                    PLog.err("@ is not online on this server. Enroll them while they are connected here.", describe(target));
+                    return;
+                }
+                if (AdminAuthService.hasPassword(session.data)) {
+                    PLog.err("@ already has a password. Reset it first: perm user #@ reset-password", describe(target), target.pid);
+                    return;
+                }
+                if (!staffAccess.mayLogIn(session)) {
+                    PLog.err("None of the roles of @ allows a staff login on this server; grant one first.", describe(target));
+                    return;
+                }
+                String code = enrollments.issue(session.player);
+                session.locale().send("commands-staff-setup-invite", args(
+                        "code", code, "minutes", StaffEnrollments.TTL.toMinutes()));
+                // The code goes to the player only; the log says who got one and on which connection.
+                PLog.info("Sent a staff setup code to @ (@), valid for @ min on this connection.",
+                        describe(target), session.player.con.address, StaffEnrollments.TTL.toMinutes());
+            });
         });
     }
 

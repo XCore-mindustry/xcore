@@ -59,8 +59,21 @@ public class GameDataService {
 
     /** Fills in the map of {@code game} while it is still the running match. */
     public boolean attachMap(GameData game, MapData map) {
+        return attachMap(game, map, null);
+    }
+
+    /**
+     * Fills in the map of {@code game} while it is still the running match, and the event it is
+     * played for when one is given. Only the event server looks one up, and there the category is
+     * already {@code EVENT} from the server name, so it stays as {@link #begin} set it.
+     */
+    public boolean attachMap(GameData game, MapData map, EventData event) {
         if (game == null || map == null || game != currentBag || game.map != null) return false;
         game.map = map.id;
+        if (event != null) {
+            game.event = event.id;
+            game.isEvent = true;
+        }
         return true;
     }
 

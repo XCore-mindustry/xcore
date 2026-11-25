@@ -94,9 +94,10 @@ surviving account's uuid and the banned IP, so it is found in each of these thre
   be given again.
 
 The grants are keyed by the source's old uuid, which no account holds after the merge. Left in
-place, they would go to whoever connects with that uuid next, and an account with grants but no
-password takes the first password typed into `/login`. Migration V13 emptied the grants that merges
-before 5.11.0 left behind.
+place, they would go to whoever connects with that uuid next. Before XCore 5.12, an account with
+grants but no password took the first password typed into `/login`; it now needs a one-time code
+from `perm user <player> enroll`. Migration V13 emptied the grants that merges before 5.11.0 left
+behind.
 
 ### Not part of the shared result
 

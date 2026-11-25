@@ -22,6 +22,11 @@ import org.xcore.plugin.model.PlayerData;
 import org.xcore.plugin.permission.RemoteConsoleScope;
 import org.xcore.plugin.permission.RolesWorld;
 import org.xcore.plugin.permission.StaffCredentials;
+import org.xcore.plugin.permission.StaffEnrollments;
+import org.xcore.plugin.permission.Actor;
+import org.xcore.plugin.session.Session;
+import org.xcore.plugin.localization.Localization;
+import mindustry.net.NetConnection;
 import org.xcore.plugin.permission.grant.Grant;
 import org.xcore.plugin.permission.grant.PermissionMigration;
 import org.xcore.plugin.service.TimeService;
@@ -37,6 +42,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,6 +53,7 @@ class PermissionControllerTest {
     private final RolesWorld world = new RolesWorld();
     private final PlayerDataRepository players = mock(PlayerDataRepository.class);
     private final StaffCredentials credentials = mock(StaffCredentials.class);
+    private final StaffEnrollments enrollments = new StaffEnrollments(java.time.Clock.systemUTC());
     private final RemoteConsoleScope remote = new RemoteConsoleScope();
     private final List<String> errors = new ArrayList<>();
     private MindustryCommandManager<XCoreSender> manager;
@@ -76,9 +83,13 @@ class PermissionControllerTest {
         new CloudParserConfigurer(mock(TimeService.class), mock(RETURNS_DEEP_STUBS)).configure(manager);
         AnnotationParser<XCoreSender> parser = new AnnotationParser<>(manager, XCoreSender.class);
         manager.registerMindustryAnnotations(parser);
+        doAnswer(call -> {
+            call.<Runnable>getArgument(0).run();
+            return null;
+        }).when(async).main(any());
         parser.parse(new PermissionController(world.roles, world.grants, world.sessions,
                 new PermissionMigration(players, world.grants, world.roles), credentials, players,
-                world.sessionService, new TimeService(), async));
+                world.sessionService, new TimeService(), async, enrollments, world.staff));
     }
 
     private void console(String line) {
@@ -162,6 +173,31 @@ class PermissionControllerTest {
         console("perm user uuid-1 reset-password");
 
         verify(credentials).resetPassword(any(PlayerData.class), any());
+    }
+
+    @Test
+    @DisplayName("enroll sends a code to the online player's own connection, and refuses one already holding a password")
+    void enroll() {
+        PlayerData target = world.sessionService.resolvePlayerData("uuid-1");
+        world.grants.addRole(target, "moderator", null, null, "r", Actor.LOCAL_CONSOLE);
+
+        console("perm user uuid-1 enroll");
+        assertThat(errors).anySatisfy(error -> assertThat(error).contains("not online"));
+
+        Session session = world.join("uuid-1");
+        session.player.con = mock(NetConnection.class);
+        when(session.player.con.isConnected()).thenReturn(true);
+        Localization local = mock(Localization.class);
+        when(session.locale()).thenReturn(local);
+        when(world.sessionService.get("uuid-1")).thenReturn(session);
+
+        console("perm user uuid-1 enroll");
+        verify(local).send(eq("commands-staff-setup-invite"), any());
+        assertThat(enrollments.pending(session.player)).isTrue();
+
+        session.data.password = "bcrypt-hash";
+        console("perm user uuid-1 enroll");
+        assertThat(errors).anySatisfy(error -> assertThat(error).contains("already has a password"));
     }
 
     @Test

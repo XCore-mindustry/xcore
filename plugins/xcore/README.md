@@ -54,7 +54,7 @@ Multifunctional plugin for XCore Mindustry servers. Provides player profiles, cr
 - Runtime feature toggles (`disable-feature`, `enable-feature`) for RTV and vote-new-wave.
 - Console configuration editing (`xconfig`, `edit-data`).
 - Database info queries (`dbinfo`, `players`, `info`).
-- Admin login via password (`/login`) with Discord role integration.
+- Staff login with a password (`/login`). Rights come from grants; the first password is set with a one-time code from the console (`perm user <player> enroll`, then `/staff-setup`).
 
 ## Dependencies
 - Java 25+
@@ -136,7 +136,8 @@ Multifunctional plugin for XCore Mindustry servers. Provides player profiles, cr
 | `/inbox blocked` | Show blocked players. |
 | `/inbox block <id>` | Block a player. |
 | `/inbox unblock <id>` | Unblock a player. |
-| `/login <password>` | Log in as admin. |
+| `/login <password>` | Log in as staff. |
+| `/staff-setup <code> <password>` | Set your first staff password with the code the console sent you. |
 | `/logout` | Log out from admin. |
 
 ### Admin Commands (in-game)

@@ -20,7 +20,8 @@ public class StaffCredentials {
     }
 
     /**
-     * Forgets the player's password and remembered devices; the next login sets a new password.
+     * Forgets the player's password and remembered devices. A new password needs a setup code
+     * from {@code perm user <player> enroll}; see {@link StaffEnrollments}.
      * <p>
      * The reset is written into the player's grants first, as a new credentials epoch. That is
      * what logs out a connection that proved itself with the old password: this server reads it

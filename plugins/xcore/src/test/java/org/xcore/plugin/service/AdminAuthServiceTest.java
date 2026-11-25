@@ -72,27 +72,34 @@ class AdminAuthServiceTest {
     }
 
     @Test
-    @DisplayName("First login creates password and authorizes a staff role holder")
-    void firstLoginCreatesPassword() {
+    @DisplayName("A staff role holder without a password is sent to /staff-setup, and no password is set")
+    void loginWithoutPasswordNeedsSetup() {
         Player player = RolesWorld.player("uuid-1");
-        Administration.PlayerInfo info = new Administration.PlayerInfo();
-        info.adminUsid = "usid-1";
-        when(player.getInfo()).thenReturn(info);
-
         PlayerData data = new PlayerData();
         data.uuid = "uuid-1";
-        data.password = ""; // No password set yet
+        data.password = "";
 
-        Session session = liveSession(player, data);
+        liveSession(player, data);
         mayLogIn(data, true);
 
         var result = authService.authenticate(player, "secret123");
-        assertThat(result.status()).isEqualTo(AuthResultStatus.PASSWORD_CREATED);
-        assertThat(result.isSuccess()).isTrue();
-        assertThat(data.password).isNotEmpty();
+        assertThat(result.status()).isEqualTo(AuthResultStatus.SETUP_REQUIRED);
+        assertThat(data.password).isEmpty();
+        verify(adminDataRepository, never()).save(any());
+        verify(player, never()).admin(true);
+    }
 
-        verify(adminDataRepository).save(data);
-        verify(player).admin(true);
+    @Test
+    @DisplayName("checkPassword never creates a password; createPassword does")
+    void onlyCreatePasswordSetsTheFirstPassword() {
+        PlayerData credentials = PlayerData.builder().uuid("uuid-1").password("").build();
+
+        assertThat(authService.checkPassword(credentials, "secret123").success()).isFalse();
+        assertThat(credentials.password).isEmpty();
+
+        var created = authService.createPassword(credentials, "secret123");
+        assertThat(created.created()).isTrue();
+        assertThat(authService.checkPassword(credentials, "secret123").success()).isTrue();
     }
 
     @Test
@@ -211,11 +218,11 @@ class AdminAuthServiceTest {
     }
 
     @Test
-    @DisplayName("checkPassword hashes into the copy it is given and never touches the repository")
+    @DisplayName("createPassword and checkPassword work on the copy they are given and never touch the repository")
     void checkPassword_isPure() {
         PlayerData credentials = PlayerData.builder().uuid("uuid-1").build();
 
-        var created = authService.checkPassword(credentials, "newPassword123");
+        var created = authService.createPassword(credentials, "newPassword123");
         var verified = authService.checkPassword(credentials, "newPassword123");
         var wrong = authService.checkPassword(credentials, "somethingElse1");
 
