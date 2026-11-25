@@ -27,6 +27,9 @@ import static com.mongodb.client.model.Filters.*;
 
 @Singleton
 public class MapDataRepository extends DataRepository<MapData> {
+    /** Held by {@link #findOrCreate} while it looks a map up and creates its record. */
+    private final Object creationLock = new Object();
+
 
     /**
      * Whether a map file is installed on this server. A record stored under one file name
@@ -260,13 +263,26 @@ public class MapDataRepository extends DataRepository<MapData> {
         });
     }
 
+    /**
+     * The record of a map, created if there is none. Looking up and creating are two steps, and
+     * the collection has no unique index on a map's identity, so callers on different storage
+     * threads (a match starting, an RTV counting, the game-over menu) are serialized here: the
+     * second finds the record the first created instead of inserting another.
+     * <p>
+     * One lock for every map, not one per name or file: a record is found by its file without
+     * regard to case, or through an alias by name and author, and callers name a map without a
+     * file differently, so no key computed from the arguments matches every way two calls can
+     * reach the same record. The calls are few per round and quick.
+     */
     public MapData findOrCreate(String name, String fileName, String author, String gameMode) {
-        MapData data = findByFileName(fileName, gameMode)
-                .or(() -> find(name, author, gameMode, fileName)).orElse(null);
-        boolean created = data == null;
-        if (created) data = new MapData(name, fileName, author, gameMode);
-        if (created) save(data);
-        return data;
+        synchronized (creationLock) {
+            MapData data = findByFileName(fileName, gameMode)
+                    .or(() -> find(name, author, gameMode, fileName)).orElse(null);
+            boolean created = data == null;
+            if (created) data = new MapData(name, fileName, author, gameMode);
+            if (created) save(data);
+            return data;
+        }
     }
 
     /** Add advisory metadata only; never overwrite an existing identity or unrelated statistics. */
