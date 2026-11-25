@@ -27,8 +27,8 @@ import static com.mongodb.client.model.Filters.*;
 
 @Singleton
 public class MapDataRepository extends DataRepository<MapData> {
-    /** One lock per map identity for {@link #findOrCreate}; there are as many as installed maps. */
-    private final java.util.concurrent.ConcurrentHashMap<String, Object> creationLocks = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Held by {@link #findOrCreate} while it looks a map up and creates its record. */
+    private final Object creationLock = new Object();
 
 
     /**
@@ -266,11 +266,16 @@ public class MapDataRepository extends DataRepository<MapData> {
     /**
      * The record of a map, created if there is none. Looking up and creating are two steps, and
      * the collection has no unique index on a map's identity, so callers on different storage
-     * threads (a match starting, an RTV counting, the game-over menu) are serialized per identity
-     * here: the second finds the record the first created instead of inserting another.
+     * threads (a match starting, an RTV counting, the game-over menu) are serialized here: the
+     * second finds the record the first created instead of inserting another.
+     * <p>
+     * One lock for every map, not one per name or file: a record is found by its file without
+     * regard to case, or through an alias by name and author, and callers name a map without a
+     * file differently, so no key computed from the arguments matches every way two calls can
+     * reach the same record. The calls are few per round and quick.
      */
     public MapData findOrCreate(String name, String fileName, String author, String gameMode) {
-        synchronized (creationLocks.computeIfAbsent(creationKey(name, fileName, author, gameMode), key -> new Object())) {
+        synchronized (creationLock) {
             MapData data = findByFileName(fileName, gameMode)
                     .or(() -> find(name, author, gameMode, fileName)).orElse(null);
             boolean created = data == null;
@@ -278,11 +283,6 @@ public class MapDataRepository extends DataRepository<MapData> {
             if (created) save(data);
             return data;
         }
-    }
-
-    /** A map is found by its file, or by name and author when it has none; the lock follows that. */
-    private static String creationKey(String name, String fileName, String author, String gameMode) {
-        return fileName != null ? gameMode + "\u0000" + fileName : gameMode + "\u0000" + name + "\u0000" + author;
     }
 
     /** Add advisory metadata only; never overwrite an existing identity or unrelated statistics. */
