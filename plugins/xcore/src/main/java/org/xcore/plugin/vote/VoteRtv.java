@@ -19,6 +19,8 @@ import org.xcore.plugin.service.GameDataService;
 import org.xcore.plugin.service.MatchStartService;
 import org.xcore.plugin.session.SessionService;
 
+import java.util.concurrent.CompletableFuture;
+
 import static com.ospx.flubundle.Bundle.args;
 
 import static mindustry.Vars.state;
@@ -115,13 +117,16 @@ public class VoteRtv extends VoteSession {
         if (skipped != null || chosen != null) {
             // Write-behind: nothing on the game thread waits for these counters. One task, so a
             // record is not created twice when the chosen map is the one being skipped.
-            async.supply(() -> {
+            CompletableFuture<Void> counted = async.supply(() -> {
                 if (skipped != null) mapDataRepository.markSkip(skipped.record(mapDataRepository, mode).id);
                 if (chosen != null) mapDataRepository.bumpPopularity(chosen.record(mapDataRepository, mode).id, 2.0);
                 return null;
             }).thenMain((ignored, error) -> {
                 if (error != null) Log.err("Cannot record the skip and popularity of an RTV", error);
             });
+            // That task may be creating the chosen map's record, and a slow database can outlast
+            // the switch delay: the new match, however it starts, looks the map up only after it.
+            matchStarts.lookUpAfter(counted);
         }
 
         // Round-scoped: if the world changes during the delay, this switch is no longer wanted.

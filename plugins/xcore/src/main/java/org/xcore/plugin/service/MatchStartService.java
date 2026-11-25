@@ -17,6 +17,7 @@ import org.xcore.plugin.model.MapData;
 import org.xcore.plugin.startup.ShutdownOrder;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 /**
  * Starts capturing a match on the game thread without waiting for MongoDB: the match begins at
@@ -34,6 +35,8 @@ public class MatchStartService {
     private final GameDataService games;
     private final TomlXcoreConfig config;
     private final ScheduledTasks tasks = new ScheduledTasks(MatchStartService.class);
+    /** Storage tasks that may create a map record; lookups started meanwhile wait for them. Game thread. */
+    private CompletableFuture<?> pendingWrites = CompletableFuture.completedFuture(null);
 
     @Inject
     public MatchStartService(Async async, MapDataRepository maps, EventDataRepository events,
@@ -64,8 +67,22 @@ public class MatchStartService {
             return record;
         }
         String file = map.file == null ? null : map.file.name();
-        resolve(game, new MapKey(map.plainName(), file, map.author(), mode), 0, record);
+        var key = new MapKey(map.plainName(), file, map.author(), mode);
+        CompletableFuture<?> after = pendingWrites;
+        if (after.isDone()) resolve(game, key, 0, record);
+        else async.onMain(after, (ignored, error) -> resolve(game, key, 0, record));
         return record;
+    }
+
+    /**
+     * Makes the lookups of matches started from now on wait for {@code write}, success or not.
+     * Game thread. An RTV records its skip and popularity this way: the match on the new map,
+     * whichever path starts it, must not look the chosen map up while that task may still be
+     * creating its record, or both could insert one. The match itself still begins at once.
+     */
+    public void lookUpAfter(CompletionStage<?> write) {
+        CompletableFuture<?> settled = write.toCompletableFuture().handle((value, error) -> null);
+        pendingWrites = pendingWrites.isDone() ? settled : CompletableFuture.allOf(pendingWrites, settled);
     }
 
     private void resolve(GameData game, MapKey key, int attempt, CompletableFuture<MapData> record) {

@@ -21,6 +21,7 @@ import org.xcore.testkit.fixtures.junit.WithHeadlessWorld;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -83,6 +84,29 @@ class MatchStartServiceTest {
 
         assertThat(games.getCurrent()).isNull();
         assertThat(handedOut).isCompletedWithValue(record);
+    }
+
+    @Test
+    @WithHeadlessWorld
+    void aLookupWaitsForAWriteThatMayCreateTheSameRecord(HeadlessWorld world) {
+        var games = new GameDataService(config("survival"), mock(GameDataRepository.class));
+        MapData record = record();
+        when(maps.findOrCreate("Arena", "arena.msav", "Author", "survival")).thenReturn(record);
+        var service = service(games, "survival");
+        var write = new java.util.concurrent.CompletableFuture<Void>();
+
+        service.lookUpAfter(write);
+        var handedOut = service.start(map("Arena"), "survival", "survival");
+        answerStorage();
+
+        assertThat(games.getCurrent()).as("the match begins at once").isNotNull();
+        verify(maps, never()).findOrCreate(anyString(), anyString(), anyString(), anyString());
+
+        // A failed write releases the lookup too.
+        write.completeExceptionally(new IllegalStateException("MongoDB is down"));
+        answerStorage();
+        assertThat(handedOut).isCompletedWithValue(record);
+        assertThat(games.getCurrent().map).isEqualTo(record.id);
     }
 
     @Test
