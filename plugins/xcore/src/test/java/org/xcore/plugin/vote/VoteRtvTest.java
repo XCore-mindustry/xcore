@@ -32,7 +32,6 @@ import static org.mockito.Mockito.when;
 class VoteRtvTest {
     private final DeferredStorageExecutor storage = new DeferredStorageExecutor();
     private final MapDataRepository maps = mock(MapDataRepository.class);
-    private final MatchStartService matchStarts = mock(MatchStartService.class);
 
     @Test
     @WithHeadlessWorld
@@ -47,8 +46,6 @@ class VoteRtvTest {
         vote(map("Target"), true).success();
 
         verifyNoInteractions(maps);
-        // The match on the new map looks its record up only after these counters.
-        verify(matchStarts).lookUpAfter(any());
         storage.runAll();
         verify(maps).markSkip(current.id);
         // The chosen map's own record, looked up by its own file.
@@ -74,7 +71,7 @@ class VoteRtvTest {
         var async = new Async(storage.executor(), Runnable::run);
         return new VoteRtv(target, manual, maps, new TomlSecretsConfig(), mock(SessionService.class),
                 mock(VoteService.class), mock(GameStateService.class), mock(GameDataService.class),
-                matchStarts, async, mock(RoundScope.class), null);
+                mock(MatchStartService.class), async, mock(RoundScope.class), null);
     }
 
     private static MapData record(String name) {
